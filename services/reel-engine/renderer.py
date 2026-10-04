@@ -5,7 +5,13 @@ import subprocess
 from pathlib import Path
 
 from audio_sync import analyze_beats, snap_segment_durations
-from captions import build_unified_events, parse_srt_events, transcribe_events, write_reel_ass, write_srt
+from captions import (
+    build_unified_events,
+    parse_srt_events,
+    transcribe_events,
+    write_reel_ass,
+    write_srt,
+)
 
 
 def _run(cmd: list[str]) -> None:
@@ -65,32 +71,89 @@ def _prepare_captions(
             max_chars=int(presentation.get("max_chars", 28)),
         )
 
-    cta_start = max(0.0, duration - hold)
-    video_fade = float(ending.get("video_fade_seconds", 1.2))
+    opening = cfg.get("opening", {})
+    hook = None
+    if opening.get("text"):
+        hook = {
+            "text": opening["text"],
+            "start": float(opening.get("start", 0.12)),
+            "end": float(opening.get("end", min(2.55, duration))),
+        }
 
-    final_segment_durations = [float(v) for v in target_durations]
-    if extra > 0:
-        final_segment_durations[-1] += extra
+    ending = cfg.get("ending", {})
+    cta = None
+    if ending.get("cta"):
+        cta = {
+            "text": ending["cta"],
+            "start": cta_start,
+            "end": max(cta_start + 0.2, duration - 0.25),
+        }
 
-    sidecar_srt, styled_ass = _prepare_captions(
-        input_path,
-        output_path,
-        cfg,
-        srt_path,
-        segment_durations=final_segment_durations,
+    attribution = cfg.get("attribution", {})
+    credit = None
+    if attribution.get("enabled") and attribution.get("text"):
+        credit = {
+            "text": attribution["text"],
+            "start": cta_start,
+            "end": max(cta_start + 0.2, duration - 0.25),
+        }
+
+    events = build_unified_events(
+        body_events=list(captions_cfg.get("events", [])),
+        segment_durations=segment_durations,
         duration=duration,
-        cta_start=cta_start,
+        hook=hook,
+        cta=cta,
+        credit=credit,
+        speech_events=speech_events,
     )
 
-    vf: list[str] = []
-    captions_cfg = cfg.get("captions", {})
-    if captions_cfg.get("burn_subtitles"):
-        escaped = str(styled_ass).replace("\\", "/").replace(":", "\\:")
-        vf.append(f"ass='{escaped}'")
+    write_srt(events, sidecar)
+    write_reel_ass(
+        events,
+        styled,
+        style={
+            "play_res_x": int(cfg.get("width", 1080)),
+            "play_res_y": int(cfg.get("height", 1920)),
+            **presentation,
+        },
+    )
+    return sidecar, styled
 
-    vf.append(f"fade=t=out:st={max(0.0, duration-video_fade)}:d={video_fade}")
 
-    _run([
+def _render_audio(
+    input_path: Path,
+    music_path: Path | None,
+    output_path: Path,
+    duration: float,
+    cfg: dict,
+) -> None:
+    audio_cfg = cfg.get("audio", {})
+    fade_seconds = float(
+        audio_cfg.get(
+            "fade_out_seconds",
+            cfg.get("ending", {}).get("audio_fade_seconds", 1.5),
+        )
+    )
+    fade_start = max(0.0, duration - fade_seconds)
+    fade_in = max(0.0, float(audio_cfg.get("fade_in_seconds", 0.35)))
+
+    if music_path:
+        music_volume = float(audio_cfg.get("music_volume", 0.78))
+        ambient_volume = float(audio_cfg.get("ambient_volume", 0.16))
+        music_start = max(0.0, float(audio_cfg.get("music_start_seconds", 0.0)))
+
+        if _has_audio(input_path) and ambient_volume > 0:
+            filter_complex = (
+                f"[0:a]atrim=0:{duration},asetpts=PTS-STARTPTS,"
+                f"volume={ambient_volume}[ambient];"
+                f"[1:a]atrim=0:{duration},asetpts=PTS-STARTPTS,"
+                f"volume={music_volume},"
+                f"afade=t=in:st=0:d={fade_in},"
+                f"afade=t=out:st={fade_start}:d={fade_seconds}[music];"
+                f"[ambient][music]amix=inputs=2:duration=longest:dropout_transition=1.5[mix]"
+            )
+            _run([
                 "ffmpeg", "-y", "-loglevel", "error",
                 "-i", str(input_path),
                 "-stream_loop", "-1", "-ss", str(music_start), "-i", str(music_path),
@@ -111,7 +174,6 @@ def _prepare_captions(
             ])
         return
 
-    # No music supplied: preserve the original audio with a clean tail.
     if _has_audio(input_path):
         _run([
             "ffmpeg", "-y", "-loglevel", "error", "-i", str(input_path),
@@ -187,8 +249,6 @@ def render_reel(
             "format=yuv420p",
         ]
 
-        # Render crop/scale/speed first. Exact duration is enforced separately;
-        # doing tpad in the same pass can be shortened by ffmpeg timestamp rules.
         out = workdir / f"seg_{idx:02d}.mp4"
         _run([
             "ffmpeg", "-y", "-loglevel", "error",
@@ -204,8 +264,7 @@ def render_reel(
             _run([
                 "ffmpeg", "-y", "-loglevel", "error",
                 "-i", str(out),
-                "-vf",
-                f"tpad=stop_mode=clone:stop_duration={target_duration - actual_duration}",
+                "-vf", f"tpad=stop_mode=clone:stop_duration={target_duration - actual_duration}",
                 "-t", str(target_duration),
                 "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
                 str(exact),
@@ -221,8 +280,7 @@ def render_reel(
 
     ending = cfg.get("ending", {})
     hold = float(ending.get("min_hold_seconds", 2.5))
-    last_duration = target_durations[-1]
-    extra = max(0.0, hold - last_duration)
+    extra = max(0.0, hold - float(target_durations[-1]))
     if extra > 0:
         extended = workdir / "seg_last_extended.mp4"
         _run([
@@ -235,7 +293,9 @@ def render_reel(
         rendered_segments[-1] = extended
 
     concat_file = workdir / "concat.txt"
-    concat_file.write_text("".join(f"file '{p.as_posix()}'\n" for p in rendered_segments))
+    concat_file.write_text(
+        "".join(f"file '{p.as_posix()}'\n" for p in rendered_segments)
+    )
     base = workdir / "base.mp4"
     _run([
         "ffmpeg", "-y", "-loglevel", "error",
@@ -247,51 +307,32 @@ def render_reel(
     audio = workdir / "audio.m4a"
     _render_audio(input_path, music_path, audio, duration, cfg)
 
-    opening = cfg.get("opening", {})
-    hook_text = opening.get("text", "")
-    cta_text = ending.get("cta", "")
-    credit = cfg.get("attribution", {}).get("text", "")
-
-    hook_file = workdir / "hook.txt"
-    cta_file = workdir / "cta.txt"
-    credit_file = workdir / "credit.txt"
-    hook_file.write_text(hook_text)
-    cta_file.write_text(cta_text)
-    credit_file.write_text(credit)
-
-    hook_end = float(opening.get("end", min(2.5, duration)))
     cta_start = max(0.0, duration - hold)
     video_fade = float(ending.get("video_fade_seconds", 1.2))
-    font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-    bold = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+    final_segment_durations = [float(v) for v in target_durations]
+    if extra > 0:
+        final_segment_durations[-1] += extra
 
     sidecar_srt, styled_ass = _prepare_captions(
         input_path,
         output_path,
         cfg,
         srt_path,
+        segment_durations=final_segment_durations,
+        duration=duration,
+        cta_start=cta_start,
     )
 
-    vf = [
-        f"drawtext=fontfile={bold}:textfile={hook_file}:fontcolor=white:fontsize=60:line_spacing=12:"
-        f"x=(w-text_w)/2:y=h*0.35:box=1:boxcolor=black@0.24:boxborderw=24:"
-        f"enable='between(t,{float(opening.get('start', 0.1))},{hook_end})'",
-        f"drawtext=fontfile={bold}:textfile={cta_file}:fontcolor=white:fontsize=60:line_spacing=12:"
-        f"x=(w-text_w)/2:y=h*0.38:box=1:boxcolor=black@0.30:boxborderw=24:"
-        f"enable='between(t,{cta_start},{max(cta_start, duration - 0.3)})'",
-    ]
-    if credit:
-        vf.append(
-            f"drawtext=fontfile={font}:textfile={credit_file}:fontcolor=white@0.80:fontsize=28:"
-            f"x=36:y=h-88:enable='between(t,{cta_start},{max(cta_start, duration - 0.3)})'"
-        )
-
+    vf: list[str] = []
     captions_cfg = cfg.get("captions", {})
     if captions_cfg.get("burn_subtitles"):
         escaped = str(styled_ass).replace("\\", "/").replace(":", "\\:")
         vf.append(f"ass='{escaped}'")
 
-    vf.append(f"fade=t=out:st={max(0.0, duration-video_fade)}:d={video_fade}")
+    vf.append(
+        f"fade=t=out:st={max(0.0, duration-video_fade)}:d={video_fade}"
+    )
 
     _run([
         "ffmpeg", "-y", "-loglevel", "error",
@@ -309,7 +350,9 @@ def render_reel(
         "cta_start": cta_start,
         "srt": str(sidecar_srt),
         "styled_captions": str(styled_ass),
-        "caption_mode": cfg.get("captions", {}).get("presentation", {}).get("mode", "scenic-single-track"),
+        "caption_mode": cfg.get("captions", {}).get("presentation", {}).get(
+            "mode", "scenic-single-track"
+        ),
         "music_sync": beat_info,
-        "segment_durations": [round(float(v), 4) for v in target_durations],
+        "segment_durations": [round(float(v), 4) for v in final_segment_durations],
     }
