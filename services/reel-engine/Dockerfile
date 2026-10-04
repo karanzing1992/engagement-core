@@ -6,9 +6,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt ./
+COPY requirements.txt constraints.txt ./
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir "ffmpeg-mcp[whisper,vision] @ git+https://github.com/AbyAbyss/ffmpeg-mcp-video-editor.git@c65cd584c5ee1a54d2069ef8c523524216d5fb31"
+    && pip install --no-cache-dir -c constraints.txt "ffmpeg-mcp[whisper,vision] @ git+https://github.com/AbyAbyss/ffmpeg-mcp-video-editor.git@c65cd584c5ee1a54d2069ef8c523524216d5fb31"
 
 COPY . .
 RUN python -m compileall . && python -c "import app, audio_sync, captions, music_library, renderer"
