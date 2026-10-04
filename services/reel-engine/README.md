@@ -4,31 +4,78 @@ Programmatic short-form video renderer for Goa Wellness / Goa Reset and later br
 
 ## Backend
 
-The Docker image installs the upstream MIT-licensed **ffmpeg-mcp-video-editor** pinned to:
+The image installs the upstream MIT-licensed **ffmpeg-mcp-video-editor**, pinned to:
 
 `c65cd584c5ee1a54d2069ef8c523524216d5fb31`
 
-It also exposes a small HTTP orchestration layer for deterministic Reel renders. No editor UI is required.
+The service is headless. It exposes HTTP endpoints for Reel rendering, SRT generation,
+licensed music ingestion/ranking, beat analysis and music-synced cuts.
 
-## API
+## Render API
 
-`POST /v1/render`
+`POST /v1/render` as multipart form data:
 
-Multipart fields:
+- `video` — source video
+- `config_json` — timeline + brand settings
+- `music` — optional explicit music track
+- `subtitles` — optional supplied SRT
 
-- `video`: source media
-- `config_json`: JSON timeline/config
+If no `music` file is supplied and `audio.music_library.auto_select=true`, the
+engine selects a commercially-cleared track from `/data/music` using mood, BPM,
+platform and audio features, then uses that track for beat synchronization.
 
-The response returns a job ID and a download route.
+The response includes the selected music metadata, detected BPM, snapped shot
+durations, MP4 route and SRT route.
 
-## Design rules
+## Music library
 
-- Brand-specific behavior lives in `configs/`.
-- Rendering stays brand-agnostic.
-- CTA hold and audio/video fade are enforced by configuration.
-- Source overlays can be handled per segment using `crop_top`.
-- Render output is H.264/AAC MP4 with faststart.
-- Upstream FFmpeg-MCP remains available in the image for richer MCP-driven operations such as scene detection, face tracking, captions, contact sheets and inspection.
+`POST /v1/music` accepts:
+
+- `track` — audio file
+- `metadata_json` — rights + descriptive metadata
+
+Minimum metadata:
+
+```json
+{
+  "title": "Example Track",
+  "artist": "Artist",
+  "license": "royalty-free-commercial",
+  "commercial_use": true,
+  "platforms": ["instagram", "youtube", "facebook"],
+  "tags": ["serene", "organic", "premium", "wellness"],
+  "license_source": "invoice/license URL or internal record"
+}
+```
+
+Accepted automatic-selection licenses are deliberately restricted to:
+`owned`, `original`, `cc0`, `public-domain`,
+`royalty-free-commercial`, and `licensed-commercial`.
+
+Optional `license_expires` is enforced. Expired tracks are excluded.
+
+Other music endpoints:
+
+- `GET /v1/music?platform=instagram` — list usable tracks
+- `GET /v1/music/rank?moods=serene,organic&target_bpm=104&platform=instagram`
+- `GET /v1/jobs/{job_id}` — render metadata including music choice
+- `GET /v1/jobs/{job_id}/video`
+- `GET /v1/jobs/{job_id}/srt`
+
+## Goa Wellness defaults
+
+The Goa Wellness preset requests:
+
+- moods: serene, organic, premium, wellness, cinematic
+- target BPM: 104
+- allowed BPM range: 82–116
+- Instagram clearance
+- 4 beats per visual cut
+- 1.2–3.0 second normal shot window
+- 2.8 second minimum CTA hold
+- ambient source sound underneath selected music
+- 1.8 second music fade
+- SRT sidecar output
 
 ## Local run
 
@@ -37,8 +84,4 @@ docker build -t engagement-reel-engine .
 docker run --rm -p 8080:8080 -v $PWD/data:/data engagement-reel-engine
 ```
 
-Then call `POST http://localhost:8080/v1/render`.
-
-## Next layer
-
-The selector/orchestrator can use vidIQ/outlier research and visual scene scoring to generate the segment timeline before calling this renderer. Publishing remains a separate adapter.
+No editor UI is required.
