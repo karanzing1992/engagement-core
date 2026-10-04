@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir "ffmpeg-mcp[whisper,vision] @ git+https://github.com/AbyAbyss/ffmpeg-mcp-video-editor.git@c65cd584c5ee1a54d2069ef8c523524216d5fb31"
 
 COPY . .
+RUN python -m compileall . && python -c "import app, audio_sync, captions, music_library, renderer"
 RUN mkdir -p /data/uploads /data/jobs /data/outputs /data/music
 ENV REEL_DATA_ROOT=/data
 ENV FFMPEG_MCP_WORKSPACE=/data/ffmpeg-mcp
