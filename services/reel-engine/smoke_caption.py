@@ -2,29 +2,46 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-from captions import normalize_events, write_ass
+from captions import write_reel_ass
 
 with tempfile.TemporaryDirectory() as tmp:
     root = Path(tmp)
     ass = root / "captions.ass"
     out = root / "caption-smoke.mp4"
 
-    events = normalize_events([
+    events = [
         {
+            "kind": "hook",
             "start": 0.0,
-            "end": 2.0,
+            "end": 0.75,
             "text": "Goa has a slower side",
-        }
-    ])
-    write_ass(
+        },
+        {
+            "kind": "body",
+            "start": 0.85,
+            "end": 1.35,
+            "text": "Rain changes the pace.",
+        },
+        {
+            "kind": "cta",
+            "start": 1.45,
+            "end": 1.95,
+            "text": "Comment GOA",
+        },
+    ]
+
+    write_reel_ass(
         events,
         ass,
         style={
             "play_res_x": 1080,
             "play_res_y": 1920,
-            "font_size": 64,
-            "y": 1280,
-            "active_color": "#DDE9CF",
+            "font_size": 56,
+            "hook_font_size": 66,
+            "cta_font_size": 62,
+            "hook_y": 690,
+            "body_y": 1280,
+            "cta_y": 960,
         },
     )
 
