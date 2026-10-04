@@ -1,0 +1,32 @@
+{
+  "brand": "goa-wellness",
+  "format": "reel",
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "duration_min": 18,
+  "duration_max": 25,
+  "opening_hook": {
+    "required": true,
+    "max_seconds": 2.5
+  },
+  "ending": {
+    "min_hold_seconds": 2.5,
+    "cta": "Want the place? Comment ‘GOA’ or DM us",
+    "audio_fade_seconds": 1.5
+  },
+  "text": {
+    "font": "DejaVuSans-Bold.ttf",
+    "position": "center",
+    "max_lines": 2
+  },
+  "qa": {
+    "reject_if_end_abrupt": true,
+    "reject_if_cta_under_seconds": 2.2,
+    "reject_if_source_endcard_detected": true
+  },
+  "attribution": {
+    "enabled": true,
+    "label": "Footage"
+  }
+}
