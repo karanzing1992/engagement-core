@@ -46,9 +46,25 @@
   },
   "captions": {
     "auto_transcribe": false,
-    "burn_subtitles": false,
+    "burn_subtitles": true,
     "sidecar_srt": true,
-    "whisper_model": "base"
+    "whisper_model": "base",
+    "presentation": {
+      "mode": "word-focus",
+      "max_words": 5,
+      "max_chars": 27,
+      "font_name": "DejaVu Sans",
+      "font_size": 64,
+      "active_size_pct": 106,
+      "y": 1280,
+      "primary_color": "#FFFFFF",
+      "active_color": "#DDE9CF",
+      "outline_color": "#111111",
+      "shadow_color": "#000000",
+      "outline": 3,
+      "shadow": 1,
+      "margin_lr": 95
+    }
   },
   "text": {
     "font": "DejaVuSans-Bold.ttf",
@@ -61,7 +77,9 @@
     "reject_if_source_endcard_detected": true,
     "require_music_fade": true,
     "require_srt": true,
-    "require_commercial_music_clearance": true
+    "require_commercial_music_clearance": true,
+    "require_caption_safe_zone": true,
+    "require_max_caption_lines": 2
   },
   "attribution": {
     "enabled": true,
