@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 from audio_sync import analyze_beats, snap_segment_durations
-from captions import normalize_events, parse_srt_events, transcribe_events, write_ass, write_srt
+from captions import build_unified_events, parse_srt_events, transcribe_events, write_reel_ass, write_srt
 
 
 def _run(cmd: list[str]) -> None:
@@ -44,79 +44,53 @@ def _prepare_captions(
     output_path: Path,
     cfg: dict,
     supplied_srt: Path | None,
+    *,
+    segment_durations: list[float],
+    duration: float,
+    cta_start: float,
 ) -> tuple[Path, Path]:
     sidecar = output_path.with_suffix(".srt")
     styled = output_path.with_suffix(".ass")
     captions_cfg = cfg.get("captions", {})
     presentation = captions_cfg.get("presentation", {})
-    max_words = int(presentation.get("max_words", 5))
-    max_chars = int(presentation.get("max_chars", 27))
 
+    speech_events: list[dict] = []
     if supplied_srt and supplied_srt.exists():
-        events = normalize_events(
-            parse_srt_events(supplied_srt),
-            max_words=max_words,
-            max_chars=max_chars,
-        )
+        speech_events = parse_srt_events(supplied_srt)
     elif captions_cfg.get("auto_transcribe"):
-        events = transcribe_events(
+        speech_events = transcribe_events(
             input_path,
             model_name=str(captions_cfg.get("whisper_model", "base")),
-            max_words=max_words,
-            max_chars=max_chars,
-        )
-    else:
-        # Hook and CTA are intentionally NOT folded into dialogue captions;
-        # they keep their own typography and visual hierarchy.
-        events = normalize_events(
-            list(captions_cfg.get("events", [])),
-            max_words=max_words,
-            max_chars=max_chars,
+            max_words=int(presentation.get("max_words", 5)),
+            max_chars=int(presentation.get("max_chars", 28)),
         )
 
-    write_srt(events, sidecar)
-    style = {
-        "play_res_x": int(cfg.get("width", 1080)),
-        "play_res_y": int(cfg.get("height", 1920)),
-        **presentation,
-    }
-    write_ass(events, styled, style=style)
-    return sidecar, styled
+    cta_start = max(0.0, duration - hold)
+    video_fade = float(ending.get("video_fade_seconds", 1.2))
 
+    final_segment_durations = [float(v) for v in target_durations]
+    if extra > 0:
+        final_segment_durations[-1] += extra
 
-def _render_audio(
-    input_path: Path,
-    music_path: Path | None,
-    output_path: Path,
-    duration: float,
-    cfg: dict,
-) -> None:
-    audio_cfg = cfg.get("audio", {})
-    fade_seconds = float(
-        audio_cfg.get(
-            "fade_out_seconds",
-            cfg.get("ending", {}).get("audio_fade_seconds", 1.5),
-        )
+    sidecar_srt, styled_ass = _prepare_captions(
+        input_path,
+        output_path,
+        cfg,
+        srt_path,
+        segment_durations=final_segment_durations,
+        duration=duration,
+        cta_start=cta_start,
     )
-    fade_start = max(0.0, duration - fade_seconds)
-    fade_in = max(0.0, float(audio_cfg.get("fade_in_seconds", 0.35)))
 
-    if music_path:
-        music_volume = float(audio_cfg.get("music_volume", 0.78))
-        ambient_volume = float(audio_cfg.get("ambient_volume", 0.16))
-        music_start = max(0.0, float(audio_cfg.get("music_start_seconds", 0.0)))
+    vf: list[str] = []
+    captions_cfg = cfg.get("captions", {})
+    if captions_cfg.get("burn_subtitles"):
+        escaped = str(styled_ass).replace("\\", "/").replace(":", "\\:")
+        vf.append(f"ass='{escaped}'")
 
-        if _has_audio(input_path) and ambient_volume > 0:
-            filter_complex = (
-                f"[0:a]atrim=0:{duration},asetpts=PTS-STARTPTS,"
-                f"volume={ambient_volume}[ambient];"
-                f"[1:a]atrim=0:{duration},asetpts=PTS-STARTPTS,"
-                f"volume={music_volume},"
-                f"afade=t=in:st=0:d={fade_in},"
-                f"afade=t=out:st={fade_start}:d={fade_seconds}[music];"
-                f"[ambient][music]amix=inputs=2:duration=longest:dropout_transition=1.5[mix]"
-            )
-            _run([
+    vf.append(f"fade=t=out:st={max(0.0, duration-video_fade)}:d={video_fade}")
+
+    _run([
                 "ffmpeg", "-y", "-loglevel", "error",
                 "-i", str(input_path),
                 "-stream_loop", "-1", "-ss", str(music_start), "-i", str(music_path),
@@ -335,7 +309,7 @@ def render_reel(
         "cta_start": cta_start,
         "srt": str(sidecar_srt),
         "styled_captions": str(styled_ass),
-        "caption_mode": cfg.get("captions", {}).get("presentation", {}).get("mode", "word-focus"),
+        "caption_mode": cfg.get("captions", {}).get("presentation", {}).get("mode", "scenic-single-track"),
         "music_sync": beat_info,
         "segment_durations": [round(float(v), 4) for v in target_durations],
     }
