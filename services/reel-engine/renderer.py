@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 from audio_sync import analyze_beats, snap_segment_durations
-from captions import auto_transcribe_to_srt, write_srt
+from captions import normalize_events, parse_srt_events, transcribe_events, write_ass, write_srt
 
 
 def _run(cmd: list[str]) -> None:
@@ -39,49 +39,49 @@ def _has_audio(path: Path) -> bool:
     return bool(out.strip())
 
 
-def _prepare_srt(
+def _prepare_captions(
     input_path: Path,
     output_path: Path,
     cfg: dict,
-    duration: float,
-    cta_start: float,
     supplied_srt: Path | None,
-) -> Path:
+) -> tuple[Path, Path]:
     sidecar = output_path.with_suffix(".srt")
+    styled = output_path.with_suffix(".ass")
     captions_cfg = cfg.get("captions", {})
+    presentation = captions_cfg.get("presentation", {})
+    max_words = int(presentation.get("max_words", 5))
+    max_chars = int(presentation.get("max_chars", 27))
 
     if supplied_srt and supplied_srt.exists():
-        shutil.copyfile(supplied_srt, sidecar)
-        return sidecar
-
-    if captions_cfg.get("auto_transcribe"):
-        return auto_transcribe_to_srt(
+        events = normalize_events(
+            parse_srt_events(supplied_srt),
+            max_words=max_words,
+            max_chars=max_chars,
+        )
+    elif captions_cfg.get("auto_transcribe"):
+        events = transcribe_events(
             input_path,
-            sidecar,
             model_name=str(captions_cfg.get("whisper_model", "base")),
+            max_words=max_words,
+            max_chars=max_chars,
+        )
+    else:
+        # Hook and CTA are intentionally NOT folded into dialogue captions;
+        # they keep their own typography and visual hierarchy.
+        events = normalize_events(
+            list(captions_cfg.get("events", [])),
+            max_words=max_words,
+            max_chars=max_chars,
         )
 
-    events = list(captions_cfg.get("events", []))
-    opening = cfg.get("opening", {})
-    if opening.get("text"):
-        events.insert(
-            0,
-            {
-                "start": float(opening.get("start", 0.1)),
-                "end": float(opening.get("end", min(2.5, duration))),
-                "text": opening["text"],
-            },
-        )
-    ending = cfg.get("ending", {})
-    if ending.get("cta"):
-        events.append(
-            {
-                "start": cta_start,
-                "end": max(cta_start + 0.1, duration - 0.25),
-                "text": ending["cta"],
-            }
-        )
-    return write_srt(events, sidecar)
+    write_srt(events, sidecar)
+    style = {
+        "play_res_x": int(cfg.get("width", 1080)),
+        "play_res_y": int(cfg.get("height", 1920)),
+        **presentation,
+    }
+    write_ass(events, styled, style=style)
+    return sidecar, styled
 
 
 def _render_audio(
@@ -291,12 +291,10 @@ def render_reel(
     font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
     bold = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
-    sidecar_srt = _prepare_srt(
+    sidecar_srt, styled_ass = _prepare_captions(
         input_path,
         output_path,
         cfg,
-        duration,
-        cta_start,
         srt_path,
     )
 
@@ -316,12 +314,8 @@ def render_reel(
 
     captions_cfg = cfg.get("captions", {})
     if captions_cfg.get("burn_subtitles"):
-        escaped = str(sidecar_srt).replace("\\", "/").replace(":", "\\:")
-        vf.append(
-            f"subtitles='{escaped}':force_style="
-            f"'FontName=DejaVu Sans,FontSize=18,Alignment=2,MarginV=150,"
-            f"Outline=2,Shadow=0,PrimaryColour=&H00FFFFFF'"
-        )
+        escaped = str(styled_ass).replace("\\", "/").replace(":", "\\:")
+        vf.append(f"ass='{escaped}'")
 
     vf.append(f"fade=t=out:st={max(0.0, duration-video_fade)}:d={video_fade}")
 
@@ -340,6 +334,8 @@ def render_reel(
         "duration": _probe_duration(output_path),
         "cta_start": cta_start,
         "srt": str(sidecar_srt),
+        "styled_captions": str(styled_ass),
+        "caption_mode": cfg.get("captions", {}).get("presentation", {}).get("mode", "word-focus"),
         "music_sync": beat_info,
         "segment_durations": [round(float(v), 4) for v in target_durations],
     }
