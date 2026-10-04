@@ -201,8 +201,6 @@ def render_reel(
 
         ratio = target_duration / source_duration
         speed_factor = min(1.15, max(0.85, ratio))
-        produced_duration = source_duration * speed_factor
-        pad = max(0.0, target_duration - produced_duration)
 
         filters: list[str] = []
         if crop_top > 0:
@@ -212,29 +210,39 @@ def render_reel(
             f"crop={width}:{height}",
             f"fps={fps}",
             f"setpts={speed_factor}*PTS",
+            "format=yuv420p",
         ]
-        if pad > 0.02:
-            filters.append(f"tpad=stop_mode=clone:stop_duration={pad}")
-        filters.append("format=yuv420p")
 
+        # Render crop/scale/speed first. Exact duration is enforced separately;
+        # doing tpad in the same pass can be shortened by ffmpeg timestamp rules.
         out = workdir / f"seg_{idx:02d}.mp4"
         _run([
             "ffmpeg", "-y", "-loglevel", "error",
-            "-ss", str(start), "-i", str(input_path),
-            "-t", str(source_duration),
+            "-ss", str(start), "-t", str(source_duration), "-i", str(input_path),
             "-an", "-vf", ",".join(filters),
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
             str(out),
         ])
 
-        # Guarantee the exact beat-snapped duration.
+        actual_duration = _probe_duration(out)
         exact = workdir / f"seg_{idx:02d}_exact.mp4"
-        _run([
-            "ffmpeg", "-y", "-loglevel", "error",
-            "-i", str(out), "-t", str(target_duration),
-            "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
-            str(exact),
-        ])
+        if actual_duration < target_duration - 0.02:
+            _run([
+                "ffmpeg", "-y", "-loglevel", "error",
+                "-i", str(out),
+                "-vf",
+                f"tpad=stop_mode=clone:stop_duration={target_duration - actual_duration}",
+                "-t", str(target_duration),
+                "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
+                str(exact),
+            ])
+        else:
+            _run([
+                "ffmpeg", "-y", "-loglevel", "error",
+                "-i", str(out), "-t", str(target_duration),
+                "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
+                str(exact),
+            ])
         rendered_segments.append(exact)
 
     ending = cfg.get("ending", {})
