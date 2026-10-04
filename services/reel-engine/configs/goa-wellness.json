@@ -22,6 +22,21 @@
     "fade_in_seconds": 0.35,
     "fade_out_seconds": 1.8,
     "music_start_seconds": 0,
+    "music_library": {
+      "auto_select": true,
+      "required": false,
+      "moods": [
+        "serene",
+        "organic",
+        "premium",
+        "wellness",
+        "cinematic"
+      ],
+      "target_bpm": 104,
+      "bpm_min": 82,
+      "bpm_max": 116,
+      "platform": "instagram"
+    },
     "beat_sync": {
       "enabled": true,
       "beats_per_cut": 4,
@@ -45,7 +60,8 @@
     "reject_if_cta_under_seconds": 2.2,
     "reject_if_source_endcard_detected": true,
     "require_music_fade": true,
-    "require_srt": true
+    "require_srt": true,
+    "require_commercial_music_clearance": true
   },
   "attribution": {
     "enabled": true,
