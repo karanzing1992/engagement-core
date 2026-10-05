@@ -1,0 +1,66 @@
+name: Render Morning Note Light
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/render-morning-note-light.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install FFmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg fonts-ebgaramond
+
+      - name: Download source assets
+        run: |
+          curl -L --fail --retry 3 'https://sdmntprindiasocentral.oaiusercontent.com/files/00000000-b258-8211-b8fd-14c165e0b765/raw?se=2026-10-05T03%3A04%3A44Z&sp=r&sv=2026-02-06&sr=b&scid=9490f292-0e85-5eb7-b139-720b7107ad01&skoid=a3d7d4f3-706d-48bc-8860-17488c12cb39&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-05T01%3A38%3A01Z&ske=2026-10-06T01%3A38%3A01Z&sks=b&skv=2026-02-06&sig=3JnVTSrKIrRt92IWxzGRMIuD2TAV%2BWrVsVWX6RmZ6Ns%3D' -o source.mp4
+          curl -L --fail --retry 3 'https://dnznrvs05pmza.cloudfront.net/text_to_speech/e747fa33-2776-44e1-a67d-c7715df56c82/Morning_Note___Light_is_information.mp3?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiMmNiZGYwYzlmNjJkZDlhNCIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTMzMzQ0OX0.YqhRx3qz0EjXcPa-icdaY9iol-FKHLTMhKSCMS3-O8M' -o voice.mp3
+          curl -L --fail --retry 3 'https://sdmntprindiasocentral.oaiusercontent.com/files/00000000-0014-8211-8489-4843e00c2f69/raw?se=2026-10-05T03%3A07%3A31Z&sp=r&sv=2026-02-06&sr=b&scid=b7059995-09da-5565-9b42-cdbd2f7d9a59&skoid=a3d7d4f3-706d-48bc-8860-17488c12cb39&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-04T22%3A36%3A01Z&ske=2026-10-05T22%3A36%3A01Z&sks=b&skv=2026-02-06&sig=uuvCLmYaPJ9ETp%2BjIJs4VG1shlW/gaAPazIKNXHGdc0%3D' -o logo.jpg
+
+      - name: Build captions
+        run: |
+          cat > captions.ass <<'EOF'
+          [Script Info]
+          ScriptType: v4.00+
+          PlayResX: 1080
+          PlayResY: 1920
+          WrapStyle: 2
+          [V4+ Styles]
+          Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
+          Style: Main,EB Garamond,80,&H00FFFFFF,&H00FFFFFF,&H78000000,&H50000000,0,-1,0,0,100,100,0,0,1,2,1,5,90,90,0,1
+          [Events]
+          Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+          Dialogue: 0,0:00:00.30,0:00:03.30,Main,,0,0,0,,{\fad(180,220)}Your eyes don’t only use light\Nto see.
+          Dialogue: 0,0:00:03.55,0:00:06.60,Main,,0,0,0,,{\fad(180,220)}Light also tells your body\Nwhat time it is.
+          Dialogue: 0,0:00:06.85,0:00:10.45,Main,,0,0,0,,{\fad(180,220)}Daytime light helps your internal clock\Nunderstand: this is daytime.
+          Dialogue: 0,0:00:10.70,0:00:14.65,Main,,0,0,0,,{\fad(180,220)}And that clock helps organize\Nsleep, alertness and mood.
+          Dialogue: 0,0:00:14.95,0:00:18.15,Main,,0,0,0,,{\fad(180,220)}So this morning…\Nbefore adding more input,
+          Dialogue: 0,0:00:18.30,0:00:22.45,Main,,0,0,0,,{\fad(180,320)}try adding a little daylight.
+          EOF
+
+      - name: Render highest-quality Meta master
+        shell: bash
+        run: |
+          DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 source.mp4)
+          FACTOR=$(python3 -c "print(22.64/float('$DUR'))")
+          ffmpeg -y -i source.mp4 -i voice.mp3 -loop 1 -i logo.jpg \
+            -f lavfi -t 22.64 -i "sine=frequency=174:sample_rate=48000" \
+            -filter_complex "[0:v]setpts=${FACTOR}*PTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.03:contrast=1.015:brightness=0.005,subtitles=captions.ass[v0];[2:v]scale=90:-1,format=rgba,colorchannelmixer=aa=0.22[lg];[v0][lg]overlay=(W-w)/2:H-h-90[v];[3:a]volume=0.025,afade=t=in:st=0:d=1.5,afade=t=out:st=20.6:d=2.0[amb];[1:a]volume=0.92[vo];[vo][amb]amix=inputs=2:duration=first:dropout_transition=2,loudnorm=I=-16:TP=-1.5:LRA=7[a]" \
+            -map "[v]" -map "[a]" -t 22.64 \
+            -c:v libx264 -preset slow -crf 16 -profile:v high -level 4.1 -pix_fmt yuv420p \
+            -c:a aac -b:a 320k -ar 48000 -movflags +faststart \
+            morning-note-light-final.mp4
+          ffprobe -v error -show_entries format=duration,size,bit_rate -show_entries stream=codec_name,width,height,r_frame_rate -of json morning-note-light-final.mp4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: morning-note-light-final
+          path: morning-note-light-final.mp4
+          retention-days: 7
