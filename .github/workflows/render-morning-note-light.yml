@@ -1,30 +1,25 @@
-name: Render Morning Note Light
-
+name: Render Morning Note Light V2
 on:
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/render-morning-note-light.yml"
-
+    paths: [".github/workflows/render-morning-note-light.yml"]
 permissions:
   contents: read
-
 jobs:
   render:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install FFmpeg
         run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg fonts-ebgaramond
-
-      - name: Download source assets
+      - name: Download assets
         run: |
           curl -L --fail --retry 3 'https://sdmntprindiasocentral.oaiusercontent.com/files/00000000-b258-8211-b8fd-14c165e0b765/raw?se=2026-10-05T03%3A04%3A44Z&sp=r&sv=2026-02-06&sr=b&scid=9490f292-0e85-5eb7-b139-720b7107ad01&skoid=a3d7d4f3-706d-48bc-8860-17488c12cb39&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-05T01%3A38%3A01Z&ske=2026-10-06T01%3A38%3A01Z&sks=b&skv=2026-02-06&sig=3JnVTSrKIrRt92IWxzGRMIuD2TAV%2BWrVsVWX6RmZ6Ns%3D' -o source.mp4
           curl -L --fail --retry 3 'https://dnznrvs05pmza.cloudfront.net/text_to_speech/e747fa33-2776-44e1-a67d-c7715df56c82/Morning_Note___Light_is_information.mp3?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiMmNiZGYwYzlmNjJkZDlhNCIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTMzMzQ0OX0.YqhRx3qz0EjXcPa-icdaY9iol-FKHLTMhKSCMS3-O8M' -o voice.mp3
           curl -L --fail --retry 3 'https://sdmntprindiasocentral.oaiusercontent.com/files/00000000-0014-8211-8489-4843e00c2f69/raw?se=2026-10-05T03%3A07%3A31Z&sp=r&sv=2026-02-06&sr=b&scid=b7059995-09da-5565-9b42-cdbd2f7d9a59&skoid=a3d7d4f3-706d-48bc-8860-17488c12cb39&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-04T22%3A36%3A01Z&ske=2026-10-05T22%3A36%3A01Z&sks=b&skv=2026-02-06&sig=uuvCLmYaPJ9ETp%2BjIJs4VG1shlW/gaAPazIKNXHGdc0%3D' -o logo.jpg
-
-      - name: Build captions
+          curl -L --fail --retry 3 'https://assets.mixkit.co/music/preview/mixkit-valley-sunset-127.mp3' -o music.mp3
+          test -s music.mp3
+      - name: Build word-fade captions
         run: |
           cat > captions.ass <<'EOF'
           [Script Info]
@@ -34,33 +29,24 @@ jobs:
           WrapStyle: 2
           [V4+ Styles]
           Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
-          Style: Main,EB Garamond,80,&H00FFFFFF,&H00FFFFFF,&H78000000,&H50000000,0,-1,0,0,100,100,0,0,1,2,1,5,90,90,0,1
+          Style: Main,EB Garamond,82,&H00FFFFFF,&H00FFFFFF,&H70000000,&H30000000,0,-1,0,0,100,100,0,0,1,2,1,5,105,105,0,1
           [Events]
           Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-          Dialogue: 0,0:00:00.30,0:00:03.30,Main,,0,0,0,,{\fad(180,220)}Your eyes don’t only use light\Nto see.
-          Dialogue: 0,0:00:03.55,0:00:06.60,Main,,0,0,0,,{\fad(180,220)}Light also tells your body\Nwhat time it is.
-          Dialogue: 0,0:00:06.85,0:00:10.45,Main,,0,0,0,,{\fad(180,220)}Daytime light helps your internal clock\Nunderstand: this is daytime.
-          Dialogue: 0,0:00:10.70,0:00:14.65,Main,,0,0,0,,{\fad(180,220)}And that clock helps organize\Nsleep, alertness and mood.
-          Dialogue: 0,0:00:14.95,0:00:18.15,Main,,0,0,0,,{\fad(180,220)}So this morning…\Nbefore adding more input,
-          Dialogue: 0,0:00:18.30,0:00:22.45,Main,,0,0,0,,{\fad(180,320)}try adding a little daylight.
+          Dialogue: 0,0:00:00.30,0:00:03.30,Main,,0,0,0,,{\alpha&HFF&\t(0,160,\alpha&H00&)}Your {\alpha&HFF&\t(320,480,\alpha&H00&)}eyes {\alpha&HFF&\t(620,780,\alpha&H00&)}don’t {\alpha&HFF&\t(950,1110,\alpha&H00&)}only {\alpha&HFF&\t(1280,1440,\alpha&H00&)}use {\alpha&HFF&\t(1600,1760,\alpha&H00&)}light\N{\alpha&HFF&\t(2050,2210,\alpha&H00&)}to {\alpha&HFF&\t(2380,2540,\alpha&H00&)}see.
+          Dialogue: 0,0:00:03.55,0:00:06.60,Main,,0,0,0,,{\alpha&HFF&\t(0,160,\alpha&H00&)}Light {\alpha&HFF&\t(430,590,\alpha&H00&)}also {\alpha&HFF&\t(790,950,\alpha&H00&)}tells {\alpha&HFF&\t(1130,1290,\alpha&H00&)}your {\alpha&HFF&\t(1450,1610,\alpha&H00&)}body\N{\alpha&HFF&\t(1800,1960,\alpha&H00&)}what {\alpha&HFF&\t(2110,2270,\alpha&H00&)}time {\alpha&HFF&\t(2420,2580,\alpha&H00&)}it {\alpha&HFF&\t(2700,2860,\alpha&H00&)}is.
+          Dialogue: 0,0:00:06.85,0:00:10.45,Main,,0,0,0,,{\alpha&HFF&\t(0,160,\alpha&H00&)}Daytime {\alpha&HFF&\t(480,640,\alpha&H00&)}light {\alpha&HFF&\t(850,1010,\alpha&H00&)}helps {\alpha&HFF&\t(1210,1370,\alpha&H00&)}your {\alpha&HFF&\t(1510,1670,\alpha&H00&)}internal {\alpha&HFF&\t(1980,2140,\alpha&H00&)}clock\N{\alpha&HFF&\t(2350,2510,\alpha&H00&)}understand: {\alpha&HFF&\t(2880,3040,\alpha&H00&)}this {\alpha&HFF&\t(3130,3290,\alpha&H00&)}is {\alpha&HFF&\t(3360,3520,\alpha&H00&)}daytime.
+          Dialogue: 0,0:00:10.70,0:00:14.65,Main,,0,0,0,,{\alpha&HFF&\t(0,160,\alpha&H00&)}And {\alpha&HFF&\t(300,460,\alpha&H00&)}that {\alpha&HFF&\t(600,760,\alpha&H00&)}clock {\alpha&HFF&\t(980,1140,\alpha&H00&)}helps {\alpha&HFF&\t(1340,1500,\alpha&H00&)}organize\N{\alpha&HFF&\t(1840,2000,\alpha&H00&)}sleep, {\alpha&HFF&\t(2260,2420,\alpha&H00&)}alertness {\alpha&HFF&\t(2920,3080,\alpha&H00&)}and {\alpha&HFF&\t(3260,3420,\alpha&H00&)}mood.
+          Dialogue: 0,0:00:14.95,0:00:18.15,Main,,0,0,0,,{\alpha&HFF&\t(0,160,\alpha&H00&)}So {\alpha&HFF&\t(300,460,\alpha&H00&)}this {\alpha&HFF&\t(620,780,\alpha&H00&)}morning…\N{\alpha&HFF&\t(1180,1340,\alpha&H00&)}before {\alpha&HFF&\t(1570,1730,\alpha&H00&)}adding {\alpha&HFF&\t(1980,2140,\alpha&H00&)}more {\alpha&HFF&\t(2340,2500,\alpha&H00&)}input,
+          Dialogue: 0,0:00:18.30,0:00:22.45,Main,,0,0,0,,{\alpha&HFF&\t(0,160,\alpha&H00&)}try {\alpha&HFF&\t(420,580,\alpha&H00&)}adding {\alpha&HFF&\t(980,1140,\alpha&H00&)}a {\alpha&HFF&\t(1320,1480,\alpha&H00&)}little {\alpha&HFF&\t(1900,2060,\alpha&H00&)}daylight.{\fad(0,400)}
           EOF
-
-      - name: Render highest-quality Meta master
-        shell: bash
+      - name: Render V2
         run: |
           DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 source.mp4)
           FACTOR=$(python3 -c "print(22.64/float('$DUR'))")
-          ffmpeg -y -i source.mp4 -i voice.mp3 -loop 1 -i logo.jpg \
-            -f lavfi -t 22.64 -i "sine=frequency=174:sample_rate=48000" \
-            -filter_complex "[0:v]setpts=${FACTOR}*PTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.03:contrast=1.015:brightness=0.005,subtitles=captions.ass[v0];[2:v]scale=90:-1,format=rgba,colorchannelmixer=aa=0.22[lg];[v0][lg]overlay=(W-w)/2:H-h-90[v];[3:a]volume=0.025,afade=t=in:st=0:d=1.5,afade=t=out:st=20.6:d=2.0[amb];[1:a]volume=0.92[vo];[vo][amb]amix=inputs=2:duration=first:dropout_transition=2,loudnorm=I=-16:TP=-1.5:LRA=7[a]" \
-            -map "[v]" -map "[a]" -t 22.64 \
-            -c:v libx264 -preset slow -crf 16 -profile:v high -level 4.1 -pix_fmt yuv420p \
-            -c:a aac -b:a 320k -ar 48000 -movflags +faststart \
-            morning-note-light-final.mp4
-          ffprobe -v error -show_entries format=duration,size,bit_rate -show_entries stream=codec_name,width,height,r_frame_rate -of json morning-note-light-final.mp4
-
+          ffmpeg -y -i source.mp4 -i voice.mp3 -i music.mp3 -loop 1 -i logo.jpg -filter_complex "[0:v]setpts=$FACTOR*PTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.03:contrast=1.015:brightness=0.005,subtitles=captions.ass[v0];[3:v]scale=90:-1,format=rgba,colorchannelmixer=aa=0.22[lg];[v0][lg]overlay=(W-w)/2:H-h-90[v];[2:a]atrim=0:22.64,asetpts=PTS-STARTPTS,volume=0.18,afade=t=in:st=0:d=1.2,afade=t=out:st=20.3:d=2.2[m];[1:a]volume=1.0[vo];[vo][m]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-15:TP=-1.5:LRA=7[a]" -map "[v]" -map "[a]" -t 22.64 -c:v libx264 -preset slow -crf 16 -profile:v high -level 4.1 -pix_fmt yuv420p -c:a aac -b:a 320k -ar 48000 -movflags +faststart morning-note-light-v2.mp4
+          ffprobe -v error -show_entries format=duration,size,bit_rate -show_entries stream=codec_name,width,height,r_frame_rate -of json morning-note-light-v2.mp4
       - uses: actions/upload-artifact@v4
         with:
-          name: morning-note-light-final
-          path: morning-note-light-final.mp4
+          name: morning-note-light-v2
+          path: morning-note-light-v2.mp4
           retention-days: 7
