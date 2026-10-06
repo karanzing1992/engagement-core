@@ -1,0 +1,16 @@
+{
+  "brand": "moksha",
+  "languages": ["en", "ru"],
+  "publishers": {
+    "telegram": {"enabled": true, "chat_id_env": "MOKSHA_TELEGRAM_CHAT_ID"},
+    "vk": {"enabled": true, "owner_id_env": "MOKSHA_VK_OWNER_ID"},
+    "ok": {"enabled": true, "requires_approved_app": true},
+    "snapchat": {"enabled": true, "mode": "android-creative-kit-handoff"}
+  },
+  "copy": {
+    "ru": {
+      "tone": "natural, concise, locally relevant to Goa; never literal machine translation",
+      "morning_note_sales_angle": false
+    }
+  }
+}
