@@ -1,13 +1,7 @@
 name: Reel Engine CI
 
 on:
-  pull_request:
-    paths:
-      - "services/reel-engine/**"
-  push:
-    branches: [main]
-    paths:
-      - "services/reel-engine/**"
+  workflow_dispatch:
 
 jobs:
   test:

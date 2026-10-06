@@ -1,16 +1,7 @@
 name: Telegram User Agent CI
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "tools/telegram-user-agent/**"
-      - ".github/workflows/telegram-user-agent-ci.yml"
-  push:
-    branches: [main]
-    paths:
-      - "tools/telegram-user-agent/**"
-      - ".github/workflows/telegram-user-agent-ci.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read

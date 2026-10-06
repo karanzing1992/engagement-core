@@ -1,16 +1,7 @@
 name: Snapchat Android CI
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "tools/snapchat-handoff-android/**"
-      - ".github/workflows/snapchat-android-ci.yml"
-  push:
-    branches: [main]
-    paths:
-      - "tools/snapchat-handoff-android/**"
-      - ".github/workflows/snapchat-android-ci.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
