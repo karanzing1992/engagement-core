@@ -4,7 +4,7 @@ Credentials stay in environment variables. Brand/channel identifiers belong in
 brand config, never in this module.
 """
 from __future__ import annotations
-import json, os, requests
+import hashlib, json, os, requests
 
 class PublishError(RuntimeError): pass
 
@@ -237,9 +237,81 @@ def vk_wall_post(message: str, owner_id: str, attachments: str="") -> dict:
         data["attachments"]=attachments
     return _vk_api("wall.post",data)
 
+def _ok_signature(params: dict, access_token: str, application_secret: str) -> str:
+    filtered={k:str(v) for k,v in params.items() if k not in {"access_token","session_key","sig"}}
+    joined="".join(f"{k}={filtered[k]}" for k in sorted(filtered))
+    session_secret=hashlib.md5((access_token+application_secret).encode("utf-8")).hexdigest().lower()
+    return hashlib.md5((joined+session_secret).encode("utf-8")).hexdigest().lower()
+
+def _ok_api(method: str, params=None):
+    access_token=os.environ["OK_ACCESS_TOKEN"]
+    app_key=os.environ["OK_APPLICATION_KEY"]
+    app_secret=os.environ["OK_APPLICATION_SECRET"]
+    data={"method":method,"application_key":app_key,"format":"json",**(params or {})}
+    data["sig"]=_ok_signature(data,access_token,app_secret)
+    data["access_token"]=access_token
+    r=requests.post("https://api.ok.ru/fb.do",data=data,timeout=60)
+    try: payload=r.json()
+    except Exception: payload={"raw":r.text}
+    if not r.ok or (isinstance(payload,dict) and "error_code" in payload):
+        raise PublishError(f"OK rejected {method}: {payload}")
+    return payload
+
+def _ok_upload_photos(urls: list[str], group_id: str) -> list[str]:
+    if not urls:
+        return []
+    if len(urls)>10:
+        raise PublishError("Odnoklassniki publisher accepts at most 10 photos per post")
+    upload=_ok_api("photosV2.getUploadUrl",{"gid":group_id,"count":len(urls)})
+    upload_url=upload.get("upload_url") if isinstance(upload,dict) else None
+    if not upload_url:
+        raise PublishError(f"OK did not return photo upload URL: {upload}")
+
+    files={}
+    for index,url in enumerate(urls,1):
+        src=requests.get(url,timeout=60)
+        src.raise_for_status()
+        ctype=src.headers.get("content-type","image/jpeg").split(";")[0]
+        files[f"pic{index}"]=(f"photo{index}.jpg",src.content,ctype)
+    r=requests.post(upload_url,files=files,timeout=120)
+    try: payload=r.json()
+    except Exception: payload={"raw":r.text}
+    if not r.ok or not isinstance(payload,dict) or not isinstance(payload.get("photos"),dict):
+        raise PublishError(f"OK photo upload failed: {payload}")
+    tokens=[str(item.get("token")) for item in payload["photos"].values() if isinstance(item,dict) and item.get("token")]
+    if not tokens:
+        raise PublishError("OK photo upload returned no media tokens")
+    return tokens
+
+def ok_publish(message: str, group_id: str, media=None, link: str="") -> dict:
+    blocks=[]
+    if message:
+        blocks.append({"type":"text","text":message})
+    photo_urls=[]
+    for item in media or []:
+        if item.get("type","photo")!="photo":
+            raise PublishError("Odnoklassniki automated publisher currently accepts photo media")
+        if item.get("url"):
+            photo_urls.append(str(item["url"]))
+    tokens=_ok_upload_photos(photo_urls,group_id)
+    if tokens:
+        blocks.append({"type":"photo","list":[{"id":token} for token in tokens]})
+    if link:
+        blocks.append({"type":"link","url":link})
+    if not blocks:
+        raise PublishError("Odnoklassniki post needs text, photo, or link")
+    attachment=json.dumps({"media":blocks},ensure_ascii=False,separators=(",",":"))
+    topic_id=_ok_api("mediatopic.post",{
+        "type":"GROUP_THEME",
+        "gid":group_id,
+        "attachment":attachment,
+        "onBehalfOfGroup":"true",
+    })
+    return {"ok":True,"group_id":group_id,"topic_id":str(topic_id),"photo_count":len(photo_urls),"requires_approved_app":True}
+
 def ok_capability() -> dict:
-    # OK requires an approved application before mediatopic publishing is usable.
-    return {"ready":bool(os.getenv("OK_ACCESS_TOKEN") and os.getenv("OK_APPLICATION_KEY")),
+    # OK group publishing requires an approved application and GROUP_CONTENT/PHOTO_CONTENT.
+    return {"ready":bool(os.getenv("OK_ACCESS_TOKEN") and os.getenv("OK_APPLICATION_KEY") and os.getenv("OK_APPLICATION_SECRET") and os.getenv("OK_GROUP_ID")),
             "requires_approved_app":True,"mode":"mediatopic"}
 
 def snapchat_capability() -> dict:
