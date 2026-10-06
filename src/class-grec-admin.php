@@ -14,6 +14,7 @@ final class GREC_Admin {
 		add_action( 'admin_post_grec_moderate', array( __CLASS__, 'moderate' ) );
 		add_action( 'admin_post_grec_save_telegram', array( __CLASS__, 'save_telegram' ) );
 		add_action( 'admin_post_grec_test_telegram', array( __CLASS__, 'test_telegram' ) );
+		add_action( 'admin_post_grec_publish_telegram', array( __CLASS__, 'publish_telegram' ) );
 	}
 
 	private static function guard(): void {
@@ -74,17 +75,37 @@ final class GREC_Admin {
 		self::guard();
 		check_admin_referer( 'grec_save_telegram' );
 
-		$token = trim( (string) wp_unslash( $_POST['telegram_token'] ?? '' ) );
-		$chat  = sanitize_text_field( wp_unslash( $_POST['telegram_chat_id'] ?? '' ) );
+		$token    = trim( (string) wp_unslash( $_POST['telegram_token'] ?? '' ) );
+		$names    = isset( $_POST['telegram_dest_name'] ) && is_array( $_POST['telegram_dest_name'] ) ? wp_unslash( $_POST['telegram_dest_name'] ) : array();
+		$chat_ids = isset( $_POST['telegram_dest_chat_id'] ) && is_array( $_POST['telegram_dest_chat_id'] ) ? wp_unslash( $_POST['telegram_dest_chat_id'] ) : array();
+		$levels   = isset( $_POST['telegram_dest_level'] ) && is_array( $_POST['telegram_dest_level'] ) ? wp_unslash( $_POST['telegram_dest_level'] ) : array();
+		$enabled  = isset( $_POST['telegram_dest_enabled'] ) && is_array( $_POST['telegram_dest_enabled'] ) ? wp_unslash( $_POST['telegram_dest_enabled'] ) : array();
+		$rows     = array();
+		$count    = max( count( $names ), count( $chat_ids ), count( $levels ), count( $enabled ) );
 
-		if ( '' !== $token ) {
-			GREC_Telegram::save_token( $token );
-		}
-		if ( '' !== $chat ) {
-			update_option( 'grec_telegram_chat_id', $chat, false );
+		for ( $i = 0; $i < $count; $i++ ) {
+			$rows[] = array(
+				'name'    => sanitize_text_field( (string) ( $names[ $i ] ?? '' ) ),
+				'chat_id' => sanitize_text_field( (string) ( $chat_ids[ $i ] ?? '' ) ),
+				'level'   => sanitize_key( (string) ( $levels[ $i ] ?? 'primary' ) ),
+				'enabled' => '1' === (string) ( $enabled[ $i ] ?? '0' ),
+			);
 		}
 
-		self::redirect( GREC_Telegram::is_connected() ? 'Telegram settings saved.' : 'Telegram settings saved, but connection is incomplete.', GREC_Telegram::is_connected() ? 'success' : 'error' );
+		try {
+			if ( '' !== $token ) {
+				GREC_Telegram::save_token( $token );
+			}
+			$destinations = GREC_Telegram::save_destinations( $rows );
+			self::redirect(
+				GREC_Telegram::is_connected()
+					? sprintf( 'Telegram settings saved. %d destination(s) configured.', count( $destinations ) )
+					: 'Telegram settings saved, but connection is incomplete.',
+				GREC_Telegram::is_connected() ? 'success' : 'error'
+			);
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
 	}
 
 	public static function test_telegram(): void {
@@ -92,9 +113,40 @@ final class GREC_Admin {
 		check_admin_referer( 'grec_test_telegram' );
 
 		try {
-			$data = GREC_Telegram::send( 'Moksha publishing connection test ✓' );
-			$message_id = $data['result']['message_id'] ?? null;
-			self::redirect( $message_id ? sprintf( 'Telegram test sent. Message ID %s.', $message_id ) : 'Telegram test sent.' );
+			$data   = GREC_Telegram::send( 'Moksha publishing connection test ✓' );
+			$sent   = count( $data['sent'] ?? array() );
+			$failed = count( $data['failed'] ?? array() );
+			self::redirect(
+				$failed ? sprintf( 'Telegram test reached %d destination(s); %d failed.', $sent, $failed ) : sprintf( 'Telegram test sent to %d destination(s).', $sent ),
+				$failed ? 'error' : 'success'
+			);
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+	public static function publish_telegram(): void {
+		self::guard();
+		check_admin_referer( 'grec_publish_telegram' );
+
+		$text      = sanitize_textarea_field( (string) wp_unslash( $_POST['telegram_publish_text'] ?? '' ) );
+		$media_url = esc_url_raw( (string) wp_unslash( $_POST['telegram_publish_media_url'] ?? '' ) );
+		$targets   = isset( $_POST['telegram_publish_targets'] ) && is_array( $_POST['telegram_publish_targets'] )
+			? array_map( 'sanitize_text_field', wp_unslash( $_POST['telegram_publish_targets'] ) )
+			: array();
+
+		if ( '' === $text ) {
+			self::redirect( 'Telegram publish text is required.', 'error' );
+		}
+
+		try {
+			$data   = GREC_Telegram::send( $text, $media_url, $targets );
+			$sent   = count( $data['sent'] ?? array() );
+			$failed = count( $data['failed'] ?? array() );
+			self::redirect(
+				$failed ? sprintf( 'Telegram published to %d destination(s); %d failed.', $sent, $failed ) : sprintf( 'Telegram published to %d destination(s).', $sent ),
+				$failed ? 'error' : 'success'
+			);
 		} catch ( Throwable $e ) {
 			self::redirect( $e->getMessage(), 'error' );
 		}
@@ -249,15 +301,35 @@ final class GREC_Admin {
 
 			<hr>
 			<h2>Telegram Publisher</h2>
-			<p>Credentials stay encrypted in WordPress. Leave the bot token blank to keep the existing token.</p>
+			<p>One encrypted bot can publish to multiple Telegram groups/channels. Use levels such as <code>primary</code>, <code>community</code>, <code>partner</code>, or <code>promo</code>.</p>
+			<?php
+			$telegram_destinations = GREC_Telegram::destinations();
+			$telegram_rows = $telegram_destinations;
+			$telegram_rows[] = array( 'key' => '', 'name' => '', 'chat_id' => '', 'level' => 'community', 'enabled' => true );
+			?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="grec_save_telegram">
 				<?php wp_nonce_field( 'grec_save_telegram' ); ?>
+				<table class="widefat striped" style="max-width:1100px;margin:12px 0">
+					<thead><tr><th>Name</th><th>Chat / channel ID</th><th>Level</th><th>Status</th></tr></thead>
+					<tbody id="grec-telegram-destinations">
+					<?php foreach ( $telegram_rows as $destination ) : ?>
+						<tr>
+							<td><input class="regular-text" name="telegram_dest_name[]" value="<?php echo esc_attr( $destination['name'] ?? '' ); ?>" placeholder="e.g. Arambol Community"></td>
+							<td><input class="regular-text code" name="telegram_dest_chat_id[]" value="<?php echo esc_attr( $destination['chat_id'] ?? '' ); ?>" placeholder="-1001234567890 or @channel"></td>
+							<td><input class="regular-text code" name="telegram_dest_level[]" value="<?php echo esc_attr( $destination['level'] ?? 'community' ); ?>" placeholder="community"></td>
+							<td>
+								<select name="telegram_dest_enabled[]">
+									<option value="1" <?php selected( ! isset( $destination['enabled'] ) || ! empty( $destination['enabled'] ) ); ?>>Enabled</option>
+									<option value="0" <?php selected( isset( $destination['enabled'] ) && empty( $destination['enabled'] ) ); ?>>Disabled</option>
+								</select>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+				<p><button type="button" class="button" id="grec-add-telegram-destination">Add destination</button></p>
 				<table class="form-table" role="presentation">
-					<tr>
-						<th><label for="grec_telegram_chat_id">Chat / channel ID</label></th>
-						<td><input id="grec_telegram_chat_id" class="regular-text code" name="telegram_chat_id" value="<?php echo esc_attr( get_option( 'grec_telegram_chat_id', '' ) ); ?>" placeholder="@channel or numeric chat ID"></td>
-					</tr>
 					<tr>
 						<th><label for="grec_telegram_token">Bot token</label></th>
 						<td>
@@ -266,14 +338,49 @@ final class GREC_Admin {
 						</td>
 					</tr>
 				</table>
-				<?php submit_button( 'Save Telegram settings' ); ?>
+				<?php submit_button( 'Save Telegram destinations' ); ?>
 			</form>
-			<p><strong>Status:</strong> <?php echo GREC_Telegram::is_connected() ? 'Connected' : 'Not connected'; ?></p>
+			<script>
+			(function(){
+				var button = document.getElementById('grec-add-telegram-destination');
+				var body = document.getElementById('grec-telegram-destinations');
+				if (!button || !body) return;
+				button.addEventListener('click', function(){
+					var rows = body.querySelectorAll('tr');
+					var row = rows[rows.length - 1].cloneNode(true);
+					row.querySelectorAll('input').forEach(function(input){ input.value = ''; });
+					var level = row.querySelector('input[name="telegram_dest_level[]"]');
+					if (level) level.value = 'community';
+					var status = row.querySelector('select');
+					if (status) status.value = '1';
+					body.appendChild(row);
+				});
+			})();
+			</script>
+			<p><strong>Status:</strong> <?php echo GREC_Telegram::is_connected() ? 'Connected' : 'Not connected'; ?> · <?php echo esc_html( count( GREC_Telegram::enabled_destinations() ) ); ?> enabled destination(s)</p>
 			<?php if ( GREC_Telegram::is_connected() ) : ?>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom:20px">
 					<input type="hidden" name="action" value="grec_test_telegram">
 					<?php wp_nonce_field( 'grec_test_telegram' ); ?>
-					<?php submit_button( 'Send Telegram test', 'secondary', 'submit', false ); ?>
+					<?php submit_button( 'Test all enabled Telegram destinations', 'secondary', 'submit', false ); ?>
+				</form>
+
+				<h3>Quick publish</h3>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="max-width:900px">
+					<input type="hidden" name="action" value="grec_publish_telegram">
+					<?php wp_nonce_field( 'grec_publish_telegram' ); ?>
+					<p><textarea name="telegram_publish_text" rows="5" class="large-text" placeholder="Message / caption"></textarea></p>
+					<p><input name="telegram_publish_media_url" type="url" class="large-text code" placeholder="Optional public video URL"></p>
+					<fieldset>
+						<legend><strong>Destinations</strong> <span class="description">(leave all unchecked to publish to all enabled destinations)</span></legend>
+						<?php foreach ( GREC_Telegram::enabled_destinations() as $destination ) : ?>
+							<label style="display:block;margin:6px 0">
+								<input type="checkbox" name="telegram_publish_targets[]" value="<?php echo esc_attr( $destination['key'] ); ?>">
+								<?php echo esc_html( $destination['name'] ); ?> — <code><?php echo esc_html( $destination['level'] ); ?></code> — <code><?php echo esc_html( $destination['chat_id'] ); ?></code>
+							</label>
+						<?php endforeach; ?>
+					</fieldset>
+					<?php submit_button( 'Publish to Telegram' ); ?>
 				</form>
 			<?php endif; ?>
 

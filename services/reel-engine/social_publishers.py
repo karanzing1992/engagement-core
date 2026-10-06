@@ -17,11 +17,45 @@ def _post_json(url: str, *, data: dict, files=None, timeout=60) -> dict:
     return payload
 
 def telegram_video(media_url: str, caption: str, chat_id: str) -> dict:
+    """Backward-compatible single-destination Telegram publish."""
     token=os.environ["TELEGRAM_BOT_TOKEN"]
     return _post_json(
         f"https://api.telegram.org/bot{token}/sendVideo",
         data={"chat_id":chat_id,"video":media_url,"caption":caption[:1024],"supports_streaming":"true"},
     )
+
+def telegram_video_multi(media_url: str, caption: str, destinations: list[dict], *, levels=None, targets=None) -> dict:
+    """Publish one video to every matching enabled Telegram destination."""
+    token=os.environ["TELEGRAM_BOT_TOKEN"]
+    levels=set(levels or [])
+    targets=set(targets or [])
+    sent=[]
+    failed=[]
+
+    for destination in destinations:
+        if not destination.get("enabled", True):
+            continue
+        key=str(destination.get("key",""))
+        chat_id=str(destination.get("chat_id","")).strip()
+        level=str(destination.get("level","primary"))
+        if targets and key not in targets and chat_id not in targets:
+            continue
+        if levels and level not in levels:
+            continue
+        if not chat_id:
+            continue
+        try:
+            payload=_post_json(
+                f"https://api.telegram.org/bot{token}/sendVideo",
+                data={"chat_id":chat_id,"video":media_url,"caption":caption[:1024],"supports_streaming":"true"},
+            )
+            sent.append({"key":key,"chat_id":chat_id,"level":level,"message_id":payload.get("result",{}).get("message_id")})
+        except Exception as exc:
+            failed.append({"key":key,"chat_id":chat_id,"level":level,"error":str(exc)})
+
+    if not sent:
+        raise PublishError(f"Telegram publish failed for all matching destinations: {failed}")
+    return {"ok":not failed,"sent":sent,"failed":failed}
 
 def vk_wall_post(message: str, owner_id: str, attachments: str="") -> dict:
     """Publish once VK media has been uploaded and represented as an attachment id."""

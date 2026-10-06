@@ -8,8 +8,16 @@
     "telegram": {
       "enabled": true,
       "bot_username": "@Engagemetcorebot",
-      "chat_id": "@pokergoa",
-      "token_env": "TELEGRAM_BOT_TOKEN"
+      "token_env": "TELEGRAM_BOT_TOKEN",
+      "destinations": [
+        {
+          "key": "primary",
+          "name": "Primary Telegram Group",
+          "chat_id": "-1001827799147",
+          "level": "primary",
+          "enabled": true
+        }
+      ]
     },
     "vk": {
       "enabled": true,
