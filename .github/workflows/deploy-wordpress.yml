@@ -1,0 +1,51 @@
+name: Deploy Engagement Core to Moksha WordPress
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DFG_DEPLOY_URL: ${{ secrets.MOKSHA_DFG_ENGAGEMENT_CORE_URL }}
+    steps:
+      - name: Check deployment hook
+        id: gate
+        shell: bash
+        run: |
+          if [ -z "$DFG_DEPLOY_URL" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "MOKSHA_DFG_ENGAGEMENT_CORE_URL is not configured; skipping WordPress deployment."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger Deployer for Git
+        if: steps.gate.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail-with-body --silent --show-error "$DFG_DEPLOY_URL")"
+          echo "$response"
+          echo "$response" | jq -e '.success == true'
+
+      - name: Verify live plugin health
+        if: steps.gate.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if response="$(curl --fail --silent --show-error https://mokshagoa.com/wp-json/engagement-core/v1/health)" \
+              && echo "$response" | jq -e '.ok == true' >/dev/null; then
+              echo "$response"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Live health verification failed." >&2
+          exit 1
