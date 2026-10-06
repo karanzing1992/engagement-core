@@ -46,3 +46,26 @@ def test_telegram_rejects_invalid_album_mix():
         assert "audio albums" in str(exc)
     else:
         raise AssertionError("Expected invalid album mix to be rejected")
+
+
+def test_vk_publish_builds_group_wall_post(monkeypatch):
+    import social_publishers as sp
+    monkeypatch.setenv("VK_ACCESS_TOKEN","test-token")
+    uploaded=[]
+    calls=[]
+    monkeypatch.setattr(sp,"_vk_upload_wall_photo",lambda url,owner_id: uploaded.append((url,owner_id)) or "photo-123_456")
+    def fake_api(method,data):
+        calls.append((method,data))
+        return {"post_id":99}
+    monkeypatch.setattr(sp,"_vk_api",fake_api)
+    result=sp.vk_publish(
+        "Привет 🔥",
+        "-123",
+        media=[{"type":"photo","url":"https://example.com/a.jpg"}],
+        link="https://mokshagoa.com/",
+    )
+    assert result["post_id"]==99
+    assert uploaded==[("https://example.com/a.jpg","-123")]
+    assert calls[-1][0]=="wall.post"
+    assert calls[-1][1]["from_group"]==1
+    assert calls[-1][1]["attachments"]=="photo-123_456,https://mokshagoa.com/"
