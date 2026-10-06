@@ -6,6 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class GREC_Admin {
 	public static function init(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 		add_action( 'admin_post_grec_save_settings', array( __CLASS__, 'save_settings' ) );
 		add_action( 'admin_post_grec_youtube_oauth', array( __CLASS__, 'oauth_callback' ) );
 		add_action( 'admin_post_grec_youtube_disconnect', array( __CLASS__, 'disconnect' ) );
@@ -21,6 +22,13 @@ final class GREC_Admin {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'You do not have permission to manage Engagement Core.', 'engagement-core' ) );
 		}
+	}
+
+	public static function enqueue_assets( string $hook ): void {
+		if ( 'toplevel_page_engagement-core' !== $hook ) {
+			return;
+		}
+		wp_enqueue_media();
 	}
 
 	public static function menu(): void {
@@ -129,18 +137,19 @@ final class GREC_Admin {
 		self::guard();
 		check_admin_referer( 'grec_publish_telegram' );
 
-		$text      = sanitize_textarea_field( (string) wp_unslash( $_POST['telegram_publish_text'] ?? '' ) );
-		$media_url = esc_url_raw( (string) wp_unslash( $_POST['telegram_publish_media_url'] ?? '' ) );
-		$targets   = isset( $_POST['telegram_publish_targets'] ) && is_array( $_POST['telegram_publish_targets'] )
+		$text       = GREC_Telegram::sanitize_message_html( (string) wp_unslash( $_POST['telegram_publish_text'] ?? '' ) );
+		$media_json = (string) wp_unslash( $_POST['telegram_publish_media_json'] ?? '[]' );
+		$decoded    = json_decode( $media_json, true );
+		$media      = is_array( $decoded ) ? $decoded : array();
+		$targets    = isset( $_POST['telegram_publish_targets'] ) && is_array( $_POST['telegram_publish_targets'] )
 			? array_map( 'sanitize_text_field', wp_unslash( $_POST['telegram_publish_targets'] ) )
 			: array();
-
-		if ( '' === $text ) {
-			self::redirect( 'Telegram publish text is required.', 'error' );
-		}
+		$levels     = isset( $_POST['telegram_publish_levels'] ) && is_array( $_POST['telegram_publish_levels'] )
+			? array_map( 'sanitize_key', wp_unslash( $_POST['telegram_publish_levels'] ) )
+			: array();
 
 		try {
-			$data   = GREC_Telegram::send( $text, $media_url, $targets );
+			$data   = GREC_Telegram::send_post( $text, $media, $targets, $levels );
 			$sent   = count( $data['sent'] ?? array() );
 			$failed = count( $data['failed'] ?? array() );
 			self::redirect(
@@ -365,14 +374,67 @@ final class GREC_Admin {
 					<?php submit_button( 'Test all enabled Telegram destinations', 'secondary', 'submit', false ); ?>
 				</form>
 
-				<h3>Quick publish</h3>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="max-width:900px">
+				<h3>Telegram Post Composer</h3>
+				<p class="description">Emoji works natively. Formatting uses Telegram HTML: <code>&lt;b&gt;</code>, <code>&lt;i&gt;</code>, <code>&lt;u&gt;</code>, <code>&lt;s&gt;</code>, links, code and spoilers.</p>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="max-width:1000px">
 					<input type="hidden" name="action" value="grec_publish_telegram">
+					<input type="hidden" id="grec-telegram-media-json" name="telegram_publish_media_json" value="[]">
 					<?php wp_nonce_field( 'grec_publish_telegram' ); ?>
-					<p><textarea name="telegram_publish_text" rows="5" class="large-text" placeholder="Message / caption"></textarea></p>
-					<p><input name="telegram_publish_media_url" type="url" class="large-text code" placeholder="Optional public video URL"></p>
+
+					<div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0">
+						<button type="button" class="button grec-tg-format" data-open="&lt;b&gt;" data-close="&lt;/b&gt;"><strong>B</strong></button>
+						<button type="button" class="button grec-tg-format" data-open="&lt;i&gt;" data-close="&lt;/i&gt;"><em>I</em></button>
+						<button type="button" class="button grec-tg-format" data-open="&lt;u&gt;" data-close="&lt;/u&gt;"><u>U</u></button>
+						<button type="button" class="button grec-tg-format" data-open="&lt;s&gt;" data-close="&lt;/s&gt;"><s>S</s></button>
+						<button type="button" class="button grec-tg-format" data-open="&lt;tg-spoiler&gt;" data-close="&lt;/tg-spoiler&gt;">Spoiler</button>
+						<button type="button" class="button grec-tg-format" data-open="&lt;code&gt;" data-close="&lt;/code&gt;">Code</button>
+						<button type="button" class="button grec-tg-link">Link</button>
+						<span style="margin-left:6px">
+							<button type="button" class="button grec-tg-emoji">🔥</button>
+							<button type="button" class="button grec-tg-emoji">🌿</button>
+							<button type="button" class="button grec-tg-emoji">❄️</button>
+							<button type="button" class="button grec-tg-emoji">🧖‍♂️</button>
+							<button type="button" class="button grec-tg-emoji">✨</button>
+							<button type="button" class="button grec-tg-emoji">❤️</button>
+						</span>
+					</div>
+					<p><textarea id="grec-telegram-message" name="telegram_publish_text" rows="7" class="large-text" placeholder="Message / caption — emoji welcome 🔥"></textarea></p>
+
+					<div style="border:1px solid #dcdcde;background:#fff;padding:14px;margin:14px 0">
+						<strong>Media</strong>
+						<p class="description">Choose up to 10 items. Photo + video can be mixed in an album. Audio albums must be audio-only; document albums document-only; GIF/animation must be sent alone.</p>
+						<p>
+							<button type="button" class="button button-secondary" id="grec-tg-media-library">Choose from Media Library</button>
+							<button type="button" class="button" id="grec-tg-clear-media">Clear</button>
+						</p>
+						<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+							<select id="grec-tg-manual-type">
+								<option value="photo">Photo</option>
+								<option value="video">Video</option>
+								<option value="animation">GIF / Animation</option>
+								<option value="audio">Audio</option>
+								<option value="document">Document / PDF</option>
+							</select>
+							<input id="grec-tg-manual-url" type="url" class="regular-text code" placeholder="https://...">
+							<button type="button" class="button" id="grec-tg-add-url">Add URL</button>
+						</div>
+						<ol id="grec-tg-media-list" style="margin-top:12px"></ol>
+					</div>
+
+					<fieldset style="margin:16px 0">
+						<legend><strong>Destination levels</strong> <span class="description">(optional)</span></legend>
+						<?php
+						$telegram_levels = array_values( array_unique( array_map( static function ( $destination ) { return $destination['level']; }, GREC_Telegram::enabled_destinations() ) ) );
+						foreach ( $telegram_levels as $level ) :
+						?>
+							<label style="display:inline-block;margin:6px 14px 6px 0">
+								<input type="checkbox" name="telegram_publish_levels[]" value="<?php echo esc_attr( $level ); ?>"> <?php echo esc_html( $level ); ?>
+							</label>
+						<?php endforeach; ?>
+					</fieldset>
+
 					<fieldset>
-						<legend><strong>Destinations</strong> <span class="description">(leave all unchecked to publish to all enabled destinations)</span></legend>
+						<legend><strong>Specific destinations</strong> <span class="description">(leave all level and destination boxes unchecked to publish to all enabled destinations)</span></legend>
 						<?php foreach ( GREC_Telegram::enabled_destinations() as $destination ) : ?>
 							<label style="display:block;margin:6px 0">
 								<input type="checkbox" name="telegram_publish_targets[]" value="<?php echo esc_attr( $destination['key'] ); ?>">
@@ -382,6 +444,93 @@ final class GREC_Admin {
 					</fieldset>
 					<?php submit_button( 'Publish to Telegram' ); ?>
 				</form>
+
+				<script>
+				(function(){
+					var media = [];
+					var hidden = document.getElementById('grec-telegram-media-json');
+					var list = document.getElementById('grec-tg-media-list');
+					var textarea = document.getElementById('grec-telegram-message');
+
+					function inferType(attachment) {
+						var mime = (attachment.mime || '').toLowerCase();
+						var filename = (attachment.filename || '').toLowerCase();
+						if (mime === 'image/gif' || filename.endsWith('.gif')) return 'animation';
+						if (mime.indexOf('image/') === 0) return 'photo';
+						if (mime.indexOf('video/') === 0) return 'video';
+						if (mime.indexOf('audio/') === 0) return 'audio';
+						return 'document';
+					}
+					function sync() {
+						hidden.value = JSON.stringify(media);
+						list.innerHTML = '';
+						media.forEach(function(item,index){
+							var li = document.createElement('li');
+							li.style.marginBottom = '8px';
+							li.innerHTML = '<code>' + item.type + '</code> ' + (item.name || item.url) +
+								' <button type="button" class="button-link" data-action="up" data-index="'+index+'">↑</button>' +
+								' <button type="button" class="button-link" data-action="down" data-index="'+index+'">↓</button>' +
+								' <button type="button" class="button-link-delete" data-action="remove" data-index="'+index+'">Remove</button>';
+							list.appendChild(li);
+						});
+					}
+					function addItems(items) {
+						items.forEach(function(item){
+							if (media.length < 10 && item.url) media.push(item);
+						});
+						sync();
+						if (media.length >= 10) alert('Telegram albums support a maximum of 10 media items.');
+					}
+					function insert(open, close) {
+						var start = textarea.selectionStart, end = textarea.selectionEnd;
+						var selected = textarea.value.slice(start,end);
+						textarea.setRangeText(open + selected + close,start,end,'end');
+						textarea.focus();
+					}
+
+					document.querySelectorAll('.grec-tg-format').forEach(function(button){
+						button.addEventListener('click',function(){ insert(this.dataset.open,this.dataset.close); });
+					});
+					document.querySelectorAll('.grec-tg-emoji').forEach(function(button){
+						button.addEventListener('click',function(){ insert(this.textContent,''); });
+					});
+					document.querySelector('.grec-tg-link').addEventListener('click',function(){
+						var href = window.prompt('Link URL (https://...)');
+						if (href) insert('<a href="'+href.replace(/"/g,'&quot;')+'">','</a>');
+					});
+
+					document.getElementById('grec-tg-media-library').addEventListener('click',function(){
+						var frame = wp.media({title:'Choose Telegram media',button:{text:'Add to Telegram post'},multiple:true});
+						frame.on('select',function(){
+							var picked = frame.state().get('selection').toJSON().map(function(a){
+								return {type:inferType(a),url:a.url,name:a.filename || a.title || ''};
+							});
+							addItems(picked);
+						});
+						frame.open();
+					});
+
+					document.getElementById('grec-tg-add-url').addEventListener('click',function(){
+						var url = document.getElementById('grec-tg-manual-url').value.trim();
+						var type = document.getElementById('grec-tg-manual-type').value;
+						if (!url) return;
+						addItems([{type:type,url:url,name:url.split('/').pop()}]);
+						document.getElementById('grec-tg-manual-url').value = '';
+					});
+					document.getElementById('grec-tg-clear-media').addEventListener('click',function(){ media=[]; sync(); });
+					list.addEventListener('click',function(e){
+						var button=e.target.closest('button[data-action]');
+						if(!button) return;
+						var index=parseInt(button.dataset.index,10), action=button.dataset.action;
+						if(action==='remove') media.splice(index,1);
+						if(action==='up' && index>0){ var t=media[index-1]; media[index-1]=media[index]; media[index]=t; }
+						if(action==='down' && index<media.length-1){ var t2=media[index+1]; media[index+1]=media[index]; media[index]=t2; }
+						sync();
+					});
+					sync();
+				})();
+				</script>
+
 			<?php endif; ?>
 
 			<hr>
