@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 
 from music_library import ingest_track, list_tracks, rank_tracks, select_track
 from renderer import render_reel
+from media_handoff import publish_media, delete_media
 
 ROOT = Path(os.environ.get("REEL_DATA_ROOT", "/data"))
 UPLOADS = ROOT / "uploads"
@@ -20,7 +21,7 @@ MUSIC = ROOT / "music"
 for p in (UPLOADS, JOBS, OUTPUTS, MUSIC):
     p.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title="Reel Engine", version="0.3.0")
+app = FastAPI(title="Reel Engine", version="0.4.0")
 
 
 @app.get("/health")
@@ -36,6 +37,7 @@ def health() -> dict:
             "auto-music-ranking",
             "beat-sync",
             "ambient-mix",
+            "public-media-handoff",
         ],
         "music_tracks": len(list_tracks(MUSIC)),
     }
@@ -204,3 +206,33 @@ def job_srt(job_id: str):
     if not path.exists():
         raise HTTPException(status_code=404, detail="SRT not found")
     return FileResponse(path, media_type="application/x-subrip", filename=f"{job_id}.srt")
+
+
+@app.post("/v1/jobs/{job_id}/publish-media")
+def publish_job_media(job_id: str, brand: str = Query("default")):
+    path = OUTPUTS / f"{job_id}.mp4"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Render not found")
+    try:
+        media = publish_media(str(path), brand=brand)
+    except KeyError as exc:
+        raise HTTPException(status_code=503, detail=f"Media storage is not configured: {exc.args[0]}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Media upload failed: {exc}") from exc
+    record = JOBS / job_id / "published-media.json"
+    record.write_text(json.dumps(media, indent=2))
+    return media
+
+
+@app.delete("/v1/jobs/{job_id}/publish-media")
+def delete_job_media(job_id: str):
+    record = JOBS / job_id / "published-media.json"
+    if not record.exists():
+        raise HTTPException(status_code=404, detail="Published media record not found")
+    media = json.loads(record.read_text())
+    try:
+        delete_media(media["key"])
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Media cleanup failed: {exc}") from exc
+    record.unlink(missing_ok=True)
+    return {"deleted": True, "key": media["key"]}
