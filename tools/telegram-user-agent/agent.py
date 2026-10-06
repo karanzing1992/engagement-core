@@ -25,6 +25,7 @@ PHONE = os.getenv("TELEGRAM_PHONE", "").strip()
 GROUP = os.getenv("MOKSHA_GROUP", "@mokshasauna").strip()
 INVITE_LINK = os.getenv("MOKSHA_INVITE_LINK", "https://t.me/mokshasauna").strip()
 SESSION = os.path.expanduser(os.getenv("TELEGRAM_SESSION_PATH", "~/.moksha/telegram-user"))
+LEDGER = Path(os.path.expanduser(os.getenv("TELEGRAM_INVITE_LEDGER", "~/.moksha/telegram-invite-ledger.json")))
 
 DEFAULT_MESSAGE_RU = """Привет! 🌿
 
@@ -125,12 +126,34 @@ async def contact_rows(c: TelegramClient) -> list[ContactRow]:
     return rows
 
 
-def eligible(rows: Iterable[ContactRow], include_non_mutual: bool = False) -> list[ContactRow]:
+def load_ledger() -> dict:
+    if not LEDGER.exists():
+        return {"invited": {}}
+    try:
+        data = json.loads(LEDGER.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {"invited": {}}
+    except Exception:
+        return {"invited": {}}
+
+
+def save_ledger(data: dict) -> None:
+    LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    LEDGER.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        os.chmod(LEDGER, 0o600)
+    except OSError:
+        pass
+
+
+def eligible(rows: Iterable[ContactRow]) -> list[ContactRow]:
+    invited = load_ledger().get("invited", {})
     selected = []
     for row in rows:
         if row.existing_member:
             continue
-        if not include_non_mutual and not row.mutual:
+        if not row.mutual:
+            continue
+        if str(row.user_id) in invited:
             continue
         selected.append(row)
     return selected
@@ -200,6 +223,7 @@ async def cmd_status(_: argparse.Namespace) -> None:
                     "mutual_contacts": sum(1 for row in rows if row.mutual),
                     "already_in_group": sum(1 for row in rows if row.existing_member),
                     "eligible_mutual": len(eligible(rows)),
+                    "previously_invited": len(load_ledger().get("invited", {})),
                     "group": GROUP,
                     "invite_link": INVITE_LINK,
                 },
@@ -215,7 +239,7 @@ async def cmd_preview(args: argparse.Namespace) -> None:
     c = client()
     try:
         await ensure_login(c)
-        rows = eligible(await contact_rows(c), include_non_mutual=args.include_non_mutual)
+        rows = eligible(await contact_rows(c))
         print_preview(rows, args.limit)
     finally:
         await c.disconnect()
@@ -235,7 +259,7 @@ async def cmd_invite(args: argparse.Namespace) -> None:
     c = client()
     try:
         await ensure_login(c)
-        rows = eligible(await contact_rows(c), include_non_mutual=args.include_non_mutual)
+        rows = eligible(await contact_rows(c))
         if args.limit:
             rows = rows[: args.limit]
 
@@ -249,6 +273,14 @@ async def cmd_invite(args: argparse.Namespace) -> None:
                 user = await c.get_input_entity(row.user_id)
                 await c.send_message(user, message, link_preview=True)
                 sent.append({"user_id": row.user_id, "name": row.display_name})
+                ledger = load_ledger()
+                ledger.setdefault("invited", {})[str(row.user_id)] = {
+                    "name": row.display_name,
+                    "username": row.username,
+                    "group": GROUP,
+                    "invite_link": INVITE_LINK,
+                }
+                save_ledger(ledger)
                 print(f"[{index}/{len(rows)}] sent -> {row.display_name}")
             except (UserPrivacyRestrictedError, PeerFloodError) as exc:
                 skipped.append(
@@ -368,7 +400,6 @@ def parser() -> argparse.ArgumentParser:
         "preview", help="Preview contacts eligible for a Moksha invite. Sends nothing."
     )
     preview.add_argument("--limit", type=int, default=50)
-    preview.add_argument("--include-non-mutual", action="store_true")
 
     invite = sub.add_parser(
         "invite", help="Send the Moksha invite link to eligible Telegram contacts."
@@ -377,7 +408,6 @@ def parser() -> argparse.ArgumentParser:
     invite.add_argument("--language", choices=["ru", "en"], default="ru")
     invite.add_argument("--delay-min", type=float, default=5.0)
     invite.add_argument("--delay-max", type=float, default=9.0)
-    invite.add_argument("--include-non-mutual", action="store_true")
     invite.add_argument("--send", action="store_true")
     invite.add_argument("--confirm", default="")
 
