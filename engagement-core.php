@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Engagement Core
  * Description: Brand-agnostic social engagement and publishing core for YouTube, Telegram and VK distribution.
- * Version: 0.7.0
+ * Version: 0.7.1
  * Author: KaranBiz
  * Requires at least: 6.4
  * Requires PHP: 7.4
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'GREC_VERSION', '0.7.0' );
+define( 'GREC_VERSION', '0.7.1' );
 define( 'GREC_FILE', __FILE__ );
 define( 'GREC_DIR', plugin_dir_path( __FILE__ ) );
 

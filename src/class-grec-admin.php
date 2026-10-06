@@ -37,6 +37,19 @@ final class GREC_Admin {
 			return;
 		}
 		wp_enqueue_media();
+		wp_enqueue_style(
+			'grec-admin',
+			plugin_dir_url( GREC_FILE ) . 'assets/admin.css',
+			array(),
+			GREC_VERSION
+		);
+		wp_enqueue_script(
+			'grec-admin',
+			plugin_dir_url( GREC_FILE ) . 'assets/admin.js',
+			array(),
+			GREC_VERSION,
+			true
+		);
 	}
 
 	public static function menu(): void {
@@ -412,9 +425,37 @@ final class GREC_Admin {
 			@keyframes grec-spin{to{transform:rotate(360deg)}}
 			@media (prefers-reduced-motion:reduce){.grec-loading-spinner{animation-duration:1.5s}}
 		</style>
-		<div class="wrap">
-			<h1>Engagement Core</h1>
-			<p>Unified engagement inbox. V1 uses the official YouTube Data API for comment sync, replies and moderation.</p>
+		<div class="wrap grec-shell">
+			<div class="grec-shell-header">
+				<div class="grec-shell-title-row">
+					<div>
+						<h1>Engagement Core</h1>
+						<p class="grec-shell-intro">Publish, monitor and manage social channels from one mobile-first workspace.</p>
+					</div>
+				</div>
+			</div>
+			<div class="grec-status-grid" aria-label="Channel connection status">
+				<div class="grec-status-card">
+					<div class="grec-status-card-top"><strong>YouTube</strong><span class="grec-status-pill <?php echo $connected ? 'is-connected' : 'is-off'; ?>"><?php echo $connected ? 'Connected' : 'Setup'; ?></span></div>
+					<p>Comments, replies and moderation.</p>
+				</div>
+				<div class="grec-status-card">
+					<div class="grec-status-card-top"><strong>Telegram</strong><span class="grec-status-pill <?php echo GREC_Telegram::is_connected() ? 'is-connected' : 'is-off'; ?>"><?php echo GREC_Telegram::is_connected() ? 'Connected' : 'Setup'; ?></span></div>
+					<p><?php echo esc_html( count( GREC_Telegram::enabled_destinations() ) ); ?> enabled destination(s).</p>
+				</div>
+				<div class="grec-status-card">
+					<div class="grec-status-card-top"><strong>VK</strong><span class="grec-status-pill <?php echo GREC_VK::is_connected() ? 'is-connected' : 'is-off'; ?>"><?php echo GREC_VK::is_connected() ? 'Configured' : 'Setup'; ?></span></div>
+					<p>Russian community wall publishing.</p>
+				</div>
+				<div class="grec-status-card">
+					<div class="grec-status-card-top"><strong>Odnoklassniki</strong><span class="grec-status-pill <?php echo GREC_OK::is_connected() ? 'is-pending' : 'is-off'; ?>"><?php echo GREC_OK::is_connected() ? 'Approval needed' : 'Setup'; ?></span></div>
+					<p>Group media topics; approved OK app required.</p>
+				</div>
+				<div class="grec-status-card">
+					<div class="grec-status-card-top"><strong>Snapchat</strong><span class="grec-status-pill <?php echo GREC_Snapchat::is_configured() ? 'is-connected' : 'is-off'; ?>"><?php echo GREC_Snapchat::is_configured() ? 'Configured' : 'Setup'; ?></span></div>
+					<p><?php echo esc_html( GREC_Snapchat::pending_count() ); ?> pending device handoff(s).</p>
+				</div>
+			</div>
 			<?php if ( $notice ) : ?>
 				<div class="notice notice-<?php echo esc_attr( $type ); ?> is-dismissible"><p><?php echo esc_html( $notice ); ?></p></div>
 			<?php endif; ?>
