@@ -22,6 +22,8 @@ final class GREC_Admin {
 		add_action( 'admin_post_grec_save_ok', array( __CLASS__, 'save_ok' ) );
 		add_action( 'admin_post_grec_test_ok', array( __CLASS__, 'test_ok' ) );
 		add_action( 'admin_post_grec_publish_ok', array( __CLASS__, 'publish_ok' ) );
+		add_action( 'admin_post_grec_save_snapchat', array( __CLASS__, 'save_snapchat' ) );
+		add_action( 'admin_post_grec_queue_snapchat', array( __CLASS__, 'queue_snapchat' ) );
 	}
 
 	private static function guard(): void {
@@ -272,6 +274,46 @@ final class GREC_Admin {
 		try {
 			$data = GREC_OK::publish( $text, $media, $link );
 			self::redirect( sprintf( 'Published to Odnoklassniki. Topic ID %s.', $data['topic_id'] ?: 'created' ) );
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+
+	public static function save_snapchat(): void {
+		self::guard();
+		check_admin_referer( 'grec_save_snapchat' );
+
+		try {
+			$client_id = sanitize_text_field( (string) wp_unslash( $_POST['snapchat_client_id'] ?? '' ) );
+			$device_key = trim( (string) wp_unslash( $_POST['snapchat_device_key'] ?? '' ) );
+			if ( '' !== $client_id ) {
+				GREC_Snapchat::save_client_id( $client_id );
+			}
+			if ( '' !== $device_key ) {
+				GREC_Snapchat::save_device_key( $device_key );
+			} elseif ( '' === GREC_Snapchat::device_key() ) {
+				GREC_Snapchat::ensure_device_key();
+			}
+			self::redirect(
+				GREC_Snapchat::is_configured() ? 'Snapchat handoff settings saved.' : 'Snapchat settings saved, but Client ID is still required.',
+				GREC_Snapchat::is_configured() ? 'success' : 'error'
+			);
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+	public static function queue_snapchat(): void {
+		self::guard();
+		check_admin_referer( 'grec_queue_snapchat' );
+		try {
+			$task = GREC_Snapchat::queue_handoff(
+				sanitize_textarea_field( (string) wp_unslash( $_POST['snapchat_caption'] ?? '' ) ),
+				esc_url_raw( (string) wp_unslash( $_POST['snapchat_media_url'] ?? '' ) ),
+				sanitize_key( (string) wp_unslash( $_POST['snapchat_media_type'] ?? '' ) )
+			);
+			self::redirect( sprintf( 'Snapchat handoff queued. Task %s.', $task['id'] ) );
 		} catch ( Throwable $e ) {
 			self::redirect( $e->getMessage(), 'error' );
 		}
@@ -860,6 +902,93 @@ final class GREC_Admin {
 			<?php endif; ?>
 
 			<hr>
+			<h2>Snapchat Handoff</h2>
+			<p>Prepare Moksha Story/Snap media in WordPress and hand it to the paired Android device. Snapchat opens directly on the Preview screen; the final Story/send confirmation happens in Snapchat.</p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="max-width:950px">
+				<input type="hidden" name="action" value="grec_save_snapchat">
+				<?php wp_nonce_field( 'grec_save_snapchat' ); ?>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th><label for="grec_snapchat_client_id">Snap Client ID</label></th>
+						<td>
+							<input id="grec_snapchat_client_id" class="regular-text code" name="snapchat_client_id" value="<?php echo esc_attr( GREC_Snapchat::client_id() ); ?>">
+							<p class="description">From the approved Snap Developer Portal application.</p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="grec_snapchat_device_key">Android pairing key</label></th>
+						<td>
+							<input id="grec_snapchat_device_key" class="large-text code" type="password" name="snapchat_device_key" value="<?php echo esc_attr( GREC_Snapchat::device_key() ); ?>" autocomplete="off">
+							<p class="description">Generated locally by Engagement Core when empty. Keep this private; the Android companion uses it to claim handoff jobs.</p>
+						</td>
+					</tr>
+				</table>
+				<?php submit_button( 'Save Snapchat settings' ); ?>
+			</form>
+			<p><strong>Status:</strong> <?php echo GREC_Snapchat::is_configured() ? 'Configured' : 'Not configured'; ?> · <?php echo esc_html( GREC_Snapchat::pending_count() ); ?> pending handoff(s) · Final confirmation required on device</p>
+
+			<?php if ( GREC_Snapchat::is_configured() ) : ?>
+				<h3>Snapchat Story / Snap Composer</h3>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="max-width:1000px">
+					<input type="hidden" name="action" value="grec_queue_snapchat">
+					<input type="hidden" id="grec-snap-media-url" name="snapchat_media_url" value="">
+					<input type="hidden" id="grec-snap-media-type" name="snapchat_media_type" value="">
+					<?php wp_nonce_field( 'grec_queue_snapchat' ); ?>
+					<p><textarea name="snapchat_caption" rows="5" class="large-text" placeholder="Caption / on-Snap text — Russian or English, emoji supported 🔥"></textarea></p>
+					<div style="border:1px solid #dcdcde;background:#fff;padding:14px;margin:14px 0">
+						<strong>Full-screen media</strong>
+						<p class="description">Choose one 9:16 photo or video. The Android companion downloads it and opens Snapchat Creative Kit Lite Preview.</p>
+						<p><button type="button" class="button button-secondary" id="grec-snap-media-library">Choose photo/video</button> <button type="button" class="button" id="grec-snap-clear-media">Clear</button></p>
+						<div id="grec-snap-media-label">No media selected.</div>
+					</div>
+					<?php submit_button( 'Queue for Snapchat' ); ?>
+				</form>
+
+				<script>
+				(function(){
+					var choose=document.getElementById('grec-snap-media-library');
+					var clear=document.getElementById('grec-snap-clear-media');
+					var url=document.getElementById('grec-snap-media-url');
+					var type=document.getElementById('grec-snap-media-type');
+					var label=document.getElementById('grec-snap-media-label');
+					if(!choose || !clear || !url || !type || !label || typeof wp === 'undefined' || !wp.media) return;
+					choose.addEventListener('click',function(){
+						var frame=wp.media({title:'Choose Snapchat media',button:{text:'Use for Snapchat'},multiple:false});
+						frame.on('select',function(){
+							var a=frame.state().get('selection').first().toJSON();
+							var mime=(a.mime || '').toLowerCase();
+							var kind=mime.indexOf('video/')===0 ? 'video' : (mime.indexOf('image/')===0 ? 'image' : '');
+							if(!kind){ window.alert('Choose an image or video.'); return; }
+							url.value=a.url || '';
+							type.value=kind;
+							label.textContent=(a.filename || a.title || a.url) + ' (' + kind + ')';
+						});
+						frame.open();
+					});
+					clear.addEventListener('click',function(){url.value='';type.value='';label.textContent='No media selected.';});
+				})();
+				</script>
+			<?php endif; ?>
+
+			<?php $snap_recent = GREC_Snapchat::recent( 10 ); ?>
+			<?php if ( $snap_recent ) : ?>
+				<h3>Recent Snapchat handoffs</h3>
+				<table class="widefat striped" style="max-width:1000px">
+					<thead><tr><th>Created</th><th>Media</th><th>Status</th><th>Task</th></tr></thead>
+					<tbody>
+					<?php foreach ( $snap_recent as $task ) : ?>
+						<tr>
+							<td><?php echo esc_html( ! empty( $task['created_at'] ) ? wp_date( 'Y-m-d H:i:s', (int) $task['created_at'] ) : '' ); ?></td>
+							<td><?php echo esc_html( $task['media_type'] ?? '' ); ?></td>
+							<td><strong><?php echo esc_html( $task['status'] ?? '' ); ?></strong><?php if ( ! empty( $task['error'] ) ) : ?><br><small><?php echo esc_html( $task['error'] ); ?></small><?php endif; ?></td>
+							<td><code><?php echo esc_html( $task['id'] ?? '' ); ?></code></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			<?php endif; ?>
+
+			<hr>
 			<h2>Inbox</h2>
 			<?php if ( ! $comments ) : ?>
 				<p>No comments synced yet.</p>
@@ -918,7 +1047,9 @@ final class GREC_Admin {
 					grec_publish_vk: 'Publishing to VK…',
 					grec_save_ok: 'Saving Odnoklassniki settings…',
 					grec_test_ok: 'Testing Odnoklassniki API…',
-					grec_publish_ok: 'Publishing to Odnoklassniki…'
+					grec_publish_ok: 'Publishing to Odnoklassniki…',
+					grec_save_snapchat: 'Saving Snapchat settings…',
+					grec_queue_snapchat: 'Queueing Snapchat handoff…'
 				};
 
 				function setBusy(form) {
