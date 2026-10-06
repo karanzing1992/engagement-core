@@ -24,6 +24,23 @@ final class GREC_Publisher_REST {
 		register_rest_route( 'engagement-core/v1', '/vk/config', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'vk_config' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
 		register_rest_route( 'engagement-core/v1', '/vk/test', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'vk_test' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
 		register_rest_route( 'engagement-core/v1', '/vk/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'vk_status' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route( 'engagement-core/v1', '/ok/config', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'ok_config' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route( 'engagement-core/v1', '/ok/test', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'ok_test' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route( 'engagement-core/v1', '/ok/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'ok_status' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route(
+			'engagement-core/v1',
+			'/ok/publish',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'ok_publish' ),
+				'permission_callback' => array( __CLASS__, 'admin' ),
+				'args'                => array(
+					'text'  => array( 'required' => false, 'type' => 'string' ),
+					'link'  => array( 'required' => false, 'type' => 'string', 'format' => 'uri' ),
+					'media' => array( 'required' => false, 'type' => 'array' ),
+				),
+			)
+		);
 		register_rest_route(
 			'engagement-core/v1',
 			'/vk/publish',
@@ -70,6 +87,8 @@ final class GREC_Publisher_REST {
 				'telegram_rich_media' => true,
 				'vk_connected'       => GREC_VK::is_connected(),
 				'vk_photo_upload'    => true,
+				'ok_connected'       => GREC_OK::is_connected(),
+				'ok_requires_approval' => true,
 			),
 			200
 		);
@@ -216,6 +235,53 @@ final class GREC_Publisher_REST {
 
 	public static function vk_status(): WP_REST_Response {
 		return new WP_REST_Response( GREC_VK::status(), 200 );
+	}
+
+
+	public static function ok_config( WP_REST_Request $request ): WP_REST_Response {
+		try {
+			GREC_OK::save_credentials(
+				array(
+					'application_id'     => (string) $request->get_param( 'application_id' ),
+					'application_key'    => (string) $request->get_param( 'application_key' ),
+					'application_secret' => (string) $request->get_param( 'application_secret' ),
+					'access_token'       => (string) $request->get_param( 'access_token' ),
+				)
+			);
+			$group_id = sanitize_text_field( (string) $request->get_param( 'group_id' ) );
+			if ( '' !== $group_id ) {
+				GREC_OK::save_group_id( $group_id );
+			}
+			return self::ok_status();
+		} catch ( Throwable $e ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => $e->getMessage() ), 400 );
+		}
+	}
+
+	public static function ok_test(): WP_REST_Response {
+		try {
+			return new WP_REST_Response( GREC_OK::test_connection(), 200 );
+		} catch ( Throwable $e ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => $e->getMessage() ), 502 );
+		}
+	}
+
+	public static function ok_publish( WP_REST_Request $request ): WP_REST_Response {
+		$text  = sanitize_textarea_field( (string) $request->get_param( 'text' ) );
+		$link  = esc_url_raw( (string) $request->get_param( 'link' ) );
+		$media = $request->get_param( 'media' );
+		if ( ! is_array( $media ) ) {
+			$media = array();
+		}
+		try {
+			return new WP_REST_Response( GREC_OK::publish( $text, $media, $link ), 200 );
+		} catch ( Throwable $e ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => $e->getMessage() ), 502 );
+		}
+	}
+
+	public static function ok_status(): WP_REST_Response {
+		return new WP_REST_Response( GREC_OK::status(), 200 );
 	}
 
 }
