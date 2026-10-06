@@ -315,8 +315,12 @@ def ok_capability() -> dict:
             "requires_approved_app":True,"mode":"mediatopic"}
 
 def snapchat_capability() -> dict:
-    # Creative Kit hands video to Snapchat preview; it is not an unattended server-side organic post API.
-    return {"ready":False,"mode":"android-creative-kit-handoff","requires_device_confirmation":True}
+    # Creative Kit Lite opens Snapchat Preview; the user confirms the final Story/send in Snapchat.
+    return {
+        "ready": bool(os.getenv("SNAPCHAT_HANDOFF_BASE_URL")),
+        "mode": "creative-kit-lite-preview",
+        "requires_device_confirmation": True,
+    }
 
 def capabilities() -> dict:
     return {
