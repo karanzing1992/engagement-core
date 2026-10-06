@@ -69,3 +69,43 @@ def test_vk_publish_builds_group_wall_post(monkeypatch):
     assert calls[-1][0]=="wall.post"
     assert calls[-1][1]["from_group"]==1
     assert calls[-1][1]["attachments"]=="photo-123_456,https://mokshagoa.com/"
+
+
+def test_ok_signature_matches_documented_algorithm(monkeypatch):
+    import hashlib
+    import social_publishers as sp
+    access_token="access"
+    secret="secret"
+    params={"method":"users.getCurrentUser","application_key":"public","format":"json"}
+    session_secret=hashlib.md5((access_token+secret).encode()).hexdigest().lower()
+    joined="".join(f"{k}={params[k]}" for k in sorted(params))
+    expected=hashlib.md5((joined+session_secret).encode()).hexdigest().lower()
+    assert sp._ok_signature(params,access_token,secret)==expected
+
+def test_ok_publish_builds_group_mediatopic(monkeypatch):
+    import social_publishers as sp
+    monkeypatch.setenv("OK_ACCESS_TOKEN","access")
+    monkeypatch.setenv("OK_APPLICATION_KEY","public")
+    monkeypatch.setenv("OK_APPLICATION_SECRET","secret")
+    monkeypatch.setenv("OK_GROUP_ID","123")
+    monkeypatch.setattr(sp,"_ok_upload_photos",lambda urls,group_id:["photo-token-1"] if urls else [])
+    calls=[]
+    def fake_api(method,params=None):
+        calls.append((method,params or {}))
+        return "topic-77"
+    monkeypatch.setattr(sp,"_ok_api",fake_api)
+    result=sp.ok_publish(
+        "Привет 🌿",
+        "123",
+        media=[{"type":"photo","url":"https://example.com/a.jpg"}],
+        link="https://mokshagoa.com/",
+    )
+    assert result["ok"] is True
+    assert result["topic_id"]=="topic-77"
+    method,payload=calls[-1]
+    assert method=="mediatopic.post"
+    assert payload["type"]=="GROUP_THEME"
+    attachment=__import__("json").loads(payload["attachment"])
+    assert attachment["media"][0]["type"]=="text"
+    assert attachment["media"][1]["list"][0]["id"]=="photo-token-1"
+    assert attachment["media"][2]["url"]=="https://mokshagoa.com/"
