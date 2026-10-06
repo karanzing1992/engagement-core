@@ -152,13 +152,12 @@ final class GREC_Telegram {
 					if ( empty( $destination['enabled'] ) ) {
 						return false;
 					}
-					if ( ! empty( $targets ) && ! in_array( (string) $destination['key'], $targets, true ) && ! in_array( (string) $destination['chat_id'], $targets, true ) ) {
-						return false;
+					$target_match = empty( $targets ) || in_array( (string) $destination['key'], $targets, true ) || in_array( (string) $destination['chat_id'], $targets, true );
+					$level_match  = empty( $levels ) || in_array( (string) $destination['level'], $levels, true );
+					if ( ! empty( $targets ) && ! empty( $levels ) ) {
+						return $target_match || $level_match;
 					}
-					if ( ! empty( $levels ) && ! in_array( (string) $destination['level'], $levels, true ) ) {
-						return false;
-					}
-					return true;
+					return $target_match && $level_match;
 				}
 			)
 		);
