@@ -1,4 +1,4 @@
-name: Public Media Handoff Test
+name: Public Media Handoff
 
 on:
   workflow_dispatch:
@@ -13,36 +13,37 @@ on:
         default: moksha
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   handoff:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install boto3==1.35.92
       - name: Download media
-        run: curl --fail --location --retry 3 "$SOURCE_URL" -o /tmp/social-master.mp4
+        run: curl --fail --location --retry 3 "$SOURCE_URL" -o social-master.mp4
         env:
           SOURCE_URL: ${{ inputs.source_url }}
-      - name: Upload public media
-        id: upload
-        working-directory: services/reel-engine
+
+      - name: Create ephemeral media release
         env:
-          MEDIA_S3_ENDPOINT: ${{ secrets.MEDIA_S3_ENDPOINT }}
-          MEDIA_S3_BUCKET: ${{ secrets.MEDIA_S3_BUCKET }}
-          MEDIA_S3_ACCESS_KEY: ${{ secrets.MEDIA_S3_ACCESS_KEY }}
-          MEDIA_S3_SECRET_KEY: ${{ secrets.MEDIA_S3_SECRET_KEY }}
-          MEDIA_PUBLIC_BASE_URL: ${{ secrets.MEDIA_PUBLIC_BASE_URL }}
+          GH_TOKEN: ${{ github.token }}
           BRAND: ${{ inputs.brand }}
         run: |
-          python - <<'PY'
-          import json, os
-          from media_handoff import publish_media
-          result = publish_media("/tmp/social-master.mp4", os.environ["BRAND"])
-          print(json.dumps(result, indent=2))
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
-              f.write("## Public media handoff\n\n")
-              f.write("Direct URL: " + result["url"] + "\n")
-          PY
+          TAG="media-${BRAND}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$TAG" social-master.mp4             --repo "$GITHUB_REPOSITORY"             --title "Temporary social media handoff"             --notes "Temporary publishing asset. Safe to delete after destination verification."
+          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/social-master.mp4"
+          echo "MEDIA_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "MEDIA_URL=$URL" >> "$GITHUB_ENV"
+          {
+            echo "## Public media handoff"
+            echo
+            echo "Direct URL: $URL"
+            echo
+            echo "Release tag: $TAG"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify anonymous delivery
+        run: |
+          curl --fail --location --retry 5 --range 0-1023 "$MEDIA_URL" -o /tmp/probe.bin
+          test -s /tmp/probe.bin
