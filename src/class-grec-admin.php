@@ -19,6 +19,9 @@ final class GREC_Admin {
 		add_action( 'admin_post_grec_save_vk', array( __CLASS__, 'save_vk' ) );
 		add_action( 'admin_post_grec_test_vk', array( __CLASS__, 'test_vk' ) );
 		add_action( 'admin_post_grec_publish_vk', array( __CLASS__, 'publish_vk' ) );
+		add_action( 'admin_post_grec_save_ok', array( __CLASS__, 'save_ok' ) );
+		add_action( 'admin_post_grec_test_ok', array( __CLASS__, 'test_ok' ) );
+		add_action( 'admin_post_grec_publish_ok', array( __CLASS__, 'publish_ok' ) );
 	}
 
 	private static function guard(): void {
@@ -213,6 +216,62 @@ final class GREC_Admin {
 		try {
 			$data = GREC_VK::publish( $text, $media, $link );
 			self::redirect( sprintf( 'Published to VK. Post ID %s.', $data['post_id'] ?: 'created' ) );
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+
+	public static function save_ok(): void {
+		self::guard();
+		check_admin_referer( 'grec_save_ok' );
+
+		try {
+			GREC_OK::save_credentials(
+				array(
+					'application_id'     => sanitize_text_field( (string) wp_unslash( $_POST['ok_application_id'] ?? '' ) ),
+					'application_key'    => sanitize_text_field( (string) wp_unslash( $_POST['ok_application_key'] ?? '' ) ),
+					'application_secret' => trim( (string) wp_unslash( $_POST['ok_application_secret'] ?? '' ) ),
+					'access_token'       => trim( (string) wp_unslash( $_POST['ok_access_token'] ?? '' ) ),
+				)
+			);
+			$group_id = sanitize_text_field( (string) wp_unslash( $_POST['ok_group_id'] ?? '' ) );
+			if ( '' !== $group_id ) {
+				GREC_OK::save_group_id( $group_id );
+			}
+			self::redirect(
+				GREC_OK::is_connected() ? 'Odnoklassniki settings saved.' : 'Odnoklassniki settings saved, but connection is incomplete.',
+				GREC_OK::is_connected() ? 'success' : 'error'
+			);
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+	public static function test_ok(): void {
+		self::guard();
+		check_admin_referer( 'grec_test_ok' );
+		try {
+			$data = GREC_OK::test_connection();
+			self::redirect( sprintf( 'Odnoklassniki API connected%s. App approval is still required for publishing.', $data['user_name'] ? ' as ' . $data['user_name'] : '' ) );
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+	public static function publish_ok(): void {
+		self::guard();
+		check_admin_referer( 'grec_publish_ok' );
+
+		$text       = sanitize_textarea_field( (string) wp_unslash( $_POST['ok_publish_text'] ?? '' ) );
+		$link       = esc_url_raw( (string) wp_unslash( $_POST['ok_publish_link'] ?? '' ) );
+		$media_json = (string) wp_unslash( $_POST['ok_publish_media_json'] ?? '[]' );
+		$media      = json_decode( $media_json, true );
+		$media      = is_array( $media ) ? $media : array();
+
+		try {
+			$data = GREC_OK::publish( $text, $media, $link );
+			self::redirect( sprintf( 'Published to Odnoklassniki. Topic ID %s.', $data['topic_id'] ?: 'created' ) );
 		} catch ( Throwable $e ) {
 			self::redirect( $e->getMessage(), 'error' );
 		}
@@ -700,6 +759,105 @@ final class GREC_Admin {
 				})();
 				</script>
 			<?php endif; ?>
+			<hr>
+			<h2>Odnoklassniki Publisher</h2>
+			<p>Publish Russian-language Moksha media topics to an OK group. The OK application must be approved and have <code>GROUP_CONTENT</code> and <code>PHOTO_CONTENT</code> permissions.</p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="max-width:950px">
+				<input type="hidden" name="action" value="grec_save_ok">
+				<?php wp_nonce_field( 'grec_save_ok' ); ?>
+				<?php $ok_status = GREC_OK::status(); ?>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th><label for="grec_ok_application_id">Application ID</label></th>
+						<td><input id="grec_ok_application_id" class="regular-text code" name="ok_application_id" value="<?php echo esc_attr( $ok_status['application_id'] ); ?>"></td>
+					</tr>
+					<tr>
+						<th><label for="grec_ok_application_key">Application public key</label></th>
+						<td><input id="grec_ok_application_key" class="regular-text code" name="ok_application_key" value="" placeholder="<?php echo $ok_status['application_key_saved'] ? 'Saved — enter only to replace' : 'Required'; ?>"></td>
+					</tr>
+					<tr>
+						<th><label for="grec_ok_application_secret">Application secret</label></th>
+						<td><input id="grec_ok_application_secret" class="regular-text" type="password" name="ok_application_secret" value="" autocomplete="new-password" placeholder="Leave blank to keep existing secret"></td>
+					</tr>
+					<tr>
+						<th><label for="grec_ok_access_token">Access token</label></th>
+						<td><input id="grec_ok_access_token" class="regular-text" type="password" name="ok_access_token" value="" autocomplete="new-password" placeholder="Leave blank to keep existing token"></td>
+					</tr>
+					<tr>
+						<th><label for="grec_ok_group_id">Group ID</label></th>
+						<td><input id="grec_ok_group_id" class="regular-text code" name="ok_group_id" value="<?php echo esc_attr( GREC_OK::group_id() ); ?>" placeholder="123456789"></td>
+					</tr>
+				</table>
+				<p class="description"><strong>Approval required:</strong> OK documents that non-approved apps will not successfully create media topics. Credentials are encrypted and never exposed through status endpoints.</p>
+				<?php submit_button( 'Save Odnoklassniki settings' ); ?>
+			</form>
+
+			<p><strong>Status:</strong> <?php echo GREC_OK::is_connected() ? 'Configured' : 'Not configured'; ?> · App approval required</p>
+			<?php if ( GREC_OK::is_connected() ) : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom:18px">
+					<input type="hidden" name="action" value="grec_test_ok">
+					<?php wp_nonce_field( 'grec_test_ok' ); ?>
+					<?php submit_button( 'Test Odnoklassniki API', 'secondary', 'submit', false ); ?>
+				</form>
+
+				<h3>Odnoklassniki Post Composer</h3>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="max-width:1000px">
+					<input type="hidden" name="action" value="grec_publish_ok">
+					<input type="hidden" id="grec-ok-media-json" name="ok_publish_media_json" value="[]">
+					<?php wp_nonce_field( 'grec_publish_ok' ); ?>
+					<p><textarea name="ok_publish_text" rows="6" class="large-text" placeholder="Russian OK copy — emoji supported 🌿"></textarea></p>
+					<p><input name="ok_publish_link" type="url" class="large-text code" placeholder="Optional link"></p>
+					<div style="border:1px solid #dcdcde;background:#fff;padding:14px;margin:14px 0">
+						<strong>Photos</strong>
+						<p class="description">Choose up to 10 images. They are uploaded using the OK photo-token workflow and attached directly to the group media topic.</p>
+						<p>
+							<button type="button" class="button button-secondary" id="grec-ok-media-library">Choose photos</button>
+							<button type="button" class="button" id="grec-ok-clear-media">Clear</button>
+						</p>
+						<ol id="grec-ok-media-list"></ol>
+					</div>
+					<?php submit_button( 'Publish to Odnoklassniki' ); ?>
+				</form>
+				<script>
+				(function(){
+					var media=[];
+					var hidden=document.getElementById('grec-ok-media-json');
+					var list=document.getElementById('grec-ok-media-list');
+					var choose=document.getElementById('grec-ok-media-library');
+					var clear=document.getElementById('grec-ok-clear-media');
+					if(!hidden || !list || !choose || !clear || typeof wp === 'undefined' || !wp.media) return;
+					function sync(){
+						hidden.value=JSON.stringify(media);
+						list.innerHTML='';
+						media.forEach(function(item,index){
+							var li=document.createElement('li');
+							li.style.marginBottom='7px';
+							li.textContent=item.name || item.url;
+							var remove=document.createElement('button');
+							remove.type='button';
+							remove.className='button-link-delete';
+							remove.style.marginLeft='8px';
+							remove.textContent='Remove';
+							remove.addEventListener('click',function(){media.splice(index,1);sync();});
+							li.appendChild(remove);
+							list.appendChild(li);
+						});
+					}
+					choose.addEventListener('click',function(){
+						var frame=wp.media({title:'Choose Odnoklassniki photos',button:{text:'Add photos'},multiple:true,library:{type:'image'}});
+						frame.on('select',function(){
+							frame.state().get('selection').toJSON().forEach(function(a){
+								if(media.length<10 && a.url) media.push({type:'photo',url:a.url,name:a.filename || a.title || ''});
+							});
+							sync();
+						});
+						frame.open();
+					});
+					clear.addEventListener('click',function(){media=[];sync();});
+					sync();
+				})();
+				</script>
+			<?php endif; ?>
 
 			<hr>
 			<h2>Inbox</h2>
@@ -757,7 +915,10 @@ final class GREC_Admin {
 					grec_publish_telegram: 'Publishing to Telegram…',
 					grec_save_vk: 'Saving VK settings…',
 					grec_test_vk: 'Testing VK connection…',
-					grec_publish_vk: 'Publishing to VK…'
+					grec_publish_vk: 'Publishing to VK…',
+					grec_save_ok: 'Saving Odnoklassniki settings…',
+					grec_test_ok: 'Testing Odnoklassniki API…',
+					grec_publish_ok: 'Publishing to Odnoklassniki…'
 				};
 
 				function setBusy(form) {
