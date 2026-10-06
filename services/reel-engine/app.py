@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from music_library import ingest_track, list_tracks, rank_tracks, select_track
 from renderer import render_reel
 from media_handoff import publish_media, delete_media
+from quality import media_preflight, detect_silence
 
 ROOT = Path(os.environ.get("REEL_DATA_ROOT", "/data"))
 UPLOADS = ROOT / "uploads"
@@ -38,6 +39,8 @@ def health() -> dict:
             "beat-sync",
             "ambient-mix",
             "public-media-handoff",
+            "media-preflight",
+            "dead-air-analysis",
         ],
         "music_tracks": len(list_tracks(MUSIC)),
     }
@@ -236,3 +239,16 @@ def delete_job_media(job_id: str):
         raise HTTPException(status_code=502, detail=f"Media cleanup failed: {exc}") from exc
     record.unlink(missing_ok=True)
     return {"deleted": True, "key": media["key"]}
+
+
+@app.get("/v1/jobs/{job_id}/quality")
+def job_quality(job_id: str):
+    path = OUTPUTS / f"{job_id}.mp4"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Render not found")
+    try:
+        preflight = media_preflight(path)
+        silence = detect_silence(path)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Quality analysis failed: {exc}") from exc
+    return {"preflight": preflight, "silence": silence}
