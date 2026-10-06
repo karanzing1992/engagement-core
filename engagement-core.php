@@ -22,11 +22,14 @@ require_once GREC_DIR . 'src/class-grec-repository.php';
 require_once GREC_DIR . 'src/class-grec-youtube.php';
 require_once GREC_DIR . 'src/class-grec-scheduler.php';
 require_once GREC_DIR . 'src/class-grec-admin.php';
+require_once GREC_DIR . 'src/class-grec-telegram.php';
+require_once GREC_DIR . 'src/class-grec-publisher-rest.php';
 
 final class GREC_Plugin {
 	public static function init(): void {
 		GREC_Scheduler::init();
 		GREC_Admin::init();
+		GREC_Publisher_REST::init();
 	}
 
 	public static function activate(): void {
