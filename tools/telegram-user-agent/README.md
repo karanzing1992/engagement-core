@@ -94,6 +94,38 @@ English:
 .venv/bin/python agent.py invite --limit 20 --language en --send --confirm MOKSHA
 ```
 
+## 7. Enable chat-controlled queue worker
+
+After login works, install the background worker:
+
+```bash
+bash install-launchd.sh
+```
+
+It runs at login and polls the repository task queue. The Telegram session remains local.
+
+Allowed remote tasks are deliberately restricted to:
+- `status`
+- `preview` (max 100)
+- `invite` (max 20, Russian or English, and requires `confirmed: true`)
+
+Example invite task:
+
+```json
+{
+  "action": "invite",
+  "limit": 20,
+  "language": "ru",
+  "confirmed": true
+}
+```
+
+Results are written back under `queue/results/`; secrets and session files are never included.
+
+Worker logs:
+- `~/.moksha/telegram-user-worker.log`
+- `~/.moksha/telegram-user-worker.err`
+
 ## Import phone contacts from CSV
 
 CSV fields supported:
