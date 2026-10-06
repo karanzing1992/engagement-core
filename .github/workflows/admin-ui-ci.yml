@@ -1,0 +1,35 @@
+name: Admin UI CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "assets/admin.css"
+      - "assets/admin.js"
+      - "src/class-grec-admin.php"
+      - "engagement-core.php"
+      - ".github/workflows/admin-ui-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "assets/admin.css"
+      - "assets/admin.js"
+      - "src/class-grec-admin.php"
+      - "engagement-core.php"
+      - ".github/workflows/admin-ui-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check admin JavaScript syntax
+        run: node --check assets/admin.js
+      - name: Check admin assets exist
+        run: test -s assets/admin.css && test -s assets/admin.js
