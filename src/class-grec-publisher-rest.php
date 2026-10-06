@@ -31,6 +31,8 @@ final class GREC_Publisher_REST {
 				'args'                => array(
 					'text'      => array( 'required' => true, 'type' => 'string' ),
 					'media_url' => array( 'required' => false, 'type' => 'string', 'format' => 'uri' ),
+					'targets'   => array( 'required' => false, 'type' => 'array', 'items' => array( 'type' => 'string' ) ),
+					'levels'    => array( 'required' => false, 'type' => 'array', 'items' => array( 'type' => 'string' ) ),
 				),
 			)
 		);
@@ -46,23 +48,39 @@ final class GREC_Publisher_REST {
 				'ok'                 => true,
 				'version'            => defined( 'GREC_VERSION' ) ? GREC_VERSION : null,
 				'telegram_connected' => GREC_Telegram::is_connected(),
+				'telegram_destinations' => count( GREC_Telegram::enabled_destinations() ),
 			),
 			200
 		);
 	}
 
 	public static function config( WP_REST_Request $request ): WP_REST_Response {
-		$token = trim( (string) $request->get_param( 'token' ) );
-		$chat  = sanitize_text_field( (string) $request->get_param( 'chat_id' ) );
+		$token        = trim( (string) $request->get_param( 'token' ) );
+		$chat         = sanitize_text_field( (string) $request->get_param( 'chat_id' ) );
+		$destinations = $request->get_param( 'destinations' );
 
-		if ( '' !== $token ) {
-			GREC_Telegram::save_token( $token );
+		try {
+			if ( '' !== $token ) {
+				GREC_Telegram::save_token( $token );
+			}
+			if ( is_array( $destinations ) ) {
+				GREC_Telegram::save_destinations( $destinations );
+			} elseif ( '' !== $chat ) {
+				GREC_Telegram::save_destinations(
+					array(
+						array(
+							'name'    => 'Primary',
+							'chat_id' => $chat,
+							'level'   => 'primary',
+							'enabled' => true,
+						),
+					)
+				);
+			}
+			return self::status();
+		} catch ( Throwable $e ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => $e->getMessage() ), 400 );
 		}
-		if ( '' !== $chat ) {
-			update_option( 'grec_telegram_chat_id', $chat, false );
-		}
-
-		return self::status();
 	}
 
 	public static function test(): WP_REST_Response {
@@ -70,10 +88,11 @@ final class GREC_Publisher_REST {
 			$data = GREC_Telegram::send( 'Publishing connection test ✓' );
 			return new WP_REST_Response(
 				array(
-					'ok'         => true,
-					'message_id' => $data['result']['message_id'] ?? null,
+					'ok'     => ! empty( $data['ok'] ),
+					'sent'   => $data['sent'] ?? array(),
+					'failed' => $data['failed'] ?? array(),
 				),
-				200
+				empty( $data['failed'] ) ? 200 : 207
 			);
 		} catch ( Throwable $e ) {
 			return new WP_REST_Response( array( 'ok' => false, 'error' => $e->getMessage() ), 502 );
@@ -83,20 +102,23 @@ final class GREC_Publisher_REST {
 	public static function publish( WP_REST_Request $request ): WP_REST_Response {
 		$text      = sanitize_textarea_field( (string) $request->get_param( 'text' ) );
 		$media_url = esc_url_raw( (string) $request->get_param( 'media_url' ) );
+		$targets   = is_array( $request->get_param( 'targets' ) ) ? array_map( 'sanitize_text_field', $request->get_param( 'targets' ) ) : array();
+		$levels    = is_array( $request->get_param( 'levels' ) ) ? array_map( 'sanitize_key', $request->get_param( 'levels' ) ) : array();
 
 		if ( '' === $text ) {
 			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Text is required.' ), 400 );
 		}
 
 		try {
-			$data = GREC_Telegram::send( $text, $media_url );
+			$data = GREC_Telegram::send( $text, $media_url, $targets, $levels );
 			return new WP_REST_Response(
 				array(
-					'ok'         => true,
-					'message_id' => $data['result']['message_id'] ?? null,
-					'media'      => '' !== $media_url,
+					'ok'     => ! empty( $data['ok'] ),
+					'media'  => '' !== $media_url,
+					'sent'   => $data['sent'] ?? array(),
+					'failed' => $data['failed'] ?? array(),
 				),
-				200
+				empty( $data['failed'] ) ? 200 : 207
 			);
 		} catch ( Throwable $e ) {
 			return new WP_REST_Response( array( 'ok' => false, 'error' => $e->getMessage() ), 502 );
@@ -106,9 +128,11 @@ final class GREC_Publisher_REST {
 	public static function status(): WP_REST_Response {
 		return new WP_REST_Response(
 			array(
-				'connected'    => GREC_Telegram::is_connected(),
-				'chat_id'      => get_option( 'grec_telegram_chat_id', '' ),
-				'last_publish' => get_option( 'grec_telegram_last_publish', array() ),
+				'connected'         => GREC_Telegram::is_connected(),
+				'destinations'      => GREC_Telegram::destinations(),
+				'enabled_count'     => count( GREC_Telegram::enabled_destinations() ),
+				'legacy_chat_id'    => get_option( 'grec_telegram_chat_id', '' ),
+				'last_publish'      => get_option( 'grec_telegram_last_publish', array() ),
 			),
 			200
 		);
