@@ -12,6 +12,8 @@ final class GREC_Admin {
 		add_action( 'admin_post_grec_sync_now', array( __CLASS__, 'sync_now' ) );
 		add_action( 'admin_post_grec_reply', array( __CLASS__, 'reply' ) );
 		add_action( 'admin_post_grec_moderate', array( __CLASS__, 'moderate' ) );
+		add_action( 'admin_post_grec_save_telegram', array( __CLASS__, 'save_telegram' ) );
+		add_action( 'admin_post_grec_test_telegram', array( __CLASS__, 'test_telegram' ) );
 	}
 
 	private static function guard(): void {
@@ -66,6 +68,36 @@ final class GREC_Admin {
 		GREC_Scheduler::ensure_fallback_scheduled();
 
 		self::redirect( 'Settings saved.' );
+	}
+
+	public static function save_telegram(): void {
+		self::guard();
+		check_admin_referer( 'grec_save_telegram' );
+
+		$token = trim( (string) wp_unslash( $_POST['telegram_token'] ?? '' ) );
+		$chat  = sanitize_text_field( wp_unslash( $_POST['telegram_chat_id'] ?? '' ) );
+
+		if ( '' !== $token ) {
+			GREC_Telegram::save_token( $token );
+		}
+		if ( '' !== $chat ) {
+			update_option( 'grec_telegram_chat_id', $chat, false );
+		}
+
+		self::redirect( GREC_Telegram::is_connected() ? 'Telegram settings saved.' : 'Telegram settings saved, but connection is incomplete.', GREC_Telegram::is_connected() ? 'success' : 'error' );
+	}
+
+	public static function test_telegram(): void {
+		self::guard();
+		check_admin_referer( 'grec_test_telegram' );
+
+		try {
+			$data = GREC_Telegram::send( 'Moksha publishing connection test ✓' );
+			$message_id = $data['result']['message_id'] ?? null;
+			self::redirect( $message_id ? sprintf( 'Telegram test sent. Message ID %s.', $message_id ) : 'Telegram test sent.' );
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
 	}
 
 	public static function oauth_callback(): void {
@@ -212,6 +244,37 @@ final class GREC_Admin {
 				<?php else : ?>
 					<p>Save a Google OAuth Client ID and secret first.</p>
 				<?php endif; ?>
+			<?php endif; ?>
+
+
+			<hr>
+			<h2>Telegram Publisher</h2>
+			<p>Credentials stay encrypted in WordPress. Leave the bot token blank to keep the existing token.</p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="grec_save_telegram">
+				<?php wp_nonce_field( 'grec_save_telegram' ); ?>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th><label for="grec_telegram_chat_id">Chat / channel ID</label></th>
+						<td><input id="grec_telegram_chat_id" class="regular-text code" name="telegram_chat_id" value="<?php echo esc_attr( get_option( 'grec_telegram_chat_id', '' ) ); ?>" placeholder="@channel or numeric chat ID"></td>
+					</tr>
+					<tr>
+						<th><label for="grec_telegram_token">Bot token</label></th>
+						<td>
+							<input id="grec_telegram_token" class="regular-text" type="password" name="telegram_token" value="" autocomplete="new-password" placeholder="Leave blank to keep existing token">
+							<p class="description">Stored encrypted using WordPress salts; never committed to Git.</p>
+						</td>
+					</tr>
+				</table>
+				<?php submit_button( 'Save Telegram settings' ); ?>
+			</form>
+			<p><strong>Status:</strong> <?php echo GREC_Telegram::is_connected() ? 'Connected' : 'Not connected'; ?></p>
+			<?php if ( GREC_Telegram::is_connected() ) : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<input type="hidden" name="action" value="grec_test_telegram">
+					<?php wp_nonce_field( 'grec_test_telegram' ); ?>
+					<?php submit_button( 'Send Telegram test', 'secondary', 'submit', false ); ?>
+				</form>
 			<?php endif; ?>
 
 			<hr>
