@@ -1,0 +1,48 @@
+name: Public Media Handoff Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_url:
+        description: Publicly downloadable source MP4 URL
+        required: true
+        type: string
+      brand:
+        description: Brand namespace
+        required: false
+        default: moksha
+        type: string
+
+jobs:
+  handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install boto3==1.35.92
+      - name: Download media
+        run: curl --fail --location --retry 3 "$SOURCE_URL" -o /tmp/social-master.mp4
+        env:
+          SOURCE_URL: ${{ inputs.source_url }}
+      - name: Upload public media
+        id: upload
+        working-directory: services/reel-engine
+        env:
+          MEDIA_S3_ENDPOINT: ${{ secrets.MEDIA_S3_ENDPOINT }}
+          MEDIA_S3_BUCKET: ${{ secrets.MEDIA_S3_BUCKET }}
+          MEDIA_S3_ACCESS_KEY: ${{ secrets.MEDIA_S3_ACCESS_KEY }}
+          MEDIA_S3_SECRET_KEY: ${{ secrets.MEDIA_S3_SECRET_KEY }}
+          MEDIA_PUBLIC_BASE_URL: ${{ secrets.MEDIA_PUBLIC_BASE_URL }}
+          BRAND: ${{ inputs.brand }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from media_handoff import publish_media
+          result = publish_media("/tmp/social-master.mp4", os.environ["BRAND"])
+          print(json.dumps(result, indent=2))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("## Public media handoff\n\n")
+              f.write("Direct URL: " + result["url"] + "\n")
+          PY

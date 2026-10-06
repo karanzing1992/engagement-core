@@ -85,3 +85,11 @@ docker run --rm -p 8080:8080 -v $PWD/data:/data engagement-reel-engine
 ```
 
 No editor UI is required.
+
+## Public media handoff
+
+Rendered media can be uploaded to any S3-compatible object store before social publishing. This avoids expiring ChatGPT/Drive URLs and gives Metricool/Meta a direct HTTPS media URL.
+
+Environment variables: `MEDIA_S3_ENDPOINT`, `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY`, `MEDIA_S3_SECRET_KEY`, `MEDIA_PUBLIC_BASE_URL`; optional `MEDIA_S3_REGION` and `MEDIA_TTL_HOURS`.
+
+Flow: render -> `publish_media()` -> direct public URL -> publisher -> verify -> `delete_media()` (or bucket lifecycle expiry).
