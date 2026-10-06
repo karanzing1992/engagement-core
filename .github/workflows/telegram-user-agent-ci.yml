@@ -27,5 +27,7 @@ jobs:
         run: pip install -r tools/telegram-user-agent/requirements.txt
       - name: Compile and CLI smoke check
         run: |
-          python -m py_compile tools/telegram-user-agent/agent.py
+          python -m py_compile tools/telegram-user-agent/agent.py tools/telegram-user-agent/worker.py
           python tools/telegram-user-agent/agent.py --help
+          bash -n tools/telegram-user-agent/bootstrap-mac.sh
+          bash -n tools/telegram-user-agent/install-launchd.sh
