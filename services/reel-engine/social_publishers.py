@@ -164,12 +164,78 @@ def telegram_post_multi(text: str, media: list[dict], destinations: list[dict], 
         raise PublishError(f"Telegram publish failed for all matching destinations: {failed}")
     return {"ok":not failed,"sent":sent,"failed":failed}
 
-def vk_wall_post(message: str, owner_id: str, attachments: str="") -> dict:
-    """Publish once VK media has been uploaded and represented as an attachment id."""
+def _vk_api(method: str, data: dict) -> dict:
     token=os.environ["VK_ACCESS_TOKEN"]
-    data={"access_token":token,"v":os.getenv("VK_API_VERSION","5.199"),"owner_id":owner_id,"message":message}
-    if attachments:data["attachments"]=attachments
-    return _post_json("https://api.vk.com/method/wall.post",data=data)
+    payload={"access_token":token,"v":os.getenv("VK_API_VERSION","5.199"),**data}
+    r=requests.post(f"https://api.vk.com/method/{method}",data=payload,timeout=60)
+    try: body=r.json()
+    except Exception: body={"raw":r.text}
+    if not r.ok or "error" in body:
+        raise PublishError(f"VK rejected {method}: {body}")
+    return body.get("response",{})
+
+def _vk_upload_wall_photo(media_url: str, owner_id: str) -> str:
+    owner=int(owner_id)
+    params={}
+    if owner<0:
+        params["group_id"]=abs(owner)
+    server=_vk_api("photos.getWallUploadServer",params)
+    upload_url=server.get("upload_url")
+    if not upload_url:
+        raise PublishError("VK did not return a wall upload URL")
+
+    source=requests.get(media_url,timeout=60)
+    source.raise_for_status()
+    content_type=source.headers.get("content-type","image/jpeg").split(";")[0]
+    uploaded=requests.post(
+        upload_url,
+        files={"photo":("upload.jpg",source.content,content_type)},
+        timeout=90,
+    )
+    try: up=uploaded.json()
+    except Exception: up={"raw":uploaded.text}
+    if not uploaded.ok or not all(k in up for k in ("photo","server","hash")):
+        raise PublishError(f"VK photo upload failed: {up}")
+
+    save={"photo":up["photo"],"server":up["server"],"hash":up["hash"]}
+    if owner<0:
+        save["group_id"]=abs(owner)
+    else:
+        save["user_id"]=owner
+    photos=_vk_api("photos.saveWallPhoto",save)
+    photo=photos[0] if isinstance(photos,list) and photos else {}
+    if not photo.get("owner_id") or not photo.get("id"):
+        raise PublishError(f"VK did not return saved photo id: {photos}")
+    return f"photo{photo['owner_id']}_{photo['id']}"
+
+def vk_publish(message: str, owner_id: str, media=None, link: str="") -> dict:
+    """Publish text/link/photos to a VK wall/community."""
+    attachments=[]
+    photos=[m for m in (media or []) if m.get("url")]
+    if len(photos)>10:
+        raise PublishError("VK publisher accepts at most 10 photos per post")
+    for item in photos:
+        if item.get("type","photo")!="photo":
+            raise PublishError("VK automated publisher currently accepts photo media")
+        attachments.append(_vk_upload_wall_photo(str(item["url"]),owner_id))
+    if link:
+        attachments.append(link)
+
+    data={"owner_id":owner_id,"message":message}
+    if int(owner_id)<0:
+        data["from_group"]=1
+    if attachments:
+        data["attachments"]=",".join(attachments)
+    return _vk_api("wall.post",data)
+
+def vk_wall_post(message: str, owner_id: str, attachments: str="") -> dict:
+    """Backward-compatible VK wall.post helper."""
+    data={"owner_id":owner_id,"message":message}
+    if int(owner_id)<0:
+        data["from_group"]=1
+    if attachments:
+        data["attachments"]=attachments
+    return _vk_api("wall.post",data)
 
 def ok_capability() -> dict:
     # OK requires an approved application before mediatopic publishing is usable.
