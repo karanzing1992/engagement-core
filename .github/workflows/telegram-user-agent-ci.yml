@@ -1,0 +1,31 @@
+name: Telegram User Agent CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/telegram-user-agent/**"
+      - ".github/workflows/telegram-user-agent-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/telegram-user-agent/**"
+      - ".github/workflows/telegram-user-agent-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r tools/telegram-user-agent/requirements.txt
+      - name: Compile and CLI smoke check
+        run: |
+          python -m py_compile tools/telegram-user-agent/agent.py
+          python tools/telegram-user-agent/agent.py --help

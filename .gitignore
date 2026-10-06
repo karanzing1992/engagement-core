@@ -7,3 +7,7 @@ Thumbs.db
 vendor/
 node_modules/
 *.zip
+*.session
+*.session-journal
+telegram-invite-ledger.json
+.venv/
