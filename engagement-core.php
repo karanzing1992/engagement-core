@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Engagement Core
  * Description: Brand-agnostic social engagement and publishing core for YouTube, Telegram and VK distribution.
- * Version: 0.6.0
+ * Version: 0.7.0
  * Author: KaranBiz
  * Requires at least: 6.4
  * Requires PHP: 7.4
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'GREC_VERSION', '0.6.0' );
+define( 'GREC_VERSION', '0.7.0' );
 define( 'GREC_FILE', __FILE__ );
 define( 'GREC_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -25,6 +25,7 @@ require_once GREC_DIR . 'src/class-grec-admin.php';
 require_once GREC_DIR . 'src/class-grec-telegram.php';
 require_once GREC_DIR . 'src/class-grec-vk.php';
 require_once GREC_DIR . 'src/class-grec-ok.php';
+require_once GREC_DIR . 'src/class-grec-snapchat.php';
 require_once GREC_DIR . 'src/class-grec-publisher-rest.php';
 
 final class GREC_Plugin {
