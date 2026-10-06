@@ -1,0 +1,39 @@
+name: Snapchat Android CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/snapchat-handoff-android/**"
+      - ".github/workflows/snapchat-android-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/snapchat-handoff-android/**"
+      - ".github/workflows/snapchat-android-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/snapchat-handoff-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.2"
+      - name: Build debug APK
+        run: gradle :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: moksha-snap-handoff-debug
+          path: tools/snapchat-handoff-android/app/build/outputs/apk/debug/app-debug.apk
