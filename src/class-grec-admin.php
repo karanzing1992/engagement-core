@@ -16,6 +16,9 @@ final class GREC_Admin {
 		add_action( 'admin_post_grec_save_telegram', array( __CLASS__, 'save_telegram' ) );
 		add_action( 'admin_post_grec_test_telegram', array( __CLASS__, 'test_telegram' ) );
 		add_action( 'admin_post_grec_publish_telegram', array( __CLASS__, 'publish_telegram' ) );
+		add_action( 'admin_post_grec_save_vk', array( __CLASS__, 'save_vk' ) );
+		add_action( 'admin_post_grec_test_vk', array( __CLASS__, 'test_vk' ) );
+		add_action( 'admin_post_grec_publish_vk', array( __CLASS__, 'publish_vk' ) );
 	}
 
 	private static function guard(): void {
@@ -156,6 +159,60 @@ final class GREC_Admin {
 				$failed ? sprintf( 'Telegram published to %d destination(s); %d failed.', $sent, $failed ) : sprintf( 'Telegram published to %d destination(s).', $sent ),
 				$failed ? 'error' : 'success'
 			);
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+
+	public static function save_vk(): void {
+		self::guard();
+		check_admin_referer( 'grec_save_vk' );
+
+		$token    = trim( (string) wp_unslash( $_POST['vk_token'] ?? '' ) );
+		$owner_id = sanitize_text_field( (string) wp_unslash( $_POST['vk_owner_id'] ?? '' ) );
+
+		try {
+			if ( '' !== $token ) {
+				GREC_VK::save_token( $token );
+			}
+			if ( '' !== $owner_id ) {
+				GREC_VK::save_owner_id( $owner_id );
+			}
+			self::redirect(
+				GREC_VK::is_connected() ? 'VK settings saved.' : 'VK settings saved, but connection is incomplete.',
+				GREC_VK::is_connected() ? 'success' : 'error'
+			);
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+	public static function test_vk(): void {
+		self::guard();
+		check_admin_referer( 'grec_test_vk' );
+
+		try {
+			$data = GREC_VK::test_connection();
+			self::redirect( sprintf( 'VK connected: %s (%s).', $data['name'] ?: $data['owner_id'], $data['type'] ) );
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+	public static function publish_vk(): void {
+		self::guard();
+		check_admin_referer( 'grec_publish_vk' );
+
+		$text       = sanitize_textarea_field( (string) wp_unslash( $_POST['vk_publish_text'] ?? '' ) );
+		$link       = esc_url_raw( (string) wp_unslash( $_POST['vk_publish_link'] ?? '' ) );
+		$media_json = (string) wp_unslash( $_POST['vk_publish_media_json'] ?? '[]' );
+		$media      = json_decode( $media_json, true );
+		$media      = is_array( $media ) ? $media : array();
+
+		try {
+			$data = GREC_VK::publish( $text, $media, $link );
+			self::redirect( sprintf( 'Published to VK. Post ID %s.', $data['post_id'] ?: 'created' ) );
 		} catch ( Throwable $e ) {
 			self::redirect( $e->getMessage(), 'error' );
 		}
@@ -553,6 +610,98 @@ final class GREC_Admin {
 			<?php endif; ?>
 
 			<hr>
+			<h2>VK Publisher</h2>
+			<p>Publish Russian-language Moksha updates to a VK community wall. Community owner IDs use a leading minus sign, for example <code>-123456789</code>.</p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="max-width:900px">
+				<input type="hidden" name="action" value="grec_save_vk">
+				<?php wp_nonce_field( 'grec_save_vk' ); ?>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th><label for="grec_vk_owner_id">VK owner ID</label></th>
+						<td><input id="grec_vk_owner_id" class="regular-text code" name="vk_owner_id" value="<?php echo esc_attr( GREC_VK::owner_id() ); ?>" placeholder="-123456789"></td>
+					</tr>
+					<tr>
+						<th><label for="grec_vk_token">VK access token</label></th>
+						<td>
+							<input id="grec_vk_token" class="regular-text" type="password" name="vk_token" value="" autocomplete="new-password" placeholder="Leave blank to keep existing token">
+							<p class="description">Stored encrypted. Text posts can use a suitable community token; photo-wall upload may require a user token with wall/photos access.</p>
+						</td>
+					</tr>
+				</table>
+				<?php submit_button( 'Save VK settings' ); ?>
+			</form>
+			<p><strong>Status:</strong> <?php echo GREC_VK::is_connected() ? 'Configured' : 'Not configured'; ?></p>
+
+			<?php if ( GREC_VK::is_connected() ) : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom:18px">
+					<input type="hidden" name="action" value="grec_test_vk">
+					<?php wp_nonce_field( 'grec_test_vk' ); ?>
+					<?php submit_button( 'Test VK connection', 'secondary', 'submit', false ); ?>
+				</form>
+
+				<h3>VK Post Composer</h3>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="max-width:1000px">
+					<input type="hidden" name="action" value="grec_publish_vk">
+					<input type="hidden" id="grec-vk-media-json" name="vk_publish_media_json" value="[]">
+					<?php wp_nonce_field( 'grec_publish_vk' ); ?>
+					<p><textarea name="vk_publish_text" rows="6" class="large-text" placeholder="Russian VK copy — emoji supported 🔥"></textarea></p>
+					<p><input name="vk_publish_link" type="url" class="large-text code" placeholder="Optional link, e.g. https://mokshagoa.com/#choose-and-pay"></p>
+
+					<div style="border:1px solid #dcdcde;background:#fff;padding:14px;margin:14px 0">
+						<strong>Photos</strong>
+						<p class="description">Choose up to 10 images. They are uploaded to the VK wall before the post is created.</p>
+						<p>
+							<button type="button" class="button button-secondary" id="grec-vk-media-library">Choose photos</button>
+							<button type="button" class="button" id="grec-vk-clear-media">Clear</button>
+						</p>
+						<ol id="grec-vk-media-list"></ol>
+					</div>
+					<?php submit_button( 'Publish to VK' ); ?>
+				</form>
+				<script>
+				(function(){
+					var media=[];
+					var hidden=document.getElementById('grec-vk-media-json');
+					var list=document.getElementById('grec-vk-media-list');
+					var choose=document.getElementById('grec-vk-media-library');
+					var clear=document.getElementById('grec-vk-clear-media');
+					if(!hidden || !list || !choose || !clear || typeof wp === 'undefined' || !wp.media) return;
+
+					function sync(){
+						hidden.value=JSON.stringify(media);
+						list.innerHTML='';
+						media.forEach(function(item,index){
+							var li=document.createElement('li');
+							li.style.marginBottom='7px';
+							li.textContent=item.name || item.url;
+							var remove=document.createElement('button');
+							remove.type='button';
+							remove.className='button-link-delete';
+							remove.style.marginLeft='8px';
+							remove.textContent='Remove';
+							remove.addEventListener('click',function(){ media.splice(index,1); sync(); });
+							li.appendChild(remove);
+							list.appendChild(li);
+						});
+					}
+
+					choose.addEventListener('click',function(){
+						var frame=wp.media({title:'Choose VK photos',button:{text:'Add photos'},multiple:true,library:{type:'image'}});
+						frame.on('select',function(){
+							frame.state().get('selection').toJSON().forEach(function(a){
+								if(media.length<10 && a.url) media.push({type:'photo',url:a.url,name:a.filename || a.title || ''});
+							});
+							sync();
+						});
+						frame.open();
+					});
+					clear.addEventListener('click',function(){media=[];sync();});
+					sync();
+				})();
+				</script>
+			<?php endif; ?>
+
+			<hr>
 			<h2>Inbox</h2>
 			<?php if ( ! $comments ) : ?>
 				<p>No comments synced yet.</p>
@@ -605,7 +754,10 @@ final class GREC_Admin {
 					grec_moderate: 'Updating moderation…',
 					grec_save_telegram: 'Saving Telegram destinations…',
 					grec_test_telegram: 'Testing Telegram destinations…',
-					grec_publish_telegram: 'Publishing to Telegram…'
+					grec_publish_telegram: 'Publishing to Telegram…',
+					grec_save_vk: 'Saving VK settings…',
+					grec_test_vk: 'Testing VK connection…',
+					grec_publish_vk: 'Publishing to VK…'
 				};
 
 				function setBusy(form) {
