@@ -235,6 +235,25 @@ final class GREC_Admin {
 		$notice = isset( $_GET['grec_notice'] ) ? sanitize_text_field( wp_unslash( $_GET['grec_notice'] ) ) : '';
 		$type = isset( $_GET['grec_type'] ) && 'error' === $_GET['grec_type'] ? 'error' : 'success';
 		?>
+		<div id="grec-loading-overlay" class="grec-loading-overlay" aria-hidden="true">
+			<div class="grec-loading-card" role="status" aria-live="polite">
+				<span class="grec-loading-spinner" aria-hidden="true"></span>
+				<strong id="grec-loading-message">Working…</strong>
+				<span>Please don’t press the button again.</span>
+			</div>
+		</div>
+		<style>
+			.grec-loading-overlay{position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.42);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;cursor:progress}
+			.grec-loading-overlay.is-active{display:flex}
+			.grec-loading-card{min-width:240px;max-width:85vw;background:#fff;border-radius:12px;padding:22px 26px;box-shadow:0 18px 55px rgba(0,0,0,.24);display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;color:#1d2327}
+			.grec-loading-card span:last-child{font-size:12px;color:#646970;font-weight:400}
+			.grec-loading-spinner{width:30px;height:30px;border:3px solid #dcdcde;border-top-color:#2271b1;border-radius:50%;animation:grec-spin .75s linear infinite}
+			body.grec-ui-busy{overflow:hidden}
+			body.grec-ui-busy #wpwrap{pointer-events:none;user-select:none}
+			body.grec-ui-busy #grec-loading-overlay{pointer-events:all;user-select:auto}
+			@keyframes grec-spin{to{transform:rotate(360deg)}}
+			@media (prefers-reduced-motion:reduce){.grec-loading-spinner{animation-duration:1.5s}}
+		</style>
 		<div class="wrap">
 			<h1>Engagement Core</h1>
 			<p>Unified engagement inbox. V1 uses the official YouTube Data API for comment sync, replies and moderation.</p>
@@ -572,6 +591,58 @@ final class GREC_Admin {
 					</form>
 				</div>
 			<?php endforeach; ?>
+			<script>
+			(function(){
+				var overlay = document.getElementById('grec-loading-overlay');
+				var message = document.getElementById('grec-loading-message');
+				if (!overlay || !message) return;
+
+				var labels = {
+					grec_save_settings: 'Saving settings…',
+					grec_sync_now: 'Syncing comments…',
+					grec_youtube_disconnect: 'Disconnecting YouTube…',
+					grec_reply: 'Posting reply…',
+					grec_moderate: 'Updating moderation…',
+					grec_save_telegram: 'Saving Telegram destinations…',
+					grec_test_telegram: 'Testing Telegram destinations…',
+					grec_publish_telegram: 'Publishing to Telegram…'
+				};
+
+				function setBusy(form) {
+					if (document.body.classList.contains('grec-ui-busy')) return false;
+					var actionField = form.querySelector('input[name="action"]');
+					var action = actionField ? actionField.value : '';
+					message.textContent = labels[action] || 'Saving…';
+					document.body.classList.add('grec-ui-busy');
+					overlay.classList.add('is-active');
+					overlay.setAttribute('aria-hidden','false');
+					form.setAttribute('aria-busy','true');
+					form.querySelectorAll('button[type="submit"],input[type="submit"]').forEach(function(button){
+						button.disabled = true;
+					});
+					return true;
+				}
+
+				function resetBusy() {
+					document.body.classList.remove('grec-ui-busy');
+					overlay.classList.remove('is-active');
+					overlay.setAttribute('aria-hidden','true');
+					document.querySelectorAll('form[aria-busy="true"]').forEach(function(form){
+						form.removeAttribute('aria-busy');
+						form.querySelectorAll('button[type="submit"],input[type="submit"]').forEach(function(button){
+							button.disabled = false;
+						});
+					});
+				}
+
+				document.querySelectorAll('form[action*="admin-post.php"]').forEach(function(form){
+					form.addEventListener('submit',function(event){
+						if (!setBusy(form)) event.preventDefault();
+					});
+				});
+				window.addEventListener('pageshow', resetBusy);
+			})();
+			</script>
 		</div>
 		<?php
 	}
