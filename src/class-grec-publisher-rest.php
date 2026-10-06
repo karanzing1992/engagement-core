@@ -27,6 +27,11 @@ final class GREC_Publisher_REST {
 		register_rest_route( 'engagement-core/v1', '/ok/config', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'ok_config' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
 		register_rest_route( 'engagement-core/v1', '/ok/test', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'ok_test' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
 		register_rest_route( 'engagement-core/v1', '/ok/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'ok_status' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route( 'engagement-core/v1', '/snapchat/config', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'snapchat_config' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route( 'engagement-core/v1', '/snapchat/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'snapchat_status' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route( 'engagement-core/v1', '/snapchat/handoff', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'snapchat_handoff' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route( 'engagement-core/v1', '/snapchat/device/next', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'snapchat_device_next' ), 'permission_callback' => array( __CLASS__, 'snapchat_device_auth' ) ) );
+		register_rest_route( 'engagement-core/v1', '/snapchat/device/complete', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'snapchat_device_complete' ), 'permission_callback' => array( __CLASS__, 'snapchat_device_auth' ) ) );
 		register_rest_route(
 			'engagement-core/v1',
 			'/ok/publish',
@@ -89,6 +94,9 @@ final class GREC_Publisher_REST {
 				'vk_photo_upload'    => true,
 				'ok_connected'       => GREC_OK::is_connected(),
 				'ok_requires_approval' => true,
+				'snapchat_mode'       => 'creative-kit-lite-preview',
+				'snapchat_configured' => GREC_Snapchat::is_configured(),
+				'snapchat_pending'    => GREC_Snapchat::pending_count(),
 			),
 			200
 		);
@@ -282,6 +290,69 @@ final class GREC_Publisher_REST {
 
 	public static function ok_status(): WP_REST_Response {
 		return new WP_REST_Response( GREC_OK::status(), 200 );
+	}
+
+
+	public static function snapchat_config( WP_REST_Request $request ): WP_REST_Response {
+		try {
+			$client_id = sanitize_text_field( (string) $request->get_param( 'client_id' ) );
+			$key       = trim( (string) $request->get_param( 'device_key' ) );
+			if ( '' !== $client_id ) {
+				GREC_Snapchat::save_client_id( $client_id );
+			}
+			if ( '' !== $key ) {
+				GREC_Snapchat::save_device_key( $key );
+			} elseif ( '' === GREC_Snapchat::device_key() ) {
+				GREC_Snapchat::ensure_device_key();
+			}
+			return self::snapchat_status();
+		} catch ( Throwable $e ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => $e->getMessage() ), 400 );
+		}
+	}
+
+	public static function snapchat_status(): WP_REST_Response {
+		return new WP_REST_Response( GREC_Snapchat::status(), 200 );
+	}
+
+	public static function snapchat_handoff( WP_REST_Request $request ): WP_REST_Response {
+		try {
+			$task = GREC_Snapchat::queue_handoff(
+				sanitize_textarea_field( (string) $request->get_param( 'caption' ) ),
+				esc_url_raw( (string) $request->get_param( 'media_url' ) ),
+				sanitize_key( (string) $request->get_param( 'media_type' ) )
+			);
+			return new WP_REST_Response( array( 'ok' => true, 'task' => $task ), 201 );
+		} catch ( Throwable $e ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => $e->getMessage() ), 400 );
+		}
+	}
+
+	public static function snapchat_device_auth( WP_REST_Request $request ): bool {
+		$expected = GREC_Snapchat::device_key();
+		$provided = trim( (string) $request->get_header( 'x-grec-snap-key' ) );
+		return '' !== $expected && '' !== $provided && hash_equals( $expected, $provided );
+	}
+
+	public static function snapchat_device_next(): WP_REST_Response {
+		$task = GREC_Snapchat::claim_next();
+		if ( null === $task ) {
+			return new WP_REST_Response( array( 'ok' => true, 'task' => null ), 200 );
+		}
+		return new WP_REST_Response( array( 'ok' => true, 'task' => $task ), 200 );
+	}
+
+	public static function snapchat_device_complete( WP_REST_Request $request ): WP_REST_Response {
+		try {
+			$task = GREC_Snapchat::complete(
+				sanitize_text_field( (string) $request->get_param( 'id' ) ),
+				sanitize_key( (string) $request->get_param( 'status' ) ),
+				sanitize_text_field( (string) $request->get_param( 'error' ) )
+			);
+			return new WP_REST_Response( array( 'ok' => true, 'task' => $task ), 200 );
+		} catch ( Throwable $e ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => $e->getMessage() ), 400 );
+		}
 	}
 
 }
