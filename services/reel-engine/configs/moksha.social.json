@@ -25,7 +25,12 @@
     },
     "ok": {
       "enabled": true,
-      "requires_approved_app": true
+      "requires_approved_app": true,
+      "application_key_env": "OK_APPLICATION_KEY",
+      "application_secret_env": "OK_APPLICATION_SECRET",
+      "access_token_env": "OK_ACCESS_TOKEN",
+      "group_id_env": "OK_GROUP_ID",
+      "mode": "mediatopic"
     },
     "snapchat": {
       "enabled": true,
