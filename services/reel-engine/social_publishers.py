@@ -38,9 +38,12 @@ def telegram_video_multi(media_url: str, caption: str, destinations: list[dict],
         key=str(destination.get("key",""))
         chat_id=str(destination.get("chat_id","")).strip()
         level=str(destination.get("level","primary"))
-        if targets and key not in targets and chat_id not in targets:
-            continue
-        if levels and level not in levels:
+        target_match=(not targets) or key in targets or chat_id in targets
+        level_match=(not levels) or level in levels
+        if targets and levels:
+            if not (target_match or level_match):
+                continue
+        elif not (target_match and level_match):
             continue
         if not chat_id:
             continue
