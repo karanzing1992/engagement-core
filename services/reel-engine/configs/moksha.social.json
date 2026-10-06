@@ -1,11 +1,28 @@
 {
   "brand": "moksha",
-  "languages": ["en", "ru"],
+  "languages": [
+    "en",
+    "ru"
+  ],
   "publishers": {
-    "telegram": {"enabled": true, "chat_id_env": "MOKSHA_TELEGRAM_CHAT_ID"},
-    "vk": {"enabled": true, "owner_id_env": "MOKSHA_VK_OWNER_ID"},
-    "ok": {"enabled": true, "requires_approved_app": true},
-    "snapchat": {"enabled": true, "mode": "android-creative-kit-handoff"}
+    "telegram": {
+      "enabled": true,
+      "bot_username": "@Engagemetcorebot",
+      "chat_id": "@pokergoa",
+      "token_env": "TELEGRAM_BOT_TOKEN"
+    },
+    "vk": {
+      "enabled": true,
+      "owner_id_env": "MOKSHA_VK_OWNER_ID"
+    },
+    "ok": {
+      "enabled": true,
+      "requires_approved_app": true
+    },
+    "snapchat": {
+      "enabled": true,
+      "mode": "android-creative-kit-handoff"
+    }
   },
   "copy": {
     "ru": {
