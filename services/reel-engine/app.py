@@ -13,6 +13,7 @@ from music_library import ingest_track, list_tracks, rank_tracks, select_track
 from renderer import render_reel
 from media_handoff import publish_media, delete_media
 from quality import media_preflight, detect_silence
+from social_publishers import capabilities
 
 ROOT = Path(os.environ.get("REEL_DATA_ROOT", "/data"))
 UPLOADS = ROOT / "uploads"
@@ -252,3 +253,8 @@ def job_quality(job_id: str):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Quality analysis failed: {exc}") from exc
     return {"preflight": preflight, "silence": silence}
+
+
+@app.get("/v1/social/capabilities")
+def social_capabilities():
+    return capabilities()
