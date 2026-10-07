@@ -18,6 +18,8 @@ Last reviewed: 2026-10-07
 - [x] Dynamic public client registration succeeds.
 - [x] PKCE S256 is advertised.
 - [x] Protected-resource metadata advertises `email` and `offline_access`.
+- [x] A PKCE authorization request using `email offline_access` is accepted and routed to the canonical consent UI.
+- [x] Magic-link callback preserves the OAuth `authorization_id` explicitly.
 - [x] MCP server metadata version is 0.1.1.
 - [x] Duplicate-sensitive writes such as content creation and order notes are marked non-idempotent.
 - [x] `undo_change` is marked destructive and non-idempotent.
