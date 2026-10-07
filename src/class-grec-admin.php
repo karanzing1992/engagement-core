@@ -21,6 +21,10 @@ final class GREC_Admin {
 		add_action( 'admin_post_grec_save_vk', array( __CLASS__, 'save_vk' ) );
 		add_action( 'admin_post_grec_test_vk', array( __CLASS__, 'test_vk' ) );
 		add_action( 'admin_post_grec_publish_vk', array( __CLASS__, 'publish_vk' ) );
+		add_action( 'admin_post_grec_vk_oauth_start', array( __CLASS__, 'vk_oauth_start' ) );
+		add_action( 'admin_post_grec_vk_oauth_callback', array( __CLASS__, 'vk_oauth_callback' ) );
+		add_action( 'admin_post_grec_vk_select_group', array( __CLASS__, 'vk_select_group' ) );
+		add_action( 'admin_post_grec_vk_disconnect', array( __CLASS__, 'vk_disconnect' ) );
 		add_action( 'admin_post_grec_save_ok', array( __CLASS__, 'save_ok' ) );
 		add_action( 'admin_post_grec_test_ok', array( __CLASS__, 'test_ok' ) );
 		add_action( 'admin_post_grec_publish_ok', array( __CLASS__, 'publish_ok' ) );
@@ -210,10 +214,15 @@ final class GREC_Admin {
 		self::guard();
 		check_admin_referer( 'grec_save_vk' );
 
-		$token    = trim( (string) wp_unslash( $_POST['vk_token'] ?? '' ) );
-		$owner_id = sanitize_text_field( (string) wp_unslash( $_POST['vk_owner_id'] ?? '' ) );
+		$token         = trim( (string) wp_unslash( $_POST['vk_token'] ?? '' ) );
+		$owner_id      = sanitize_text_field( (string) wp_unslash( $_POST['vk_owner_id'] ?? '' ) );
+		$client_id     = sanitize_text_field( (string) wp_unslash( $_POST['vk_client_id'] ?? '' ) );
+		$client_secret = trim( (string) wp_unslash( $_POST['vk_client_secret'] ?? '' ) );
 
 		try {
+			if ( '' !== $client_id || '' !== $client_secret ) {
+				GREC_VK::save_oauth_app( $client_id, $client_secret );
+			}
 			if ( '' !== $token ) {
 				GREC_VK::save_token( $token );
 			}
@@ -227,6 +236,121 @@ final class GREC_Admin {
 		} catch ( Throwable $e ) {
 			self::redirect( $e->getMessage(), 'error' );
 		}
+	}
+
+
+	public static function vk_oauth_start(): void {
+		self::guard();
+		check_admin_referer( 'grec_vk_oauth_start' );
+
+		if ( ! GREC_VK::oauth_app_configured() ) {
+			self::redirect( 'Save the VK application ID and secure key before connecting.', 'error' );
+		}
+
+		try {
+			$state = bin2hex( random_bytes( 24 ) );
+			set_transient(
+				'grec_vk_oauth_state_' . get_current_user_id(),
+				array(
+					'state'      => $state,
+					'created_at' => time(),
+				),
+				10 * MINUTE_IN_SECONDS
+			);
+			$url = GREC_VK::oauth_authorize_url( $state );
+			wp_redirect( esc_url_raw( $url ), 302, 'Engagement Core' );
+			exit;
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+	public static function vk_oauth_callback(): void {
+		self::guard();
+
+		$stored = get_transient( 'grec_vk_oauth_state_' . get_current_user_id() );
+		$state  = sanitize_text_field( (string) wp_unslash( $_GET['state'] ?? '' ) );
+		if (
+			! is_array( $stored ) ||
+			empty( $stored['state'] ) ||
+			'' === $state ||
+			! hash_equals( (string) $stored['state'], $state )
+		) {
+			self::redirect( 'VK OAuth state check failed. Start the connection again.', 'error' );
+		}
+		delete_transient( 'grec_vk_oauth_state_' . get_current_user_id() );
+
+		if ( ! empty( $_GET['error'] ) ) {
+			$description = sanitize_text_field( (string) wp_unslash( $_GET['error_description'] ?? $_GET['error'] ) );
+			self::redirect( 'VK authorization was denied: ' . $description, 'error' );
+		}
+
+		$code = sanitize_text_field( (string) wp_unslash( $_GET['code'] ?? '' ) );
+		if ( '' === $code ) {
+			self::redirect( 'VK did not return an authorization code.', 'error' );
+		}
+
+		try {
+			GREC_VK::exchange_oauth_code( $code );
+			$groups = GREC_VK::managed_communities();
+
+			if ( 1 === count( $groups ) ) {
+				GREC_VK::save_owner_id( (string) $groups[0]['owner_id'] );
+				self::redirect( 'VK connected to ' . $groups[0]['name'] . '.' );
+			}
+
+			if ( empty( $groups ) ) {
+				self::redirect( 'VK authorized, but no administered communities were returned for this account.', 'error' );
+			}
+
+			set_transient(
+				'grec_vk_oauth_groups_' . get_current_user_id(),
+				$groups,
+				15 * MINUTE_IN_SECONDS
+			);
+			self::redirect( 'VK authorized. Choose the community to connect below.' );
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+	public static function vk_select_group(): void {
+		self::guard();
+		check_admin_referer( 'grec_vk_select_group' );
+
+		$owner_id = sanitize_text_field( (string) wp_unslash( $_POST['vk_owner_id'] ?? '' ) );
+		$groups   = get_transient( 'grec_vk_oauth_groups_' . get_current_user_id() );
+		if ( ! is_array( $groups ) ) {
+			self::redirect( 'The VK community selection expired. Connect VK again.', 'error' );
+		}
+
+		$selected = null;
+		foreach ( $groups as $group ) {
+			if ( is_array( $group ) && isset( $group['owner_id'] ) && hash_equals( (string) $group['owner_id'], $owner_id ) ) {
+				$selected = $group;
+				break;
+			}
+		}
+		if ( ! $selected ) {
+			self::redirect( 'Invalid VK community selection.', 'error' );
+		}
+
+		try {
+			GREC_VK::save_owner_id( $owner_id );
+			delete_transient( 'grec_vk_oauth_groups_' . get_current_user_id() );
+			self::redirect( 'VK connected to ' . (string) $selected['name'] . '.' );
+		} catch ( Throwable $e ) {
+			self::redirect( $e->getMessage(), 'error' );
+		}
+	}
+
+	public static function vk_disconnect(): void {
+		self::guard();
+		check_admin_referer( 'grec_vk_disconnect' );
+		GREC_VK::disconnect();
+		delete_transient( 'grec_vk_oauth_groups_' . get_current_user_id() );
+		delete_transient( 'grec_vk_oauth_state_' . get_current_user_id() );
+		self::redirect( 'VK disconnected. Application settings were kept for quick reconnection.' );
 	}
 
 	public static function test_vk(): void {
@@ -789,26 +913,90 @@ final class GREC_Admin {
 
 			<hr>
 			<h2>VK Publisher</h2>
-			<p>Publish Russian-language Moksha updates to a VK community wall. Community owner IDs use a leading minus sign, for example <code>-123456789</code>.</p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="max-width:900px">
-				<input type="hidden" name="action" value="grec_save_vk">
-				<?php wp_nonce_field( 'grec_save_vk' ); ?>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th><label for="grec_vk_owner_id">VK owner ID</label></th>
-						<td><input id="grec_vk_owner_id" class="regular-text code" name="vk_owner_id" value="<?php echo esc_attr( GREC_VK::owner_id() ); ?>" placeholder="-123456789"></td>
-					</tr>
-					<tr>
-						<th><label for="grec_vk_token">VK access token</label></th>
-						<td>
-							<input id="grec_vk_token" class="regular-text" type="password" name="vk_token" value="" autocomplete="new-password" placeholder="Leave blank to keep existing token">
-							<p class="description">Stored encrypted. Text posts can use a suitable community token; photo-wall upload may require a user token with wall/photos access.</p>
-						</td>
-					</tr>
-				</table>
-				<?php submit_button( 'Save VK settings' ); ?>
-			</form>
-			<p><strong>Status:</strong> <?php echo GREC_VK::is_connected() ? 'Configured' : 'Not configured'; ?></p>
+			<p>Publish Russian-language Moksha updates to a VK community wall. OAuth connection is recommended; manual token entry remains available as a fallback.</p>
+			<?php
+			$vk_app = GREC_VK::oauth_app();
+			$vk_groups = get_transient( 'grec_vk_oauth_groups_' . get_current_user_id() );
+			?>
+			<div style="max-width:900px;border:1px solid #dcdcde;background:#fff;padding:16px;margin:12px 0 18px">
+				<h3 style="margin-top:0">1. VK application</h3>
+				<p class="description">Create a VK application once and register this exact callback URL:</p>
+				<p><code><?php echo esc_html( GREC_VK::oauth_callback_url() ); ?></code></p>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<input type="hidden" name="action" value="grec_save_vk">
+					<?php wp_nonce_field( 'grec_save_vk' ); ?>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th><label for="grec_vk_client_id">VK application ID</label></th>
+							<td><input id="grec_vk_client_id" class="regular-text code" name="vk_client_id" value="<?php echo esc_attr( (string) ( $vk_app['client_id'] ?? '' ) ); ?>" inputmode="numeric" placeholder="12345678"></td>
+						</tr>
+						<tr>
+							<th><label for="grec_vk_client_secret">VK secure key</label></th>
+							<td>
+								<input id="grec_vk_client_secret" class="regular-text" type="password" name="vk_client_secret" value="" autocomplete="new-password" placeholder="<?php echo GREC_VK::oauth_app_configured() ? 'Leave blank to keep saved key' : 'Required once'; ?>">
+								<p class="description">Encrypted before storage and never displayed again.</p>
+							</td>
+						</tr>
+					</table>
+					<?php submit_button( 'Save VK application', 'secondary' ); ?>
+				</form>
+
+				<h3>2. Connect account</h3>
+				<?php if ( GREC_VK::oauth_app_configured() ) : ?>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;margin-right:8px">
+						<input type="hidden" name="action" value="grec_vk_oauth_start">
+						<?php wp_nonce_field( 'grec_vk_oauth_start' ); ?>
+						<?php submit_button( GREC_VK::is_connected() ? 'Reconnect VK' : 'Connect VK', 'primary', 'submit', false ); ?>
+					</form>
+				<?php else : ?>
+					<p><em>Save the VK application ID and secure key first.</em></p>
+				<?php endif; ?>
+
+				<?php if ( GREC_VK::is_connected() ) : ?>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block">
+						<input type="hidden" name="action" value="grec_vk_disconnect">
+						<?php wp_nonce_field( 'grec_vk_disconnect' ); ?>
+						<?php submit_button( 'Disconnect VK', 'secondary', 'submit', false ); ?>
+					</form>
+				<?php endif; ?>
+			</div>
+
+			<?php if ( is_array( $vk_groups ) && count( $vk_groups ) > 1 ) : ?>
+				<div style="max-width:900px;border:1px solid #72aee6;background:#f0f6fc;padding:16px;margin:12px 0 18px">
+					<h3 style="margin-top:0">Choose VK community</h3>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<input type="hidden" name="action" value="grec_vk_select_group">
+						<?php wp_nonce_field( 'grec_vk_select_group' ); ?>
+						<select name="vk_owner_id" required style="min-width:320px">
+							<option value="">Select a community…</option>
+							<?php foreach ( $vk_groups as $group ) : ?>
+								<option value="<?php echo esc_attr( (string) $group['owner_id'] ); ?>"><?php echo esc_html( (string) $group['name'] ); ?> (<?php echo esc_html( (string) $group['owner_id'] ); ?>)</option>
+							<?php endforeach; ?>
+						</select>
+						<?php submit_button( 'Use this community', 'primary', 'submit', false ); ?>
+					</form>
+				</div>
+			<?php endif; ?>
+
+			<details style="max-width:900px;margin:12px 0 18px">
+				<summary><strong>Manual VK token fallback</strong></summary>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<input type="hidden" name="action" value="grec_save_vk">
+					<?php wp_nonce_field( 'grec_save_vk' ); ?>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th><label for="grec_vk_owner_id">VK owner ID</label></th>
+							<td><input id="grec_vk_owner_id" class="regular-text code" name="vk_owner_id" value="<?php echo esc_attr( GREC_VK::owner_id() ); ?>" placeholder="-123456789"></td>
+						</tr>
+						<tr>
+							<th><label for="grec_vk_token">VK access token</label></th>
+							<td><input id="grec_vk_token" class="regular-text" type="password" name="vk_token" value="" autocomplete="new-password" placeholder="Leave blank to keep existing token"></td>
+						</tr>
+					</table>
+					<?php submit_button( 'Save manual VK settings', 'secondary' ); ?>
+				</form>
+			</details>
+			<p><strong>Status:</strong> <?php echo GREC_VK::is_connected() ? 'Connected to owner ' . esc_html( GREC_VK::owner_id() ) : 'Not connected'; ?></p>
 
 			<?php if ( GREC_VK::is_connected() ) : ?>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom:18px">
