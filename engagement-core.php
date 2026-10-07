@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Engagement Core
  * Description: Brand-agnostic social engagement, publishing and WordPress AI control core.
- * Version: 0.8.5
+ * Version: 0.8.6
  * Author: KaranBiz
  * Requires at least: 6.9
  * Requires PHP: 7.4
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'GREC_VERSION', '0.8.5' );
+define( 'GREC_VERSION', '0.8.6' );
 define( 'GREC_FILE', __FILE__ );
 define( 'GREC_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -27,14 +27,16 @@ require_once GREC_DIR . 'src/class-grec-vk.php';
 require_once GREC_DIR . 'src/class-grec-ok.php';
 require_once GREC_DIR . 'src/class-grec-snapchat.php';
 require_once GREC_DIR . 'src/class-grec-publisher-rest.php';
-require_once GREC_DIR . 'src/class-grec-wp-control.php';\nrequire_once GREC_DIR . 'src/class-grec-gateway-bootstrap.php';
+require_once GREC_DIR . 'src/class-grec-wp-control.php';
+require_once GREC_DIR . 'src/class-grec-gateway-bootstrap.php';
 
 final class GREC_Plugin {
 	public static function init(): void {
 		GREC_Scheduler::init();
 		GREC_Admin::init();
 		GREC_Publisher_REST::init();
-		GREC_WordPress_Control::init();\n\t\tGREC_Gateway_Bootstrap::init();
+		GREC_WordPress_Control::init();
+		GREC_Gateway_Bootstrap::init();
 	}
 
 	public static function activate(): void {
