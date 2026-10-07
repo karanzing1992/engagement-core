@@ -405,7 +405,7 @@ export function makeServer(ctx: UserContext) {
     'Update safe WordPress settings',
     'Update only Engagement Core allowlisted WordPress and WooCommerce settings.',
     {
-      values: z.record(z.any()),
+      values: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
     },
     'options_update',
   )
