@@ -312,6 +312,70 @@ final class GREC_WordPress_Control {
 			true
 		);
 
+		wp_register_ability(
+			'wp-control/gateway-credential-list',
+			array(
+				'label'               => __( 'List gateway credentials', 'engagement-core' ),
+				'description'         => __( 'List Cowboy MCP gateway credentials without exposing their secret values.', 'engagement-core' ),
+				'category'            => self::CATEGORY,
+				'execute_callback'    => array( __CLASS__, 'gateway_credential_list' ),
+				'permission_callback' => array( __CLASS__, 'can_manage_options' ),
+				'meta'                => array(
+					'public'       => true,
+					'show_in_rest' => true,
+					'annotations'  => array( 'readonly' => true, 'destructive' => false, 'idempotent' => true ),
+					'mcp'          => array( 'public' => false ),
+				),
+			)
+		);
+
+		wp_register_ability(
+			'wp-control/gateway-credential-create',
+			array(
+				'label'               => __( 'Create gateway credential', 'engagement-core' ),
+				'description'         => __( 'Create a dedicated Cowboy MCP API key for an external gateway. The secret is returned once and is never stored in plaintext by WordPress.', 'engagement-core' ),
+				'category'            => self::CATEGORY,
+				'execute_callback'    => array( __CLASS__, 'gateway_credential_create' ),
+				'permission_callback' => array( __CLASS__, 'can_manage_options' ),
+				'input_schema'        => array(
+					'type'       => 'object',
+					'properties' => array(
+						'label' => array( 'type' => 'string', 'default' => 'WP Control Gateway' ),
+					),
+				),
+				'meta'                => array(
+					'public'       => true,
+					'show_in_rest' => true,
+					'annotations'  => array( 'readonly' => false, 'destructive' => false, 'idempotent' => false ),
+					'mcp'          => array( 'public' => false ),
+				),
+			)
+		);
+
+		wp_register_ability(
+			'wp-control/gateway-credential-revoke',
+			array(
+				'label'               => __( 'Revoke gateway credential', 'engagement-core' ),
+				'description'         => __( 'Revoke a dedicated Cowboy MCP gateway credential by key ID.', 'engagement-core' ),
+				'category'            => self::CATEGORY,
+				'execute_callback'    => array( __CLASS__, 'gateway_credential_revoke' ),
+				'permission_callback' => array( __CLASS__, 'can_manage_options' ),
+				'input_schema'        => array(
+					'type'       => 'object',
+					'required'   => array( 'id' ),
+					'properties' => array(
+						'id' => array( 'type' => 'string' ),
+					),
+				),
+				'meta'                => array(
+					'public'       => true,
+					'show_in_rest' => true,
+					'annotations'  => array( 'readonly' => false, 'destructive' => true, 'idempotent' => true ),
+					'mcp'          => array( 'public' => false ),
+				),
+			)
+		);
+
 		self::register_ability(
 			'wp-control/package-list',
 			'List Git-managed packages',
@@ -961,6 +1025,71 @@ final class GREC_WordPress_Control {
 		$rows   = get_option( $option, array() );
 		return is_array( $rows ) ? $rows : array();
 	}
+
+	public static function gateway_credential_list(): array {
+		if ( ! class_exists( 'Cowboy_MCP_Auth' ) ) {
+			return array( 'credentials' => array() );
+		}
+		$rows = array();
+		foreach ( Cowboy_MCP_Auth::list_keys() as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$rows[] = array(
+				'id'        => isset( $row['id'] ) ? (string) $row['id'] : '',
+				'label'     => isset( $row['label'] ) ? (string) $row['label'] : '',
+				'prefix'    => isset( $row['prefix'] ) ? (string) $row['prefix'] : '',
+				'created'   => isset( $row['created'] ) ? (int) $row['created'] : 0,
+				'last_used' => isset( $row['last_used'] ) && null !== $row['last_used'] ? (int) $row['last_used'] : null,
+				'scope'     => isset( $row['scope'] ) ? $row['scope'] : null,
+			);
+		}
+		return array( 'credentials' => $rows );
+	}
+
+	public static function gateway_credential_create( $input ) {
+		if ( ! class_exists( 'Cowboy_MCP_Auth' ) ) {
+			return new WP_Error( 'wp_control_cowboy_missing', 'Cowboy MCP is not active.' );
+		}
+
+		$input = is_array( $input ) ? $input : array();
+		$label = ! empty( $input['label'] ) ? sanitize_text_field( $input['label'] ) : 'WP Control Gateway';
+
+		foreach ( Cowboy_MCP_Auth::list_keys() as $row ) {
+			if ( is_array( $row ) && isset( $row['label'], $row['id'] ) && $label === (string) $row['label'] ) {
+				Cowboy_MCP_Auth::revoke_key( (string) $row['id'] );
+			}
+		}
+
+		$key = Cowboy_MCP_Auth::generate_key( $label, null );
+		update_option( 'grec_gateway_key_id', (string) $key['id'], false );
+
+		return array(
+			'id'      => (string) $key['id'],
+			'key'     => (string) $key['key'],
+			'label'   => (string) $key['label'],
+			'created' => (int) $key['created'],
+			'scope'   => 'full_non_power',
+		);
+	}
+
+	public static function gateway_credential_revoke( $input ) {
+		if ( ! class_exists( 'Cowboy_MCP_Auth' ) ) {
+			return new WP_Error( 'wp_control_cowboy_missing', 'Cowboy MCP is not active.' );
+		}
+
+		$id = is_array( $input ) && isset( $input['id'] ) ? sanitize_text_field( $input['id'] ) : '';
+		if ( '' === $id ) {
+			return new WP_Error( 'wp_control_missing_key_id', 'Credential id is required.' );
+		}
+
+		$ok = Cowboy_MCP_Auth::revoke_key( $id );
+		if ( $ok && get_option( 'grec_gateway_key_id' ) === $id ) {
+			delete_option( 'grec_gateway_key_id' );
+		}
+		return array( 'id' => $id, 'revoked' => (bool) $ok );
+	}
+
 
 	public static function package_list(): array {
 		$out = array( 'plugins' => array(), 'themes' => array() );
