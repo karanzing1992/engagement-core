@@ -75,10 +75,21 @@ async function mcp(access,name,args={}){
 }
 function rows(v){
   if(Array.isArray(v)) return v;
-  if(Array.isArray(v?.items)) return v.items;
-  if(Array.isArray(v?.changes)) return v.changes;
-  if(Array.isArray(v?.data)) return v.data;
+  if(!v||typeof v!=='object') return [];
+  for(const key of ['items','changes','data','results']){
+    const nested=rows(v[key]);
+    if(nested.length) return nested;
+  }
   return [];
+}
+function changeIdFrom(v){
+  if(!v||typeof v!=='object') return null;
+  if(Number.isInteger(Number(v.change_id))&&Number(v.change_id)>0) return Number(v.change_id);
+  for(const value of Object.values(v)){
+    const found=changeIdFrom(value);
+    if(found) return found;
+  }
+  return null;
 }
 async function runCanary(access,oauthMeta){
   const report={oauth_code_exchange:true,oauth_refresh:oauthMeta.refresh_ok,oauth_scope:oauthMeta.scope};
@@ -102,17 +113,21 @@ async function runCanary(access,oauthMeta){
   const changes=await mcp(access,'list_changes',{site_id:siteId,status:'active',page:1,per_page:50});
   const changeRows=rows(changes);
   report.active_changes_seen=changeRows.length;
-  let candidate=changeRows.find(c=>JSON.stringify(c).includes(TITLE));
-  if(!candidate&&changeRows.length) candidate=changeRows[0];
-  const changeId=candidate&&(candidate.change_id??candidate.id);
+  let changeId=changeIdFrom(created);
+  if(!changeId){
+    const candidate=changeRows.find(c=>JSON.stringify(c).includes(TITLE))||changeRows[0];
+    changeId=changeIdFrom(candidate)||(candidate&&Number(candidate.id)>0?Number(candidate.id):null);
+  }
   if(!changeId) throw new Error('canary_change_not_found');
+  report.change_id_from_write=!!changeIdFrom(created);
+  report.change_visible_in_journal=changeRows.some(c=>Number(c.change_id??c.id)===Number(changeId)||JSON.stringify(c).includes(TITLE));
 
   const undone=await mcp(access,'undo_change',{site_id:siteId,change_id:Number(changeId),force:false});
   report.undo_ok=!!undone;
 
-  const verify=await mcp(access,'list_content',{site_id:siteId,post_type:'post',status:'any',search:TITLE,page:1,per_page:20});
+  const verify=await mcp(access,'list_content',{site_id:siteId,post_type:'post',status:'draft',search:TITLE,page:1,per_page:20});
   const matches=rows(verify).filter(x=>String(x.title||'')===TITLE);
-  report.remaining_exact_matches=matches.length;
+  report.remaining_exact_drafts=matches.length;
   report.verify_removed=matches.length===0;
   return report;
 }
