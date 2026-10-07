@@ -4,9 +4,162 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 final class GREC_VK {
 	private const API_VERSION = '5.199';
 	private const MAX_PHOTOS  = 10;
+	private const OAUTH_AUTHORIZE_URL = 'https://oauth.vk.com/authorize';
+	private const OAUTH_TOKEN_URL = 'https://oauth.vk.com/access_token';
 
 	public static function credentials(): array {
 		return GREC_Secrets::open( (string) get_option( 'grec_vk_credentials', '' ) );
+	}
+
+
+	public static function oauth_app(): array {
+		return GREC_Secrets::open( (string) get_option( 'grec_vk_oauth_app', '' ) );
+	}
+
+	public static function save_oauth_app( string $client_id, string $client_secret ): void {
+		$client_id = trim( $client_id );
+		$client_secret = trim( $client_secret );
+		if ( '' === $client_id || ! preg_match( '/^\d+$/', $client_id ) ) {
+			throw new InvalidArgumentException( 'VK application ID must be numeric.' );
+		}
+		if ( '' === $client_secret ) {
+			$existing = self::oauth_app();
+			$client_secret = (string) ( $existing['client_secret'] ?? '' );
+		}
+		if ( '' === $client_secret ) {
+			throw new InvalidArgumentException( 'VK application secure key is required.' );
+		}
+		update_option(
+			'grec_vk_oauth_app',
+			GREC_Secrets::seal(
+				array(
+					'client_id'     => $client_id,
+					'client_secret' => $client_secret,
+				)
+			),
+			false
+		);
+	}
+
+	public static function oauth_app_configured(): bool {
+		$app = self::oauth_app();
+		return ! empty( $app['client_id'] ) && ! empty( $app['client_secret'] );
+	}
+
+	public static function oauth_callback_url(): string {
+		return admin_url( 'admin-post.php?action=grec_vk_oauth_callback' );
+	}
+
+	public static function oauth_authorize_url( string $state ): string {
+		$app = self::oauth_app();
+		if ( empty( $app['client_id'] ) ) {
+			throw new RuntimeException( 'VK application ID is not configured.' );
+		}
+		return add_query_arg(
+			array(
+				'client_id'     => (string) $app['client_id'],
+				'redirect_uri'  => self::oauth_callback_url(),
+				'display'       => 'page',
+				'scope'         => 'wall,photos,groups,offline',
+				'response_type' => 'code',
+				'v'             => self::API_VERSION,
+				'state'         => $state,
+			),
+			self::OAUTH_AUTHORIZE_URL
+		);
+	}
+
+	public static function exchange_oauth_code( string $code ): array {
+		$app = self::oauth_app();
+		if ( empty( $app['client_id'] ) || empty( $app['client_secret'] ) ) {
+			throw new RuntimeException( 'VK application credentials are not configured.' );
+		}
+		$response = wp_remote_post(
+			self::OAUTH_TOKEN_URL,
+			array(
+				'timeout' => 30,
+				'body' => array(
+					'client_id'     => (string) $app['client_id'],
+					'client_secret' => (string) $app['client_secret'],
+					'redirect_uri'  => self::oauth_callback_url(),
+					'code'          => trim( $code ),
+				),
+			)
+		);
+		if ( is_wp_error( $response ) ) {
+			throw new RuntimeException( 'VK OAuth token exchange failed: ' . $response->get_error_message() );
+		}
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $data ) ) {
+			throw new RuntimeException( 'VK OAuth returned an invalid token response.' );
+		}
+		if ( ! empty( $data['error'] ) ) {
+			$message = is_string( $data['error_description'] ?? null ) ? $data['error_description'] : (string) $data['error'];
+			throw new RuntimeException( 'VK OAuth error: ' . $message );
+		}
+		$token = trim( (string) ( $data['access_token'] ?? '' ) );
+		if ( '' === $token ) {
+			throw new RuntimeException( 'VK OAuth did not return an access token.' );
+		}
+		self::save_token( $token );
+		update_option(
+			'grec_vk_oauth_meta',
+			array(
+				'user_id'    => isset( $data['user_id'] ) ? (int) $data['user_id'] : 0,
+				'expires_in' => isset( $data['expires_in'] ) ? (int) $data['expires_in'] : 0,
+				'connected_at' => time(),
+			),
+			false
+		);
+		return $data;
+	}
+
+	public static function managed_communities(): array {
+		if ( empty( self::credentials()['token'] ) ) {
+			throw new RuntimeException( 'VK is not authorized yet.' );
+		}
+		$data = self::api(
+			'groups.get',
+			array(
+				'extended' => 1,
+				'filter'   => 'admin',
+				'count'    => 1000,
+			)
+		);
+		$items = array();
+		if ( isset( $data['items'] ) && is_array( $data['items'] ) ) {
+			$items = $data['items'];
+		} elseif ( isset( $data['groups'] ) && is_array( $data['groups'] ) ) {
+			$items = $data['groups'];
+		} elseif ( array_is_list( $data ) ) {
+			$items = $data;
+		}
+
+		$out = array();
+		foreach ( $items as $group ) {
+			if ( ! is_array( $group ) || empty( $group['id'] ) ) {
+				continue;
+			}
+			$id = absint( $group['id'] );
+			if ( ! $id ) {
+				continue;
+			}
+			$out[] = array(
+				'id'         => $id,
+				'owner_id'   => '-' . $id,
+				'name'       => sanitize_text_field( (string) ( $group['name'] ?? ( 'VK Community ' . $id ) ) ),
+				'screen_name'=> sanitize_key( (string) ( $group['screen_name'] ?? '' ) ),
+				'photo'      => esc_url_raw( (string) ( $group['photo_100'] ?? $group['photo_50'] ?? '' ) ),
+			);
+		}
+		return $out;
+	}
+
+	public static function disconnect(): void {
+		delete_option( 'grec_vk_credentials' );
+		delete_option( 'grec_vk_owner_id' );
+		delete_option( 'grec_vk_oauth_meta' );
+		delete_option( 'grec_vk_last_publish' );
 	}
 
 	public static function save_token( string $token ): void {
@@ -260,11 +413,17 @@ final class GREC_VK {
 	}
 
 	public static function status(): array {
+		$app = self::oauth_app();
+		$meta = get_option( 'grec_vk_oauth_meta', array() );
 		return array(
-			'connected'    => self::is_connected(),
-			'owner_id'     => self::owner_id(),
-			'token_saved'  => ! empty( self::credentials()['token'] ),
-			'last_publish' => get_option( 'grec_vk_last_publish', array() ),
+			'connected'       => self::is_connected(),
+			'owner_id'        => self::owner_id(),
+			'token_saved'     => ! empty( self::credentials()['token'] ),
+			'oauth_configured'=> self::oauth_app_configured(),
+			'app_id'          => isset( $app['client_id'] ) ? (string) $app['client_id'] : '',
+			'connected_user_id' => is_array( $meta ) ? (int) ( $meta['user_id'] ?? 0 ) : 0,
+			'connected_at'    => is_array( $meta ) ? (int) ( $meta['connected_at'] ?? 0 ) : 0,
+			'last_publish'    => get_option( 'grec_vk_last_publish', array() ),
 		);
 	}
 }
