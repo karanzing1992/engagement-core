@@ -1,6 +1,6 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
-const UI_ORIGIN = 'https://wpcontrol-auth-ui.vercel.app'
+const CONSENT_URL = 'https://mokshagoa.com/wp-control/connect/'
 
 Deno.serve((req) => {
   const url = new URL(req.url)
@@ -14,8 +14,9 @@ Deno.serve((req) => {
     return Response.json({ ok: false, error: 'method_not_allowed' }, { status: 405 })
   }
 
-  const target = new URL('/', UI_ORIGIN)
-  for (const key of ['authorization_id', 'code', 'error', 'error_description']) {
+  const target = new URL(CONSENT_URL)
+  const allowed = ['authorization_id', 'code', 'error', 'error_code', 'error_description', 'state', 'type']
+  for (const key of allowed) {
     const value = url.searchParams.get(key)
     if (value) target.searchParams.set(key, value)
   }
