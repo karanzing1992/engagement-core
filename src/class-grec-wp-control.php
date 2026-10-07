@@ -12,6 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class GREC_WordPress_Control {
 	private const CATEGORY = 'wp-control';
 	private const AUDIT_DB_VERSION = '1';
+	private const CHANGE_OPTION = 'grec_wp_control_changes';
+	private const CHANGE_SEQ_OPTION = 'grec_wp_control_change_seq';
 	private static $audit_starts = array();
 
 	private const MCP_ABILITY_ALLOWLIST = array(
@@ -827,25 +829,503 @@ final class GREC_WordPress_Control {
 		return $user;
 	}
 
-	private static function gateway_action_map(): array {
-		return array(
-			'site_overview'   => 'cowboy-mcp/wp-site-info',
-			'list_content'    => 'cowboy-mcp/wp-list-posts',
-			'get_content'     => 'cowboy-mcp/wp-get-post',
-			'create_content'  => 'cowboy-mcp/wp-create-post',
-			'update_content'  => 'cowboy-mcp/wp-update-post',
-			'list_products'   => 'cowboy-mcp/wp-woo-list-products',
-			'get_product'     => 'cowboy-mcp/wp-woo-get-product',
-			'update_product'  => 'cowboy-mcp/wp-woo-update-product',
-			'list_orders'     => 'cowboy-mcp/wp-woo-list-orders',
-			'get_order'       => 'cowboy-mcp/wp-woo-get-order',
-			'add_order_note'  => 'cowboy-mcp/wp-woo-add-order-note',
-			'seo_audit'       => 'cowboy-mcp/wp-seo-audit',
-			'update_seo'      => 'cowboy-mcp/wp-seo-update-meta',
-			'flush_cache'     => 'cowboy-mcp/wp-cache-flush',
-			'list_changes'    => 'cowboy-mcp/wp-list-changes',
-			'undo_change'     => 'cowboy-mcp/wp-undo-change',
+	private static function change_rows(): array {
+		$rows = get_option( self::CHANGE_OPTION, array() );
+		return is_array( $rows ) ? array_values( $rows ) : array();
+	}
+
+	private static function save_change_rows( array $rows ): void {
+		$rows = array_slice( array_values( $rows ), -250 );
+		if ( false === get_option( self::CHANGE_OPTION, false ) ) {
+			add_option( self::CHANGE_OPTION, $rows, '', false );
+			return;
+		}
+		update_option( self::CHANGE_OPTION, $rows, false );
+	}
+
+	private static function state_hash( $state ): string {
+		return hash( 'sha256', wp_json_encode( $state ) );
+	}
+
+	private static function next_change_id(): int {
+		$id = max( 0, (int) get_option( self::CHANGE_SEQ_OPTION, 0 ) ) + 1;
+		update_option( self::CHANGE_SEQ_OPTION, $id, false );
+		return $id;
+	}
+
+	private static function record_native_change( string $action, string $object_type, int $object_id, string $label, $before, $after, bool $undoable = true ): int {
+		$rows   = self::change_rows();
+		$id     = self::next_change_id();
+		$rows[] = array(
+			'id'          => $id,
+			'created_at'  => gmdate( DATE_ATOM ),
+			'action'      => $action,
+			'object_type' => $object_type,
+			'object_id'   => $object_id,
+			'label'       => sanitize_text_field( $label ),
+			'status'      => $undoable ? 'active' : 'not_undoable',
+			'undoable'    => $undoable,
+			'before'      => $before,
+			'after_hash'  => self::state_hash( $after ),
+			'undone_at'   => '',
 		);
+		self::save_change_rows( $rows );
+		return $id;
+	}
+
+	private static function content_state( int $id ): ?array {
+		$post = get_post( $id );
+		if ( ! $post ) {
+			return null;
+		}
+		return array(
+			'id'         => (int) $post->ID,
+			'post_type'  => (string) $post->post_type,
+			'status'     => (string) $post->post_status,
+			'title'      => (string) $post->post_title,
+			'content'    => (string) $post->post_content,
+			'excerpt'    => (string) $post->post_excerpt,
+			'slug'       => (string) $post->post_name,
+			'parent'     => (int) $post->post_parent,
+			'menu_order' => (int) $post->menu_order,
+		);
+	}
+
+	private static function product_state( int $id ): ?array {
+		if ( ! function_exists( 'wc_get_product' ) ) {
+			return null;
+		}
+		$product = wc_get_product( $id );
+		if ( ! $product ) {
+			return null;
+		}
+		return array(
+			'id'                => (int) $product->get_id(),
+			'name'              => (string) $product->get_name(),
+			'status'            => (string) $product->get_status(),
+			'regular_price'     => (string) $product->get_regular_price(),
+			'sale_price'        => (string) $product->get_sale_price(),
+			'sku'               => (string) $product->get_sku(),
+			'description'       => (string) $product->get_description(),
+			'short_description' => (string) $product->get_short_description(),
+			'manage_stock'      => (bool) $product->get_manage_stock(),
+			'stock_quantity'    => null === $product->get_stock_quantity() ? null : (int) $product->get_stock_quantity(),
+			'stock_status'      => (string) $product->get_stock_status(),
+		);
+	}
+
+	private static function native_list_changes( $input ): array {
+		$input    = is_array( $input ) ? $input : array();
+		$status   = isset( $input['status'] ) ? sanitize_key( $input['status'] ) : '';
+		$page     = max( 1, isset( $input['page'] ) ? absint( $input['page'] ) : 1 );
+		$per_page = max( 1, min( 200, isset( $input['per_page'] ) ? absint( $input['per_page'] ) : 50 ) );
+		$rows     = array_reverse( self::change_rows() );
+		if ( $status ) {
+			$rows = array_values( array_filter( $rows, static fn( $row ) => isset( $row['status'] ) && $row['status'] === $status ) );
+		}
+		$total = count( $rows );
+		$rows  = array_slice( $rows, ( $page - 1 ) * $per_page, $per_page );
+		$items = array_map(
+			static function ( $row ) {
+				return array(
+					'id'          => (int) ( $row['id'] ?? 0 ),
+					'created_at'  => (string) ( $row['created_at'] ?? '' ),
+					'action'      => (string) ( $row['action'] ?? '' ),
+					'object_type' => (string) ( $row['object_type'] ?? '' ),
+					'object_id'   => (int) ( $row['object_id'] ?? 0 ),
+					'label'       => (string) ( $row['label'] ?? '' ),
+					'status'      => (string) ( $row['status'] ?? '' ),
+					'undoable'    => ! empty( $row['undoable'] ),
+					'undone_at'   => (string) ( $row['undone_at'] ?? '' ),
+				);
+			},
+			$rows
+		);
+		return array(
+			'items'   => $items,
+			'entries' => $items,
+			'page'    => $page,
+			'total'   => $total,
+			'pages'   => (int) ceil( $total / $per_page ),
+		);
+	}
+
+	private static function native_undo_change( $input ) {
+		$input     = is_array( $input ) ? $input : array();
+		$change_id = isset( $input['change_id'] ) ? absint( $input['change_id'] ) : 0;
+		$force     = ! empty( $input['force'] );
+		$dry_run   = ! empty( $input['dry_run'] );
+		$rows      = self::change_rows();
+		$index     = null;
+		$row       = null;
+		foreach ( $rows as $i => $candidate ) {
+			if ( (int) ( $candidate['id'] ?? 0 ) === $change_id ) {
+				$index = $i;
+				$row   = $candidate;
+				break;
+			}
+		}
+		if ( null === $index || ! is_array( $row ) ) {
+			return new WP_Error( 'wp_control_change_not_found', 'Change was not found.', array( 'status' => 404 ) );
+		}
+		if ( 'active' !== (string) ( $row['status'] ?? '' ) || empty( $row['undoable'] ) ) {
+			return new WP_Error( 'wp_control_change_not_active', 'Change is not currently undoable.', array( 'status' => 409 ) );
+		}
+
+		$type = (string) ( $row['object_type'] ?? '' );
+		$id   = (int) ( $row['object_id'] ?? 0 );
+		$current = 'product' === $type ? self::product_state( $id ) : self::content_state( $id );
+		if ( ! $force && self::state_hash( $current ) !== (string) ( $row['after_hash'] ?? '' ) ) {
+			return new WP_Error( 'wp_control_change_conflict', 'The object changed after this action. Re-read it before using force.', array( 'status' => 409 ) );
+		}
+		if ( $dry_run ) {
+			return array( 'ok' => true, 'dry_run' => true, 'change_id' => $change_id, 'object_type' => $type, 'object_id' => $id );
+		}
+
+		if ( 'content_create' === (string) $row['action'] ) {
+			if ( get_post( $id ) ) {
+				wp_delete_post( $id, true );
+			}
+		} elseif ( 'content_update' === (string) $row['action'] ) {
+			$before = is_array( $row['before'] ?? null ) ? $row['before'] : array();
+			$result = wp_update_post(
+				wp_slash(
+					array(
+						'ID'           => $id,
+						'post_type'    => $before['post_type'] ?? 'post',
+						'post_status'  => $before['status'] ?? 'draft',
+						'post_title'   => $before['title'] ?? '',
+						'post_content' => $before['content'] ?? '',
+						'post_excerpt' => $before['excerpt'] ?? '',
+						'post_name'    => $before['slug'] ?? '',
+						'post_parent'  => (int) ( $before['parent'] ?? 0 ),
+						'menu_order'   => (int) ( $before['menu_order'] ?? 0 ),
+					)
+				),
+				true
+			);
+			if ( is_wp_error( $result ) ) {
+				return $result;
+			}
+		} elseif ( 'product_update' === (string) $row['action'] ) {
+			if ( ! function_exists( 'wc_get_product' ) ) {
+				return new WP_Error( 'wp_control_woocommerce_missing', 'WooCommerce is unavailable.' );
+			}
+			$product = wc_get_product( $id );
+			$before  = is_array( $row['before'] ?? null ) ? $row['before'] : array();
+			if ( ! $product ) {
+				return new WP_Error( 'wp_control_product_not_found', 'Product was not found.' );
+			}
+			$product->set_name( (string) ( $before['name'] ?? '' ) );
+			$product->set_status( (string) ( $before['status'] ?? 'draft' ) );
+			$product->set_regular_price( (string) ( $before['regular_price'] ?? '' ) );
+			$product->set_sale_price( (string) ( $before['sale_price'] ?? '' ) );
+			$product->set_sku( (string) ( $before['sku'] ?? '' ) );
+			$product->set_description( (string) ( $before['description'] ?? '' ) );
+			$product->set_short_description( (string) ( $before['short_description'] ?? '' ) );
+			$product->set_manage_stock( ! empty( $before['manage_stock'] ) );
+			$product->set_stock_quantity( $before['stock_quantity'] ?? null );
+			if ( isset( $before['stock_status'] ) ) {
+				$product->set_stock_status( (string) $before['stock_status'] );
+			}
+			$product->save();
+		} else {
+			return new WP_Error( 'wp_control_change_not_supported', 'This change type cannot be undone by Engagement Core yet.', array( 'status' => 501 ) );
+		}
+
+		$rows[ $index ]['status']    = 'undone';
+		$rows[ $index ]['undone_at'] = gmdate( DATE_ATOM );
+		self::save_change_rows( $rows );
+		return array( 'ok' => true, 'change_id' => $change_id, 'status' => 'undone', 'object_type' => $type, 'object_id' => $id );
+	}
+
+	private static function native_list_products( $input ) {
+		if ( ! function_exists( 'wc_get_products' ) ) {
+			return new WP_Error( 'wp_control_woocommerce_missing', 'WooCommerce is unavailable.', array( 'status' => 501 ) );
+		}
+		$input    = is_array( $input ) ? $input : array();
+		$page     = max( 1, isset( $input['page'] ) ? absint( $input['page'] ) : 1 );
+		$per_page = max( 1, min( 100, isset( $input['per_page'] ) ? absint( $input['per_page'] ) : 20 ) );
+		$args = array( 'limit' => $per_page, 'page' => $page, 'paginate' => true, 'orderby' => 'date', 'order' => 'DESC' );
+		if ( ! empty( $input['status'] ) && 'any' !== $input['status'] ) $args['status'] = sanitize_key( $input['status'] );
+		if ( ! empty( $input['search'] ) ) $args['search'] = sanitize_text_field( $input['search'] );
+		if ( ! empty( $input['sku'] ) ) $args['sku'] = sanitize_text_field( $input['sku'] );
+		if ( ! empty( $input['category'] ) ) $args['category'] = array( sanitize_title( $input['category'] ) );
+		$result = wc_get_products( $args );
+		$products = is_object( $result ) && isset( $result->products ) ? $result->products : (array) $result;
+		$items = array();
+		foreach ( $products as $product ) {
+			$items[] = array(
+				'id' => (int) $product->get_id(), 'name' => $product->get_name(), 'status' => $product->get_status(),
+				'type' => $product->get_type(), 'sku' => $product->get_sku(), 'price' => $product->get_price(),
+				'regular_price' => $product->get_regular_price(), 'sale_price' => $product->get_sale_price(),
+				'manage_stock' => (bool) $product->get_manage_stock(), 'stock_quantity' => $product->get_stock_quantity(),
+				'stock_status' => $product->get_stock_status(), 'link' => get_permalink( $product->get_id() ),
+			);
+		}
+		$total = is_object( $result ) && isset( $result->total ) ? (int) $result->total : count( $items );
+		$pages = is_object( $result ) && isset( $result->max_num_pages ) ? (int) $result->max_num_pages : 1;
+		return array( 'items' => $items, 'page' => $page, 'total' => $total, 'pages' => $pages );
+	}
+
+	private static function native_get_product( $input ) {
+		$id = is_array( $input ) && isset( $input['product_id'] ) ? absint( $input['product_id'] ) : 0;
+		$state = $id ? self::product_state( $id ) : null;
+		if ( ! $state ) {
+			return new WP_Error( 'wp_control_product_not_found', 'Product was not found.', array( 'status' => 404 ) );
+		}
+		$state['link'] = get_permalink( $id );
+		return $state;
+	}
+
+	private static function native_update_product( $input ) {
+		if ( ! function_exists( 'wc_get_product' ) ) {
+			return new WP_Error( 'wp_control_woocommerce_missing', 'WooCommerce is unavailable.', array( 'status' => 501 ) );
+		}
+		$input = is_array( $input ) ? $input : array();
+		$id = isset( $input['product_id'] ) ? absint( $input['product_id'] ) : 0;
+		$product = $id ? wc_get_product( $id ) : false;
+		if ( ! $product || ! current_user_can( 'edit_post', $id ) ) {
+			return new WP_Error( 'wp_control_product_not_found', 'Product was not found or is not editable.', array( 'status' => 404 ) );
+		}
+		$before = self::product_state( $id );
+		if ( ! empty( $input['dry_run'] ) ) {
+			return array( 'ok' => true, 'dry_run' => true, 'product_id' => $id, 'changes' => array_diff_key( $input, array( 'product_id' => 1, 'dry_run' => 1 ) ) );
+		}
+		$setters = array(
+			'name' => 'set_name', 'status' => 'set_status', 'regular_price' => 'set_regular_price',
+			'sale_price' => 'set_sale_price', 'sku' => 'set_sku', 'description' => 'set_description',
+			'short_description' => 'set_short_description', 'manage_stock' => 'set_manage_stock',
+			'stock_quantity' => 'set_stock_quantity',
+		);
+		foreach ( $setters as $key => $method ) {
+			if ( array_key_exists( $key, $input ) ) {
+				$product->{$method}( $input[ $key ] );
+			}
+		}
+		$product->save();
+		$after = self::product_state( $id );
+		$change_id = self::record_native_change( 'product_update', 'product', $id, (string) $product->get_name(), $before, $after, true );
+		$after['change_id'] = $change_id;
+		return $after;
+	}
+
+	private static function native_list_orders( $input ) {
+		if ( ! function_exists( 'wc_get_orders' ) ) {
+			return new WP_Error( 'wp_control_woocommerce_missing', 'WooCommerce is unavailable.', array( 'status' => 501 ) );
+		}
+		$input = is_array( $input ) ? $input : array();
+		$page = max( 1, isset( $input['page'] ) ? absint( $input['page'] ) : 1 );
+		$per_page = max( 1, min( 100, isset( $input['per_page'] ) ? absint( $input['per_page'] ) : 20 ) );
+		$args = array( 'limit' => $per_page, 'page' => $page, 'paginate' => true, 'orderby' => 'date', 'order' => 'DESC' );
+		if ( ! empty( $input['status'] ) && 'any' !== $input['status'] ) $args['status'] = sanitize_key( $input['status'] );
+		if ( ! empty( $input['customer'] ) ) $args['customer_id'] = absint( $input['customer'] );
+		if ( ! empty( $input['search'] ) ) $args['search'] = sanitize_text_field( $input['search'] );
+		if ( ! empty( $input['date_after'] ) || ! empty( $input['date_before'] ) ) {
+			$after = ! empty( $input['date_after'] ) ? strtotime( $input['date_after'] ) : 0;
+			$before = ! empty( $input['date_before'] ) ? strtotime( $input['date_before'] ) : time();
+			if ( $after ) $args['date_created'] = $after . '...' . $before;
+		}
+		$result = wc_get_orders( $args );
+		$orders = is_object( $result ) && isset( $result->orders ) ? $result->orders : (array) $result;
+		$items = array();
+		foreach ( $orders as $order ) {
+			$items[] = array(
+				'id' => (int) $order->get_id(), 'status' => $order->get_status(), 'total' => $order->get_total(),
+				'currency' => $order->get_currency(), 'customer_id' => (int) $order->get_customer_id(),
+				'customer' => trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() ),
+				'email' => $order->get_billing_email(), 'phone' => $order->get_billing_phone(),
+				'date_created' => $order->get_date_created() ? $order->get_date_created()->date( DATE_ATOM ) : '',
+			);
+		}
+		return array(
+			'items' => $items, 'page' => $page,
+			'total' => is_object( $result ) && isset( $result->total ) ? (int) $result->total : count( $items ),
+			'pages' => is_object( $result ) && isset( $result->max_num_pages ) ? (int) $result->max_num_pages : 1,
+		);
+	}
+
+	private static function native_get_order( $input ) {
+		if ( ! function_exists( 'wc_get_order' ) ) {
+			return new WP_Error( 'wp_control_woocommerce_missing', 'WooCommerce is unavailable.', array( 'status' => 501 ) );
+		}
+		$id = is_array( $input ) && isset( $input['order_id'] ) ? absint( $input['order_id'] ) : 0;
+		$order = $id ? wc_get_order( $id ) : false;
+		if ( ! $order ) {
+			return new WP_Error( 'wp_control_order_not_found', 'Order was not found.', array( 'status' => 404 ) );
+		}
+		$lines = array();
+		foreach ( $order->get_items() as $item ) {
+			$lines[] = array(
+				'name' => $item->get_name(), 'product_id' => (int) $item->get_product_id(),
+				'variation_id' => (int) $item->get_variation_id(), 'quantity' => (int) $item->get_quantity(),
+				'subtotal' => $item->get_subtotal(), 'total' => $item->get_total(),
+			);
+		}
+		return array(
+			'id' => (int) $order->get_id(), 'status' => $order->get_status(), 'total' => $order->get_total(),
+			'currency' => $order->get_currency(), 'customer_id' => (int) $order->get_customer_id(),
+			'customer' => trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() ),
+			'email' => $order->get_billing_email(), 'phone' => $order->get_billing_phone(),
+			'billing_address_1' => $order->get_billing_address_1(), 'billing_city' => $order->get_billing_city(),
+			'payment_method' => $order->get_payment_method_title(), 'customer_note' => $order->get_customer_note(),
+			'date_created' => $order->get_date_created() ? $order->get_date_created()->date( DATE_ATOM ) : '',
+			'line_items' => $lines,
+		);
+	}
+
+	private static function native_add_order_note( $input ) {
+		if ( ! function_exists( 'wc_get_order' ) ) {
+			return new WP_Error( 'wp_control_woocommerce_missing', 'WooCommerce is unavailable.', array( 'status' => 501 ) );
+		}
+		$input = is_array( $input ) ? $input : array();
+		$id = isset( $input['order_id'] ) ? absint( $input['order_id'] ) : 0;
+		$order = $id ? wc_get_order( $id ) : false;
+		$note = isset( $input['note'] ) ? sanitize_textarea_field( $input['note'] ) : '';
+		if ( ! $order || '' === $note ) {
+			return new WP_Error( 'wp_control_order_note_invalid', 'A valid order and note are required.', array( 'status' => 400 ) );
+		}
+		if ( ! empty( $input['dry_run'] ) ) {
+			return array( 'ok' => true, 'dry_run' => true, 'order_id' => $id, 'is_customer' => ! empty( $input['is_customer'] ) );
+		}
+		$note_id = $order->add_order_note( $note, ! empty( $input['is_customer'] ), true );
+		$change_id = self::record_native_change( 'order_note_add', 'order', $id, 'Order #' . $id . ' note', null, array( 'note_id' => $note_id ), false );
+		return array( 'ok' => true, 'order_id' => $id, 'note_id' => (int) $note_id, 'change_id' => $change_id, 'undoable' => false );
+	}
+
+	private static function native_seo_audit( $input ) {
+		$input = is_array( $input ) ? $input : array();
+		$post_types = ! empty( $input['post_type'] ) && is_array( $input['post_type'] ) ? array_map( 'sanitize_key', $input['post_type'] ) : array( 'post', 'page', 'product' );
+		$status = ! empty( $input['post_status'] ) ? sanitize_key( $input['post_status'] ) : 'publish';
+		$page = max( 1, isset( $input['page'] ) ? absint( $input['page'] ) : 1 );
+		$per_page = max( 1, min( 100, isset( $input['per_page'] ) ? absint( $input['per_page'] ) : 50 ) );
+		$query = new WP_Query( array(
+			'post_type' => $post_types, 'post_status' => $status, 'paged' => $page, 'posts_per_page' => $per_page,
+			'orderby' => 'modified', 'order' => 'DESC',
+		) );
+		$items = array();
+		foreach ( $query->posts as $post ) {
+			$issues = array();
+			if ( '' === trim( wp_strip_all_tags( get_the_title( $post ) ) ) ) $issues[] = 'missing_title';
+			$description = trim( (string) get_post_meta( $post->ID, '_yoast_wpseo_metadesc', true ) );
+			if ( '' === $description ) $description = trim( (string) get_post_meta( $post->ID, '_aioseo_description', true ) );
+			if ( '' === $description && '' === trim( (string) $post->post_excerpt ) ) $issues[] = 'missing_description';
+			$row = array( 'post_id' => (int) $post->ID, 'post_type' => $post->post_type, 'title' => get_the_title( $post ), 'status' => $post->post_status, 'issues' => $issues, 'link' => get_permalink( $post ) );
+			if ( empty( $input['only_issues'] ) || $issues ) $items[] = $row;
+		}
+		return array( 'items' => $items, 'page' => $page, 'total' => (int) $query->found_posts, 'pages' => (int) $query->max_num_pages, 'mode' => 'engagement-core-native' );
+	}
+
+	private static function native_update_seo( $input ) {
+		$input = is_array( $input ) ? $input : array();
+		$id = isset( $input['post_id'] ) ? absint( $input['post_id'] ) : 0;
+		if ( ! $id || ! get_post( $id ) || ! current_user_can( 'edit_post', $id ) ) {
+			return new WP_Error( 'wp_control_seo_post_not_found', 'Post was not found or is not editable.', array( 'status' => 404 ) );
+		}
+		if ( ! empty( $input['dry_run'] ) ) {
+			return array( 'ok' => true, 'dry_run' => true, 'post_id' => $id );
+		}
+		// Prefer an installed SEO plugin's public WordPress Ability, but the control path remains Engagement Core.
+		$ability = function_exists( 'wp_get_ability' ) ? wp_get_ability( 'aioseo-posts/seo-data-update' ) : null;
+		if ( $ability ) {
+			$result = $ability->execute( $input );
+			if ( is_wp_error( $result ) ) return $result;
+			self::record_native_change( 'seo_update', 'content', $id, get_the_title( $id ) . ' SEO', null, array( 'provider' => 'aioseo', 'post_id' => $id ), false );
+			return $result;
+		}
+		$map = array(
+			'title' => '_yoast_wpseo_title', 'description' => '_yoast_wpseo_metadesc',
+			'focus_keyword' => '_yoast_wpseo_focuskw', 'canonical_url' => '_yoast_wpseo_canonical',
+		);
+		foreach ( $map as $key => $meta_key ) {
+			if ( array_key_exists( $key, $input ) ) update_post_meta( $id, $meta_key, sanitize_text_field( (string) $input[ $key ] ) );
+		}
+		if ( array_key_exists( 'noindex', $input ) || array_key_exists( 'nofollow', $input ) ) {
+			$robots = array();
+			if ( ! empty( $input['noindex'] ) ) $robots[] = 'noindex';
+			if ( ! empty( $input['nofollow'] ) ) $robots[] = 'nofollow';
+			update_post_meta( $id, '_grec_robots', implode( ',', $robots ) );
+		}
+		self::record_native_change( 'seo_update', 'content', $id, get_the_title( $id ) . ' SEO', null, array( 'provider' => 'meta', 'post_id' => $id ), false );
+		return array( 'ok' => true, 'post_id' => $id, 'provider' => 'wordpress-meta' );
+	}
+
+	private static function native_flush_cache( $input ): array {
+		if ( is_array( $input ) && ! empty( $input['dry_run'] ) ) {
+			return array( 'ok' => true, 'dry_run' => true, 'scope' => sanitize_key( $input['scope'] ?? 'all' ) );
+		}
+		return self::cache_purge();
+	}
+
+	private static function native_telegram_status(): array {
+		return array(
+			'connected' => class_exists( 'GREC_Telegram' ) && GREC_Telegram::is_connected(),
+			'destinations' => class_exists( 'GREC_Telegram' ) ? GREC_Telegram::destinations() : array(),
+			'enabled_count' => class_exists( 'GREC_Telegram' ) ? count( GREC_Telegram::enabled_destinations() ) : 0,
+			'last_publish' => get_option( 'grec_telegram_last_publish', array() ),
+		);
+	}
+
+	private static function native_telegram_publish( $input ) {
+		if ( ! class_exists( 'GREC_Telegram' ) ) {
+			return new WP_Error( 'wp_control_telegram_missing', 'Engagement Core Telegram publisher is unavailable.', array( 'status' => 501 ) );
+		}
+		$input = is_array( $input ) ? $input : array();
+		if ( ! empty( $input['dry_run'] ) ) {
+			return array(
+				'ok' => true, 'dry_run' => true, 'enabled_count' => count( GREC_Telegram::enabled_destinations( (array) ( $input['targets'] ?? array() ), (array) ( $input['levels'] ?? array() ) ) ),
+			);
+		}
+		return GREC_Telegram::send_post(
+			(string) ( $input['text'] ?? '' ),
+			is_array( $input['media'] ?? null ) ? $input['media'] : array(),
+			is_array( $input['targets'] ?? null ) ? $input['targets'] : array(),
+			is_array( $input['levels'] ?? null ) ? $input['levels'] : array()
+		);
+	}
+
+	private static function gateway_execute_native( string $action, array $input ) {
+		switch ( $action ) {
+			case 'site_overview':
+				return self::site_snapshot();
+			case 'list_content':
+				return self::content_query( array(
+					'post_type' => $input['post_type'] ?? 'post', 'status' => $input['status'] ?? 'any',
+					'search' => $input['search'] ?? '', 'page' => $input['page'] ?? 1, 'limit' => $input['per_page'] ?? 20,
+				) );
+			case 'get_content':
+				return self::content_get( array( 'id' => $input['post_id'] ?? 0 ) );
+			case 'create_content':
+				if ( ! empty( $input['dry_run'] ) ) return array( 'ok' => true, 'dry_run' => true, 'status' => $input['status'] ?? 'draft' );
+				return self::content_save( $input );
+			case 'update_content':
+				if ( isset( $input['status'] ) && 'trash' === $input['status'] ) return self::content_trash( array( 'id' => $input['post_id'] ?? 0 ) );
+				$input['id'] = $input['post_id'] ?? 0;
+				unset( $input['post_id'] );
+				if ( ! empty( $input['dry_run'] ) ) return array( 'ok' => true, 'dry_run' => true, 'id' => $input['id'] );
+				return self::content_save( $input );
+			case 'list_products': return self::native_list_products( $input );
+			case 'get_product': return self::native_get_product( $input );
+			case 'update_product': return self::native_update_product( $input );
+			case 'list_orders': return self::native_list_orders( $input );
+			case 'get_order': return self::native_get_order( $input );
+			case 'add_order_note': return self::native_add_order_note( $input );
+			case 'seo_audit': return self::native_seo_audit( $input );
+			case 'update_seo': return self::native_update_seo( $input );
+			case 'flush_cache': return self::native_flush_cache( $input );
+			case 'list_changes': return self::native_list_changes( $input );
+			case 'undo_change': return self::native_undo_change( $input );
+			case 'plugin_list': return self::plugin_list();
+			case 'plugin_toggle': return self::plugin_toggle( $input );
+			case 'theme_list': return self::theme_list();
+			case 'options_get': return self::options_get( $input );
+			case 'options_update': return self::options_update( $input );
+			case 'cron_list': return self::cron_list( $input );
+			case 'audit_query': return self::audit_query( $input );
+			case 'telegram_status': return self::native_telegram_status();
+			case 'telegram_publish': return self::native_telegram_publish( $input );
+		}
+		return new WP_Error( 'wp_control_action_not_allowed', 'Gateway action is not allowed.', array( 'status' => 400 ) );
 	}
 
 	public static function gateway_bridge( WP_REST_Request $request ) {
@@ -863,16 +1343,6 @@ final class GREC_WordPress_Control {
 			return new WP_Error( 'wp_control_site_mismatch', 'Site id does not match this WordPress installation.', array( 'status' => 409 ) );
 		}
 
-		$map = self::gateway_action_map();
-		if ( ! isset( $map[ $action ] ) ) {
-			return new WP_Error( 'wp_control_action_not_allowed', 'Gateway action is not allowed.', array( 'status' => 400 ) );
-		}
-
-		$ability = function_exists( 'wp_get_ability' ) ? wp_get_ability( $map[ $action ] ) : null;
-		if ( ! $ability ) {
-			return new WP_Error( 'wp_control_capability_unavailable', 'This WordPress site does not provide the requested capability.', array( 'status' => 501 ) );
-		}
-
 		$local_user_id = absint( get_option( 'wp_control_local_user_id', 0 ) );
 		$local_user    = $local_user_id ? get_user_by( 'id', $local_user_id ) : false;
 		if ( ! $local_user || ! user_can( $local_user, 'manage_options' ) ) {
@@ -881,8 +1351,11 @@ final class GREC_WordPress_Control {
 
 		$previous_user_id = get_current_user_id();
 		wp_set_current_user( $local_user_id );
-		$result = $ability->execute( $input );
-		wp_set_current_user( $previous_user_id );
+		try {
+			$result = self::gateway_execute_native( $action, $input );
+		} finally {
+			wp_set_current_user( $previous_user_id );
+		}
 
 		if ( is_wp_error( $result ) ) {
 			return $result;
@@ -893,6 +1366,7 @@ final class GREC_WordPress_Control {
 				'ok'     => true,
 				'action' => $action,
 				'result' => $result,
+				'engine' => 'engagement-core-native',
 			)
 		);
 	}
@@ -1043,6 +1517,7 @@ final class GREC_WordPress_Control {
 		$input    = is_array( $input ) ? $input : array();
 		$id       = isset( $input['id'] ) ? absint( $input['id'] ) : 0;
 		$existing = $id ? get_post( $id ) : null;
+		$before   = $id ? self::content_state( $id ) : null;
 
 		if ( $id && ( ! $existing || ! current_user_can( 'edit_post', $id ) ) ) {
 			return new WP_Error( 'wp_control_content_not_editable', 'Content does not exist or cannot be edited.' );
@@ -1111,12 +1586,24 @@ final class GREC_WordPress_Control {
 			return $result;
 		}
 
-		$post = get_post( $result );
+		$post       = get_post( $result );
+		$after      = self::content_state( (int) $result );
+		$change_id  = self::record_native_change(
+			$id ? 'content_update' : 'content_create',
+			'content',
+			(int) $result,
+			$post ? (string) $post->post_title : (string) ( $input['title'] ?? '' ),
+			$before,
+			$after,
+			true
+		);
 		return array(
-			'id'       => (int) $result,
-			'status'   => $post ? $post->post_status : $status,
-			'link'     => get_permalink( $result ),
-			'modified' => get_post_modified_time( DATE_ATOM, true, $result ),
+			'id'        => (int) $result,
+			'post_id'   => (int) $result,
+			'status'    => $post ? $post->post_status : $status,
+			'link'      => get_permalink( $result ),
+			'modified'  => get_post_modified_time( DATE_ATOM, true, $result ),
+			'change_id' => $change_id,
 		);
 	}
 
