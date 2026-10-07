@@ -67,6 +67,7 @@ final class GREC_WordPress_Control {
 		add_action( 'wp_before_execute_ability', array( __CLASS__, 'audit_before' ), 10, 3 );
 		add_action( 'wp_after_execute_ability', array( __CLASS__, 'audit_after' ), 10, 4 );
 		add_action( 'rest_api_init', array( __CLASS__, 'register_gateway_routes' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_oauth_consent' ), 0 );
 	}
 
 	public static function expose_existing_abilities_to_mcp( array $args, string $ability_name ): array {
@@ -535,6 +536,111 @@ final class GREC_WordPress_Control {
 			'code'       => $code,
 			'expires_in' => 15 * MINUTE_IN_SECONDS,
 		);
+	}
+
+
+	public static function maybe_render_oauth_consent(): void {
+		if ( is_admin() ) {
+			return;
+		}
+
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$path        = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
+		if ( '/wp-control/connect' !== untrailingslashit( $path ) ) {
+			return;
+		}
+
+		$nonce        = wp_generate_password( 24, false, false );
+		$supabase_url = self::gateway_supabase_url();
+		$public_key   = self::gateway_publishable_key();
+		$relay_url    = $supabase_url . '/functions/v1/wpcontrol-auth';
+
+		status_header( 200 );
+		nocache_headers();
+		header( 'Content-Type: text/html; charset=' . get_bloginfo( 'charset' ) );
+		header( "Content-Security-Policy: default-src 'self'; script-src 'nonce-" . $nonce . "' https://cdn.jsdelivr.net; connect-src 'self' https://*.supabase.co; style-src 'nonce-" . $nonce . "'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'" );
+		header( 'Referrer-Policy: no-referrer' );
+		header( 'X-Content-Type-Options: nosniff' );
+
+		$project_json = wp_json_encode( $supabase_url, JSON_UNESCAPED_SLASHES );
+		$key_json     = wp_json_encode( $public_key, JSON_UNESCAPED_SLASHES );
+		$relay_json   = wp_json_encode( $relay_url, JSON_UNESCAPED_SLASHES );
+		?>
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<title>WP Control — Connect ChatGPT</title>
+	<style nonce="<?php echo esc_attr( $nonce ); ?>">
+		:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#191919;background:#f6f5f1}
+		*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}.card{width:min(520px,100%);background:#fff;border:1px solid #ddd9cf;border-radius:20px;padding:28px;box-shadow:0 16px 45px rgba(0,0,0,.08)}h1{font-size:28px;margin:0 0 8px}.muted{color:#666;line-height:1.5}.row{display:flex;gap:10px;flex-wrap:wrap}label{display:block;margin:14px 0 6px;font-weight:600}input{width:100%;padding:13px 14px;border:1px solid #cfcac0;border-radius:12px;font:inherit}button{border:0;border-radius:12px;padding:12px 16px;font:600 15px inherit;cursor:pointer;background:#191919;color:#fff}button.secondary{background:#eeeae1;color:#191919}button:disabled{opacity:.55;cursor:wait}#status{min-height:24px;margin:12px 0;color:#555}.scope{background:#f5f2ea;padding:12px;border-radius:12px;margin:14px 0}.hidden{display:none}.brand{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#7a746b;margin-bottom:14px}
+	</style>
+</head>
+<body>
+	<main class="card">
+		<div class="brand">WP Control</div>
+		<h1>Connect ChatGPT</h1>
+		<p class="muted">Authorize ChatGPT to use only WordPress sites you explicitly pair. WP Control never asks for or stores your WordPress administrator password.</p>
+		<section id="login" class="hidden">
+			<label for="email">Email</label>
+			<input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+			<div class="row" style="margin-top:12px"><button id="send">Email me a sign-in link</button></div>
+		</section>
+		<section id="consent" class="hidden">
+			<p><strong id="clientName">ChatGPT</strong> wants to connect to your WP Control account.</p>
+			<div class="scope">Requested access: <span id="scopeText">email</span></div>
+			<div class="row"><button id="approve">Approve</button><button id="deny" class="secondary">Deny</button></div>
+		</section>
+		<p id="status" aria-live="polite"></p>
+	</main>
+	<script type="module" nonce="<?php echo esc_attr( $nonce ); ?>">
+		import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm";
+		const PROJECT_URL=<?php echo $project_json; ?>;
+		const PUBLIC_KEY=<?php echo $key_json; ?>;
+		const AUTH_RELAY=<?php echo $relay_json; ?>;
+		const initialParams=new URLSearchParams(location.search);
+		const authorizationId=initialParams.get("authorization_id")||sessionStorage.getItem("wpcontrol_authorization_id");
+		if(authorizationId) sessionStorage.setItem("wpcontrol_authorization_id",authorizationId);
+		const supabase=createClient(PROJECT_URL,PUBLIC_KEY,{auth:{detectSessionInUrl:true,persistSession:true,flowType:"pkce"}});
+		const login=document.querySelector("#login"),consent=document.querySelector("#consent"),status=document.querySelector("#status"),email=document.querySelector("#email"),send=document.querySelector("#send"),approve=document.querySelector("#approve"),deny=document.querySelector("#deny");
+		const say=(t)=>status.textContent=t||"";
+		async function boot(){
+			if(!authorizationId){say("Missing authorization request. Start the connection from ChatGPT.");return}
+			const s=await supabase.auth.getSession();
+			if(s.error){say(s.error.message);return}
+			if(!s.data.session){login.classList.remove("hidden");consent.classList.add("hidden");say("Sign in to continue.");return}
+			const r=await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
+			if(r.error){say(r.error.message||"Could not load the authorization request.");return}
+			if(r.data?.redirect_url&&!r.data?.authorization_id){location.href=r.data.redirect_url;return}
+			document.querySelector("#clientName").textContent=r.data?.client?.name||r.data?.client_name||"ChatGPT";
+			document.querySelector("#scopeText").textContent=r.data?.scope||"email";
+			consent.classList.remove("hidden");login.classList.add("hidden");say("Review the request, then approve or deny.");
+		}
+		send.addEventListener("click",async()=>{
+			const v=email.value.trim();if(!v){say("Enter your email address.");return}
+			send.disabled=true;
+			const redirect=new URL(AUTH_RELAY);redirect.searchParams.set("authorization_id",authorizationId);
+			const r=await supabase.auth.signInWithOtp({email:v,options:{emailRedirectTo:redirect.toString()}});
+			send.disabled=false;say(r.error?r.error.message:"Check your email for the sign-in link.");
+		});
+		approve.addEventListener("click",async()=>{
+			approve.disabled=true;const r=await supabase.auth.oauth.approveAuthorization(authorizationId);
+			if(r.error){approve.disabled=false;say(r.error.message);return}
+			sessionStorage.removeItem("wpcontrol_authorization_id");location.href=r.data.redirect_url;
+		});
+		deny.addEventListener("click",async()=>{
+			deny.disabled=true;const r=await supabase.auth.oauth.denyAuthorization(authorizationId);
+			if(r.error){deny.disabled=false;say(r.error.message);return}
+			sessionStorage.removeItem("wpcontrol_authorization_id");location.href=r.data.redirect_url;
+		});
+		supabase.auth.onAuthStateChange((_event,session)=>{if(session) boot()});
+		boot();
+	</script>
+</body>
+</html>
+		<?php
+		exit;
 	}
 
 	public static function register_gateway_routes(): void {
