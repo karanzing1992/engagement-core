@@ -15,7 +15,7 @@ const siteId = z.string().uuid()
 
 export function makeServer(ctx: UserContext) {
   const server = new McpServer(
-    { name: 'wordpress-control', version: '0.2.0' },
+    { name: 'wordpress-control', version: '0.2.1' },
     {
       instructions:
         'Manage only WordPress sites paired by the current user. ' +
@@ -457,6 +457,48 @@ export function makeServer(ctx: UserContext) {
     },
     'telegram_publish',
     false,
+    false,
+  )
+
+
+  readTool(
+    'engine_status',
+    'Get Engagement Core engine status',
+    'Read the installed Engagement Core version, signed-update capability and rollback availability.',
+    {},
+    'engine_status',
+  )
+
+  readTool(
+    'engine_check',
+    'Check Engagement Core update',
+    'Fetch and cryptographically verify the signed Engagement Core release manifest without installing anything.',
+    {},
+    'engine_check',
+  )
+
+  writeTool(
+    'engine_update',
+    'Update Engagement Core',
+    'Install a cryptographically signed Engagement Core release, verify the package checksum, health-check the new version and automatically roll back if health verification fails.',
+    {
+      dry_run: z.boolean().optional(),
+      allow_reinstall: z.boolean().optional(),
+    },
+    'engine_update',
+    true,
+    false,
+  )
+
+  writeTool(
+    'engine_rollback',
+    'Roll back Engagement Core',
+    'Restore the previous health-verified Engagement Core release from the local rollback backup.',
+    {
+      dry_run: z.boolean().optional(),
+    },
+    'engine_rollback',
+    true,
     false,
   )
 
