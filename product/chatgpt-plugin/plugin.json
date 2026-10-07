@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "wordpress-control",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Manage connected self-hosted WordPress sites from ChatGPT with reversible, permission-aware actions.",
   "author": {
     "name": "KaranBiz"
