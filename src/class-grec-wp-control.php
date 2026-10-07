@@ -66,6 +66,7 @@ final class GREC_WordPress_Control {
 		add_action( 'init', array( __CLASS__, 'ensure_audit_table' ), 5 );
 		add_action( 'wp_before_execute_ability', array( __CLASS__, 'audit_before' ), 10, 3 );
 		add_action( 'wp_after_execute_ability', array( __CLASS__, 'audit_after' ), 10, 4 );
+		add_action( 'rest_api_init', array( __CLASS__, 'register_gateway_routes' ) );
 	}
 
 	public static function expose_existing_abilities_to_mcp( array $args, string $ability_name ): array {
@@ -92,6 +93,18 @@ final class GREC_WordPress_Control {
 	}
 
 	public static function register_abilities(): void {
+		self::register_ability(
+			'wp-control/pairing-code',
+			'Create ChatGPT pairing code',
+			'Create a short-lived one-time code that pairs this WordPress site to the authenticated WP Control account. The code expires after 15 minutes.',
+			array(),
+			array( __CLASS__, 'create_pairing_code' ),
+			array( __CLASS__, 'can_manage_options' ),
+			false,
+			false,
+			false
+		);
+
 		self::register_ability(
 			'wp-control/site-snapshot',
 			'Site snapshot',
@@ -475,6 +488,273 @@ final class GREC_WordPress_Control {
 	public static function can_edit_theme_options(): bool {
 		return current_user_can( 'edit_theme_options' );
 	}
+
+
+	private static function gateway_supabase_url(): string {
+		return rtrim(
+			(string) get_option( 'wp_control_supabase_url', 'https://saczglesalubroyaucqe.supabase.co' ),
+			'/'
+		);
+	}
+
+	private static function gateway_publishable_key(): string {
+		return (string) get_option(
+			'wp_control_supabase_publishable_key',
+			'sb_publishable_QWn0aEO4-fHulmZaUacbIQ_1ejYsDXY'
+		);
+	}
+
+	private static function ensure_site_id(): string {
+		$id = (string) get_option( 'wp_control_site_id', '' );
+		if ( ! preg_match( '/^[0-9a-f-]{36}$/i', $id ) ) {
+			$id = wp_generate_uuid4();
+			update_option( 'wp_control_site_id', $id, false );
+		}
+		return $id;
+	}
+
+	public static function create_pairing_code(): array {
+		$code = strtoupper( wp_generate_password( 10, false, false ) );
+		$hash = hash_hmac( 'sha256', $code, wp_salt( 'auth' ) );
+		$user = get_current_user_id();
+
+		set_transient(
+			'wp_control_pairing',
+			array(
+				'hash'          => $hash,
+				'local_user_id' => $user,
+				'created_at'    => time(),
+			),
+			15 * MINUTE_IN_SECONDS
+		);
+
+		return array(
+			'site_id'    => self::ensure_site_id(),
+			'site_url'   => home_url( '/' ),
+			'site_name'  => get_bloginfo( 'name' ),
+			'code'       => $code,
+			'expires_in' => 15 * MINUTE_IN_SECONDS,
+		);
+	}
+
+	public static function register_gateway_routes(): void {
+		register_rest_route(
+			'wp-control/v1',
+			'/pair',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'gateway_pair' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		register_rest_route(
+			'wp-control/v1',
+			'/bridge',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'gateway_bridge' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		register_rest_route(
+			'wp-control/v1',
+			'/status',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => static function () {
+					return rest_ensure_response(
+						array(
+							'ok'      => true,
+							'site_id' => self::ensure_site_id(),
+							'paired'  => (bool) get_option( 'wp_control_owner_id', '' ),
+							'version' => defined( 'GREC_VERSION' ) ? GREC_VERSION : 'standalone',
+						)
+					);
+				},
+				'permission_callback' => '__return_true',
+			)
+		);
+	}
+
+	private static function rate_limit_pairing( WP_REST_Request $request ) {
+		$ip  = sanitize_text_field( (string) $request->get_header( 'x-forwarded-for' ) );
+		$ip  = $ip ? trim( explode( ',', $ip )[0] ) : sanitize_text_field( (string) ( $_SERVER['REMOTE_ADDR'] ?? '' ) );
+		$key = 'wp_control_pair_rl_' . md5( $ip ?: 'unknown' );
+		$n   = (int) get_transient( $key );
+
+		if ( $n >= 10 ) {
+			return new WP_Error( 'wp_control_rate_limited', 'Too many pairing attempts. Try again shortly.', array( 'status' => 429 ) );
+		}
+
+		set_transient( $key, $n + 1, MINUTE_IN_SECONDS );
+		return true;
+	}
+
+	public static function gateway_pair( WP_REST_Request $request ) {
+		$limited = self::rate_limit_pairing( $request );
+		if ( is_wp_error( $limited ) ) {
+			return $limited;
+		}
+
+		$body     = $request->get_json_params();
+		$code     = isset( $body['code'] ) ? strtoupper( sanitize_text_field( $body['code'] ) ) : '';
+		$owner_id = isset( $body['owner_id'] ) ? sanitize_text_field( $body['owner_id'] ) : '';
+		$pairing  = get_transient( 'wp_control_pairing' );
+
+		if ( ! is_array( $pairing ) || empty( $pairing['hash'] ) ) {
+			return new WP_Error( 'wp_control_pairing_expired', 'Pairing code is missing or expired.', array( 'status' => 410 ) );
+		}
+
+		$expected = hash_hmac( 'sha256', $code, wp_salt( 'auth' ) );
+		if ( '' === $code || ! hash_equals( (string) $pairing['hash'], $expected ) ) {
+			return new WP_Error( 'wp_control_pairing_invalid', 'Pairing code is invalid.', array( 'status' => 403 ) );
+		}
+
+		if ( ! preg_match( '/^[0-9a-f-]{36}$/i', $owner_id ) ) {
+			return new WP_Error( 'wp_control_owner_invalid', 'Owner id is invalid.', array( 'status' => 400 ) );
+		}
+
+		$local_user_id = isset( $pairing['local_user_id'] ) ? absint( $pairing['local_user_id'] ) : 0;
+		$local_user    = $local_user_id ? get_user_by( 'id', $local_user_id ) : false;
+		if ( ! $local_user || ! user_can( $local_user, 'manage_options' ) ) {
+			return new WP_Error( 'wp_control_local_admin_missing', 'The pairing administrator is no longer authorized.', array( 'status' => 403 ) );
+		}
+
+		update_option( 'wp_control_owner_id', $owner_id, false );
+		update_option( 'wp_control_local_user_id', $local_user_id, false );
+		delete_transient( 'wp_control_pairing' );
+
+		return rest_ensure_response(
+			array(
+				'ok'           => true,
+				'site_id'      => self::ensure_site_id(),
+				'name'         => get_bloginfo( 'name' ),
+				'base_url'     => home_url( '/' ),
+				'capabilities' => array(
+					'wordpress'   => true,
+					'woocommerce' => class_exists( 'WooCommerce' ),
+					'seo'         => defined( 'AIOSEO_VERSION' ) || class_exists( 'AIOSEO\\Plugin\\AIOSEO' ),
+					'cowboy_mcp'  => class_exists( 'Cowboy_MCP_Tools' ),
+					'undo'        => class_exists( 'Cowboy_MCP_Undo' ),
+				),
+			)
+		);
+	}
+
+	private static function bearer_token( WP_REST_Request $request ): string {
+		$header = trim( (string) $request->get_header( 'authorization' ) );
+		return preg_match( '/^Bearer\\s+(.+)$/i', $header, $m ) ? trim( $m[1] ) : '';
+	}
+
+	private static function validate_gateway_user_token( string $token ) {
+		if ( '' === $token ) {
+			return new WP_Error( 'wp_control_unauthorized', 'Missing bearer token.', array( 'status' => 401 ) );
+		}
+
+		$response = wp_remote_get(
+			self::gateway_supabase_url() . '/auth/v1/user',
+			array(
+				'timeout' => 12,
+				'headers' => array(
+					'Authorization' => 'Bearer ' . $token,
+					'apikey'        => self::gateway_publishable_key(),
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return new WP_Error( 'wp_control_auth_unreachable', 'Could not validate the gateway identity.', array( 'status' => 503 ) );
+		}
+
+		if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+			return new WP_Error( 'wp_control_unauthorized', 'Gateway identity is invalid or expired.', array( 'status' => 401 ) );
+		}
+
+		$user = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $user ) || empty( $user['id'] ) ) {
+			return new WP_Error( 'wp_control_unauthorized', 'Gateway identity could not be resolved.', array( 'status' => 401 ) );
+		}
+
+		$owner_id = (string) get_option( 'wp_control_owner_id', '' );
+		if ( '' === $owner_id || ! hash_equals( $owner_id, (string) $user['id'] ) ) {
+			return new WP_Error( 'wp_control_forbidden', 'This account does not own the paired site.', array( 'status' => 403 ) );
+		}
+
+		return $user;
+	}
+
+	private static function gateway_action_map(): array {
+		return array(
+			'site_overview'   => 'wp-control/site-snapshot',
+			'list_content'    => 'cowboy-mcp/wp-list-posts',
+			'get_content'     => 'cowboy-mcp/wp-get-post',
+			'create_content'  => 'cowboy-mcp/wp-create-post',
+			'update_content'  => 'cowboy-mcp/wp-update-post',
+			'list_products'   => 'cowboy-mcp/wp-woo-list-products',
+			'get_product'     => 'cowboy-mcp/wp-woo-get-product',
+			'update_product'  => 'cowboy-mcp/wp-woo-update-product',
+			'list_orders'     => 'cowboy-mcp/wp-woo-list-orders',
+			'get_order'       => 'cowboy-mcp/wp-woo-get-order',
+			'add_order_note'  => 'cowboy-mcp/wp-woo-add-order-note',
+			'seo_audit'       => 'cowboy-mcp/wp-seo-audit',
+			'update_seo'      => 'cowboy-mcp/wp-seo-update-meta',
+			'flush_cache'     => 'cowboy-mcp/wp-cache-flush',
+			'list_changes'    => 'cowboy-mcp/wp-list-changes',
+			'undo_change'     => 'cowboy-mcp/wp-undo-change',
+		);
+	}
+
+	public static function gateway_bridge( WP_REST_Request $request ) {
+		$user = self::validate_gateway_user_token( self::bearer_token( $request ) );
+		if ( is_wp_error( $user ) ) {
+			return $user;
+		}
+
+		$body    = $request->get_json_params();
+		$site_id = isset( $body['site_id'] ) ? sanitize_text_field( $body['site_id'] ) : '';
+		$action  = isset( $body['action'] ) ? sanitize_key( $body['action'] ) : '';
+		$input   = isset( $body['input'] ) && is_array( $body['input'] ) ? $body['input'] : array();
+
+		if ( ! hash_equals( self::ensure_site_id(), $site_id ) ) {
+			return new WP_Error( 'wp_control_site_mismatch', 'Site id does not match this WordPress installation.', array( 'status' => 409 ) );
+		}
+
+		$map = self::gateway_action_map();
+		if ( ! isset( $map[ $action ] ) ) {
+			return new WP_Error( 'wp_control_action_not_allowed', 'Gateway action is not allowed.', array( 'status' => 400 ) );
+		}
+
+		$ability = function_exists( 'wp_get_ability' ) ? wp_get_ability( $map[ $action ] ) : null;
+		if ( ! $ability ) {
+			return new WP_Error( 'wp_control_capability_unavailable', 'This WordPress site does not provide the requested capability.', array( 'status' => 501 ) );
+		}
+
+		$local_user_id = absint( get_option( 'wp_control_local_user_id', 0 ) );
+		$local_user    = $local_user_id ? get_user_by( 'id', $local_user_id ) : false;
+		if ( ! $local_user || ! user_can( $local_user, 'manage_options' ) ) {
+			return new WP_Error( 'wp_control_local_admin_missing', 'The paired local administrator is unavailable.', array( 'status' => 403 ) );
+		}
+
+		$previous_user_id = get_current_user_id();
+		wp_set_current_user( $local_user_id );
+		$result = $ability->execute( $input );
+		wp_set_current_user( $previous_user_id );
+
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return rest_ensure_response(
+			array(
+				'ok'     => true,
+				'action' => $action,
+				'result' => $result,
+			)
+		);
+	}
+
 
 	public static function site_snapshot(): array {
 		require_once ABSPATH . 'wp-admin/includes/plugin.php';
