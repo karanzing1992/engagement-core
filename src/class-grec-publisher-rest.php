@@ -20,7 +20,7 @@ final class GREC_Publisher_REST {
 		);
 		register_rest_route( 'engagement-core/v1', '/telegram/config', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'config' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
 		register_rest_route( 'engagement-core/v1', '/telegram/test', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'test' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
-		register_rest_route( 'engagement-core/v1', '/telegram/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'status' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route( 'engagement-core/v1', '/telegram/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'status' ), 'permission_callback' => array( __CLASS__, 'publisher_auth' ) ) );
 		register_rest_route( 'engagement-core/v1', '/vk/config', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'vk_config' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
 		register_rest_route( 'engagement-core/v1', '/vk/test', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'vk_test' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
 		register_rest_route( 'engagement-core/v1', '/vk/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'vk_status' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
@@ -66,7 +66,7 @@ final class GREC_Publisher_REST {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( __CLASS__, 'publish' ),
-				'permission_callback' => array( __CLASS__, 'admin' ),
+				'permission_callback' => array( __CLASS__, 'publisher_auth' ),
 				'args'                => array(
 					'text'      => array( 'required' => false, 'type' => 'string' ),
 					'media_url' => array( 'required' => false, 'type' => 'string', 'format' => 'uri' ),
@@ -80,6 +80,20 @@ final class GREC_Publisher_REST {
 
 	public static function admin(): bool {
 		return current_user_can( 'manage_options' );
+	}
+
+	public static function publisher_key(): string {
+		$key = defined( 'GREC_PUBLISH_KEY' ) ? (string) GREC_PUBLISH_KEY : (string) get_option( 'grec_publish_key', '' );
+		return trim( $key );
+	}
+
+	public static function publisher_auth( WP_REST_Request $request ): bool {
+		if ( self::admin() ) {
+			return true;
+		}
+		$expected = self::publisher_key();
+		$provided = trim( (string) $request->get_header( 'x-grec-publish-key' ) );
+		return '' !== $expected && '' !== $provided && hash_equals( $expected, $provided );
 	}
 
 	public static function health(): WP_REST_Response {
