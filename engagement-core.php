@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Engagement Core
  * Description: Brand-agnostic social engagement, publishing and WordPress AI control core.
- * Version: 0.8.8
+ * Version: 0.8.9
  * Author: KaranBiz
  * Requires at least: 6.9
  * Requires PHP: 7.4
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'GREC_VERSION', '0.8.8' );
+define( 'GREC_VERSION', '0.8.9' );
 define( 'GREC_FILE', __FILE__ );
 define( 'GREC_DIR', plugin_dir_path( __FILE__ ) );
 
