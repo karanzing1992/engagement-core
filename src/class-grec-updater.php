@@ -28,12 +28,15 @@ final class GREC_Updater {
 				strtolower( (string) $manifest['sha256'] ),
 				(string) $manifest['package_url'],
 				(string) $manifest['released_at'],
+				(string) ( $manifest['min_php'] ?? '' ),
+				(string) ( $manifest['min_wp'] ?? '' ),
+				(string) ( $manifest['commit'] ?? '' ),
 			)
 		);
 	}
 
 	private static function verify_manifest( array $manifest ) {
-		foreach ( array( 'version', 'sha256', 'package_url', 'released_at', 'signature' ) as $required ) {
+		foreach ( array( 'version', 'sha256', 'package_url', 'released_at', 'min_php', 'min_wp', 'commit', 'signature' ) as $required ) {
 			if ( empty( $manifest[ $required ] ) || ! is_string( $manifest[ $required ] ) ) {
 				return self::error( 'grec_update_manifest_invalid', 'Update manifest is missing a required field.' );
 			}
@@ -44,6 +47,9 @@ final class GREC_Updater {
 		}
 		if ( ! preg_match( '/^[a-f0-9]{64}$/i', $manifest['sha256'] ) ) {
 			return self::error( 'grec_update_hash_invalid', 'Update manifest checksum is invalid.' );
+		}
+		if ( ! preg_match( '/^[a-f0-9]{40}$/i', $manifest['commit'] ) ) {
+			return self::error( 'grec_update_commit_invalid', 'Update manifest commit is invalid.' );
 		}
 
 		$parts = wp_parse_url( $manifest['package_url'] );
