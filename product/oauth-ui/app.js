@@ -5,8 +5,8 @@ const PUBLIC_KEY="sb_publishable_QWn0aEO4-fHulmZaUacbIQ_1ejYsDXY";
 const supabase=createClient(PROJECT_URL,PUBLIC_KEY,{auth:{detectSessionInUrl:true,persistSession:true,flowType:"pkce"}});
 
 const qs=new URLSearchParams(location.search);
-let authorizationId=qs.get("authorization_id")||sessionStorage.getItem("wpcontrol_authorization_id");
-if(authorizationId) sessionStorage.setItem("wpcontrol_authorization_id",authorizationId);
+let authorizationId=qs.get("authorization_id")||localStorage.getItem("wpcontrol_authorization_id");
+if(authorizationId) localStorage.setItem("wpcontrol_authorization_id",authorizationId);
 
 const login=document.querySelector("#login");
 const consent=document.querySelector("#consent");
@@ -53,8 +53,8 @@ send.addEventListener("click",async()=>{
   const v=email.value.trim();
   if(!v){say("Enter your email address.");return;}
   send.disabled=true;
-  const callback=PROJECT_URL+"/functions/v1/wpcontrol-auth?authorization_id="+encodeURIComponent(authorizationId);
-  const r=await supabase.auth.signInWithOtp({email:v,options:{emailRedirectTo:callback}});
+  const callback=location.origin+"/";
+  const r=await supabase.auth.signInWithOtp({email:v,options:{emailRedirectTo:callback,shouldCreateUser:false}});
   send.disabled=false;
   say(r.error?r.error.message:"Check your email for the sign-in link, then open it in this browser.");
 });
@@ -63,7 +63,7 @@ approve.addEventListener("click",async()=>{
   approve.disabled=true;
   const r=await supabase.auth.oauth.approveAuthorization(authorizationId);
   if(r.error){approve.disabled=false;say(r.error.message);return;}
-  sessionStorage.removeItem("wpcontrol_authorization_id");
+  localStorage.removeItem("wpcontrol_authorization_id");
   location.href=r.data.redirect_url;
 });
 
@@ -71,7 +71,7 @@ deny.addEventListener("click",async()=>{
   deny.disabled=true;
   const r=await supabase.auth.oauth.denyAuthorization(authorizationId);
   if(r.error){deny.disabled=false;say(r.error.message);return;}
-  sessionStorage.removeItem("wpcontrol_authorization_id");
+  localStorage.removeItem("wpcontrol_authorization_id");
   location.href=r.data.redirect_url;
 });
 
