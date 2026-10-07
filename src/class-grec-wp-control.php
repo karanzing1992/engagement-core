@@ -1324,6 +1324,10 @@ final class GREC_WordPress_Control {
 			case 'audit_query': return self::audit_query( $input );
 			case 'telegram_status': return self::native_telegram_status();
 			case 'telegram_publish': return self::native_telegram_publish( $input );
+			case 'engine_status': return GREC_Updater::status();
+			case 'engine_check': return GREC_Updater::check( true );
+			case 'engine_update': return GREC_Updater::apply( $input );
+			case 'engine_rollback': return GREC_Updater::rollback( $input );
 		}
 		return new WP_Error( 'wp_control_action_not_allowed', 'Gateway action is not allowed.', array( 'status' => 400 ) );
 	}
