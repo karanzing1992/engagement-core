@@ -20,16 +20,16 @@ final class GREC_Publisher_REST {
 		);
 		register_rest_route( 'engagement-core/v1', '/telegram/config', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'config' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
 		register_rest_route( 'engagement-core/v1', '/telegram/test', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'test' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
-		register_rest_route( 'engagement-core/v1', '/telegram/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'status' ), 'permission_callback' => array( __CLASS__, 'publisher_auth' ) ) );
+		register_rest_route( 'engagement-core/v1', '/telegram/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'status' ), 'permission_callback' => self::scope_permission( 'telegram.status' ) ) );
 		register_rest_route( 'engagement-core/v1', '/vk/config', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'vk_config' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
 		register_rest_route( 'engagement-core/v1', '/vk/test', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'vk_test' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
-		register_rest_route( 'engagement-core/v1', '/vk/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'vk_status' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route( 'engagement-core/v1', '/vk/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'vk_status' ), 'permission_callback' => self::scope_permission( 'vk.status' ) ) );
 		register_rest_route( 'engagement-core/v1', '/ok/config', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'ok_config' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
 		register_rest_route( 'engagement-core/v1', '/ok/test', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'ok_test' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
-		register_rest_route( 'engagement-core/v1', '/ok/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'ok_status' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route( 'engagement-core/v1', '/ok/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'ok_status' ), 'permission_callback' => self::scope_permission( 'ok.status' ) ) );
 		register_rest_route( 'engagement-core/v1', '/snapchat/config', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'snapchat_config' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
-		register_rest_route( 'engagement-core/v1', '/snapchat/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'snapchat_status' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
-		register_rest_route( 'engagement-core/v1', '/snapchat/handoff', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'snapchat_handoff' ), 'permission_callback' => array( __CLASS__, 'admin' ) ) );
+		register_rest_route( 'engagement-core/v1', '/snapchat/status', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'snapchat_status' ), 'permission_callback' => self::scope_permission( 'snapchat.status' ) ) );
+		register_rest_route( 'engagement-core/v1', '/snapchat/handoff', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'snapchat_handoff' ), 'permission_callback' => self::scope_permission( 'snapchat.handoff' ) ) );
 		register_rest_route( 'engagement-core/v1', '/snapchat/device/next', array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'snapchat_device_next' ), 'permission_callback' => array( __CLASS__, 'snapchat_device_auth' ) ) );
 		register_rest_route( 'engagement-core/v1', '/snapchat/device/complete', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'snapchat_device_complete' ), 'permission_callback' => array( __CLASS__, 'snapchat_device_auth' ) ) );
 		register_rest_route(
@@ -38,7 +38,7 @@ final class GREC_Publisher_REST {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( __CLASS__, 'ok_publish' ),
-				'permission_callback' => array( __CLASS__, 'admin' ),
+				'permission_callback' => self::scope_permission( 'ok.publish' ),
 				'args'                => array(
 					'text'  => array( 'required' => false, 'type' => 'string' ),
 					'link'  => array( 'required' => false, 'type' => 'string', 'format' => 'uri' ),
@@ -52,7 +52,7 @@ final class GREC_Publisher_REST {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( __CLASS__, 'vk_publish' ),
-				'permission_callback' => array( __CLASS__, 'admin' ),
+				'permission_callback' => self::scope_permission( 'vk.publish' ),
 				'args'                => array(
 					'text'  => array( 'required' => false, 'type' => 'string' ),
 					'link'  => array( 'required' => false, 'type' => 'string', 'format' => 'uri' ),
@@ -66,7 +66,7 @@ final class GREC_Publisher_REST {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( __CLASS__, 'publish' ),
-				'permission_callback' => array( __CLASS__, 'publisher_auth' ),
+				'permission_callback' => self::scope_permission( 'telegram.publish' ),
 				'args'                => array(
 					'text'      => array( 'required' => false, 'type' => 'string' ),
 					'media_url' => array( 'required' => false, 'type' => 'string', 'format' => 'uri' ),
@@ -82,20 +82,35 @@ final class GREC_Publisher_REST {
 		return current_user_can( 'manage_options' );
 	}
 
-	public static function publisher_auth( WP_REST_Request $request ): bool {
-		if ( self::admin() ) {
-			return true;
-		}
+	public static function machine_scopes(): array {
+		$defaults = array( 'telegram.status', 'telegram.publish', 'vk.status', 'vk.publish', 'ok.status', 'ok.publish', 'snapchat.status', 'snapchat.handoff' );
+		$stored = get_option( 'grec_publish_key_scopes', $defaults );
+		return is_array( $stored ) ? array_values( array_unique( array_map( 'sanitize_key', $stored ) ) ) : $defaults;
+	}
+
+	public static function scope_permission( string $scope ): Closure {
+		return static function ( WP_REST_Request $request ) use ( $scope ): bool {
+			return GREC_Publisher_REST::machine_auth( $request, $scope );
+		};
+	}
+
+	public static function machine_auth( WP_REST_Request $request, string $scope = '' ): bool {
+		if ( self::admin() ) { return true; }
 		$provided = trim( (string) $request->get_header( 'x-grec-publish-key' ) );
-		if ( '' === $provided ) {
-			return false;
-		}
+		if ( '' === $provided ) { return false; }
+		$valid = false;
 		if ( defined( 'GREC_PUBLISH_KEY' ) ) {
 			$expected = trim( (string) GREC_PUBLISH_KEY );
-			return '' !== $expected && hash_equals( $expected, $provided );
+			$valid = '' !== $expected && hash_equals( $expected, $provided );
+		} else {
+			$expected_hash = trim( (string) get_option( 'grec_publish_key_hash', '' ) );
+			$valid = '' !== $expected_hash && hash_equals( $expected_hash, hash( 'sha256', $provided ) );
 		}
-		$expected_hash = trim( (string) get_option( 'grec_publish_key_hash', '' ) );
-		return '' !== $expected_hash && hash_equals( $expected_hash, hash( 'sha256', $provided ) );
+		return $valid && ( '' === $scope || in_array( $scope, self::machine_scopes(), true ) );
+	}
+
+	public static function publisher_auth( WP_REST_Request $request ): bool {
+		return self::machine_auth( $request );
 	}
 
 	public static function health(): WP_REST_Response {
