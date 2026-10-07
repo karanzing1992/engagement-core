@@ -1284,6 +1284,54 @@ final class GREC_WordPress_Control {
 		);
 	}
 
+
+	private static function native_vk_status(): array {
+		if ( ! class_exists( 'GREC_VK' ) ) {
+			return array(
+				'connected' => false,
+				'available' => false,
+				'error'     => 'Engagement Core VK publisher is unavailable.',
+			);
+		}
+		$status = GREC_VK::status();
+		$status['available'] = true;
+		$status['supported_media'] = array( 'photo' );
+		$status['max_photos'] = 10;
+		$status['supports_links'] = true;
+		$status['needs_connection'] = empty( $status['connected'] );
+		return $status;
+	}
+
+	private static function native_vk_publish( $input ) {
+		if ( ! class_exists( 'GREC_VK' ) ) {
+			return new WP_Error( 'wp_control_vk_missing', 'Engagement Core VK publisher is unavailable.', array( 'status' => 501 ) );
+		}
+		$input = is_array( $input ) ? $input : array();
+		if ( ! GREC_VK::is_connected() ) {
+			return new WP_Error(
+				'wp_control_vk_not_connected',
+				'VK is not connected. Configure a VK access token and owner/community ID first.',
+				array( 'status' => 409 )
+			);
+		}
+		if ( ! empty( $input['dry_run'] ) ) {
+			$media = is_array( $input['media'] ?? null ) ? $input['media'] : array();
+			return array(
+				'ok'          => true,
+				'dry_run'     => true,
+				'owner_id'    => GREC_VK::owner_id(),
+				'photo_count' => count( $media ),
+				'has_link'    => ! empty( $input['link'] ),
+				'has_text'    => '' !== trim( (string) ( $input['text'] ?? '' ) ),
+			);
+		}
+		return GREC_VK::publish(
+			(string) ( $input['text'] ?? '' ),
+			is_array( $input['media'] ?? null ) ? $input['media'] : array(),
+			(string) ( $input['link'] ?? '' )
+		);
+	}
+
 	private static function gateway_execute_native( string $action, array $input ) {
 		switch ( $action ) {
 			case 'site_overview':
@@ -1324,6 +1372,8 @@ final class GREC_WordPress_Control {
 			case 'audit_query': return self::audit_query( $input );
 			case 'telegram_status': return self::native_telegram_status();
 			case 'telegram_publish': return self::native_telegram_publish( $input );
+			case 'vk_status': return self::native_vk_status();
+			case 'vk_publish': return self::native_vk_publish( $input );
 			case 'engine_status': return GREC_Updater::status();
 			case 'engine_check': return GREC_Updater::check( true );
 			case 'engine_update': return GREC_Updater::apply( $input );
