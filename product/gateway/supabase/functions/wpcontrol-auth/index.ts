@@ -30,7 +30,7 @@ const page = [
 
 Deno.serve((req) => {
   const url = new URL(req.url)
-  const path = url.pathname.replace(/^\/functions\/v1\/wpcontrol-auth/, '') || '/'
+  const path = url.pathname.replace(/^\/(?:functions\/v1\/)?wpcontrol-auth/, '') || '/'
 
   if (req.method === 'GET' && path === '/health') {
     return Response.json({ ok: true, service: 'wpcontrol-auth', version: '0.1.0' })

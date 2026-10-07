@@ -6,7 +6,7 @@ import { makeServer } from './lib/server.ts'
 
 Deno.serve(async (req) => {
   const url = new URL(req.url)
-  const path = url.pathname.replace(/^\/functions\/v1\/wpcontrol-mcp/, '') || '/'
+  const path = url.pathname.replace(/^\/(?:functions\/v1\/)?wpcontrol-mcp/, '') || '/'
   const cfg = gatewayConstants()
 
   if (req.method === 'GET' && path === '/health') {
