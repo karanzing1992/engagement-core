@@ -15,7 +15,7 @@ const siteId = z.string().uuid()
 
 export function makeServer(ctx: UserContext) {
   const server = new McpServer(
-    { name: 'wordpress-control', version: '0.2.1' },
+    { name: 'wordpress-control', version: '0.2.2' },
     {
       instructions:
         'Manage only WordPress sites paired by the current user. ' +
@@ -499,6 +499,33 @@ export function makeServer(ctx: UserContext) {
     },
     'engine_rollback',
     true,
+    false,
+  )
+
+
+  readTool(
+    'vk_status',
+    'Get VK publisher status',
+    'Read the Engagement Core VK connection state, owner/community target and latest publish result without exposing the access token.',
+    {},
+    'vk_status',
+  )
+
+  writeTool(
+    'vk_publish',
+    'Publish to VK',
+    'Publish text, an optional link and up to 10 photos to the connected VK wall through Engagement Core.',
+    {
+      text: z.string().optional(),
+      link: z.string().url().optional(),
+      media: z.array(z.object({
+        type: z.literal('photo'),
+        url: z.string().url(),
+      })).max(10).optional(),
+      dry_run: z.boolean().optional(),
+    },
+    'vk_publish',
+    false,
     false,
   )
 
