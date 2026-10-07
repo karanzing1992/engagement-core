@@ -15,7 +15,7 @@ const siteId = z.string().uuid()
 
 export function makeServer(ctx: UserContext) {
   const server = new McpServer(
-    { name: 'wordpress-control', version: '0.1.1' },
+    { name: 'wordpress-control', version: '0.2.0' },
     {
       instructions:
         'Manage only WordPress sites paired by the current user. ' +
@@ -357,6 +357,106 @@ export function makeServer(ctx: UserContext) {
     },
     'undo_change',
     true,
+    false,
+  )
+
+
+  readTool(
+    'list_plugins',
+    'List WordPress plugins',
+    'List installed WordPress plugins with versions and active state using Engagement Core directly.',
+    {},
+    'plugin_list',
+  )
+
+  writeTool(
+    'set_plugin_state',
+    'Activate or deactivate WordPress plugin',
+    'Activate or deactivate an installed plugin. Engagement Core and its control-path dependencies are protected from self-deactivation.',
+    {
+      plugin: z.string().min(1),
+      action: z.enum(['activate', 'deactivate']),
+    },
+    'plugin_toggle',
+    true,
+    true,
+  )
+
+  readTool(
+    'list_themes',
+    'List WordPress themes',
+    'List installed themes and identify the active theme.',
+    {},
+    'theme_list',
+  )
+
+  readTool(
+    'get_site_options',
+    'Read safe WordPress settings',
+    'Read Engagement Core allowlisted WordPress and WooCommerce settings; secrets and arbitrary options are excluded.',
+    {
+      names: z.array(z.string()).optional(),
+    },
+    'options_get',
+  )
+
+  writeTool(
+    'update_site_options',
+    'Update safe WordPress settings',
+    'Update only Engagement Core allowlisted WordPress and WooCommerce settings.',
+    {
+      values: z.record(z.any()),
+    },
+    'options_update',
+  )
+
+  readTool(
+    'list_cron',
+    'List WordPress scheduled jobs',
+    'List scheduled WordPress cron hooks without exposing their raw arguments.',
+    {
+      limit: z.number().int().min(1).max(200).default(100),
+    },
+    'cron_list',
+  )
+
+  readTool(
+    'query_wp_audit',
+    'Query WP Control audit',
+    'Read recent privacy-safe Engagement Core WP Control audit records.',
+    {
+      limit: z.number().int().min(1).max(100).default(50),
+      ability: z.string().optional(),
+      outcome: z.enum(['success', 'error']).optional(),
+    },
+    'audit_query',
+  )
+
+  readTool(
+    'telegram_status',
+    'Get Telegram publisher status',
+    'Read the Engagement Core Telegram connection, enabled destinations and latest publish result.',
+    {},
+    'telegram_status',
+  )
+
+  writeTool(
+    'telegram_publish',
+    'Publish to Telegram',
+    'Publish text and optional media through the Engagement Core Telegram bot integration. With no target filters it sends to all enabled destinations.',
+    {
+      text: z.string().optional(),
+      media: z.array(z.object({
+        type: z.enum(['photo', 'video', 'animation', 'audio', 'document']),
+        url: z.string().url(),
+        name: z.string().optional(),
+      })).max(10).optional(),
+      targets: z.array(z.string()).optional(),
+      levels: z.array(z.string()).optional(),
+      dry_run: z.boolean().optional(),
+    },
+    'telegram_publish',
+    false,
     false,
   )
 
