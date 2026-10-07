@@ -2,6 +2,13 @@ name: Deploy Engagement Core to Moksha WordPress
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'engagement-core.php'
+      - 'src/**'
+      - 'assets/**'
 
 permissions:
   contents: read
