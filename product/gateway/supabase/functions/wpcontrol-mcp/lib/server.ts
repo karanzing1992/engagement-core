@@ -10,12 +10,12 @@ import {
   toolPayload,
 } from './core.ts'
 
-const secured: any = [{ type: 'oauth2', scopes: ['email'] }]
+const secured: any = [{ type: 'oauth2', scopes: ['email', 'offline_access'] }]
 const siteId = z.string().uuid()
 
 export function makeServer(ctx: UserContext) {
   const server = new McpServer(
-    { name: 'wordpress-control', version: '0.1.0' },
+    { name: 'wordpress-control', version: '0.1.1' },
     {
       instructions:
         'Manage only WordPress sites paired by the current user. ' +
@@ -118,6 +118,7 @@ export function makeServer(ctx: UserContext) {
     schema: Record<string, any>,
     action: string,
     destructive = false,
+    idempotent = true,
   ) => {
     server.registerTool(
       name,
@@ -129,7 +130,7 @@ export function makeServer(ctx: UserContext) {
         annotations: {
           readOnlyHint: false,
           destructiveHint: destructive,
-          idempotentHint: !destructive,
+          idempotentHint: idempotent,
           openWorldHint: false,
         },
       } as any,
@@ -188,6 +189,8 @@ export function makeServer(ctx: UserContext) {
       slug: z.string().optional(),
     },
     'create_content',
+    false,
+    false,
   )
 
   writeTool(
@@ -284,6 +287,8 @@ export function makeServer(ctx: UserContext) {
       dry_run: z.boolean().optional(),
     },
     'add_order_note',
+    false,
+    false,
   )
 
   readTool(
@@ -352,6 +357,7 @@ export function makeServer(ctx: UserContext) {
     },
     'undo_change',
     true,
+    false,
   )
 
   return server
