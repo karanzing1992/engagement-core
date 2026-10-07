@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Engagement Core
  * Description: Brand-agnostic social engagement, publishing and WordPress AI control core.
- * Version: 0.9.0
+ * Version: 0.9.1
  * Author: KaranBiz
  * Requires at least: 6.9
  * Requires PHP: 7.4
@@ -13,11 +13,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'GREC_VERSION', '0.9.0' );
+define( 'GREC_VERSION', '0.9.1' );
 define( 'GREC_FILE', __FILE__ );
 define( 'GREC_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once GREC_DIR . 'src/class-grec-secrets.php';
+require_once GREC_DIR . 'src/class-grec-updater.php';
 require_once GREC_DIR . 'src/class-grec-repository.php';
 require_once GREC_DIR . 'src/class-grec-youtube.php';
 require_once GREC_DIR . 'src/class-grec-scheduler.php';
@@ -32,6 +33,7 @@ require_once GREC_DIR . 'src/class-grec-wp-control.php';
 final class GREC_Plugin {
 	public static function init(): void {
 		GREC_Scheduler::init();
+		GREC_Updater::init();
 		GREC_Admin::init();
 		GREC_Publisher_REST::init();
 		GREC_WordPress_Control::init();
