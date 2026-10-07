@@ -53,7 +53,7 @@ send.addEventListener("click",async()=>{
   const v=email.value.trim();
   if(!v){say("Enter your email address.");return;}
   send.disabled=true;
-  const callback=location.origin+"/";
+  const callback=location.origin+"/?authorization_id="+encodeURIComponent(authorizationId);
   const r=await supabase.auth.signInWithOtp({email:v,options:{emailRedirectTo:callback,shouldCreateUser:false}});
   send.disabled=false;
   say(r.error?r.error.message:"Check your email for the sign-in link, then open it in this browser.");
