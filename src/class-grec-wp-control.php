@@ -687,7 +687,7 @@ final class GREC_WordPress_Control {
 
 	private static function gateway_action_map(): array {
 		return array(
-			'site_overview'   => 'wp-control/site-snapshot',
+			'site_overview'   => 'cowboy-mcp/wp-site-info',
 			'list_content'    => 'cowboy-mcp/wp-list-posts',
 			'get_content'     => 'cowboy-mcp/wp-get-post',
 			'create_content'  => 'cowboy-mcp/wp-create-post',

@@ -160,7 +160,7 @@ final class WPControl_Bridge {
 
 	private static function actions(): array {
 		return array(
-			'site_overview' => 'wp-control/site-snapshot',
+			'site_overview' => 'cowboy-mcp/wp-site-info',
 			'list_content' => 'cowboy-mcp/wp-list-posts',
 			'get_content' => 'cowboy-mcp/wp-get-post',
 			'create_content' => 'cowboy-mcp/wp-create-post',

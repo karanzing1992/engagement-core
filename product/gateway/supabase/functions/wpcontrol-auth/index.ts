@@ -1,0 +1,53 @@
+import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
+
+const PROJECT_URL = 'https://saczglesalubroyaucqe.supabase.co'
+const PUBLIC_KEY = 'sb_publishable_QWn0aEO4-fHulmZaUacbIQ_1ejYsDXY'
+
+const page = [
+  '<!doctype html>',
+  '<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
+  '<title>WP Control — Connect ChatGPT</title>',
+  '<style>:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#191919;background:#f6f5f1}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}.card{width:min(520px,100%);background:#fff;border:1px solid #ddd9cf;border-radius:20px;padding:28px;box-shadow:0 16px 45px rgba(0,0,0,.08)}h1{font-size:28px;margin:0 0 8px}.muted{color:#666;line-height:1.5}.row{display:flex;gap:10px;flex-wrap:wrap}input{box-sizing:border-box;width:100%;padding:13px 14px;border:1px solid #cfcac0;border-radius:12px;font:inherit}button{border:0;border-radius:12px;padding:12px 16px;font:600 15px inherit;cursor:pointer;background:#191919;color:#fff}button.secondary{background:#eeeae1;color:#191919}#status{min-height:24px;margin:12px 0;color:#555}.scope{background:#f5f2ea;padding:12px;border-radius:12px;margin:14px 0}.hidden{display:none}</style>',
+  '</head><body><main class="card">',
+  '<h1>Connect WP Control</h1>',
+  '<p class="muted">Authorize ChatGPT to use only the WordPress sites you explicitly pair. WP Control never asks for or stores your WordPress administrator password.</p>',
+  '<section id="login" class="hidden"><label for="email">Email</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com"><div class="row" style="margin-top:12px"><button id="send">Email me a sign-in link</button></div></section>',
+  '<section id="consent" class="hidden"><p><strong id="clientName">ChatGPT</strong> wants to connect to your WP Control account.</p><div class="scope">Requested access: <span id="scopeText">email</span></div><div class="row"><button id="approve">Approve</button><button id="deny" class="secondary">Deny</button></div></section>',
+  '<p id="status"></p></main>',
+  '<script type="module">',
+  'import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm";',
+  'const supabase=createClient("' + PROJECT_URL + '","' + PUBLIC_KEY + '",{auth:{detectSessionInUrl:true,persistSession:true}});',
+  'const qs=new URLSearchParams(location.search),authorizationId=qs.get("authorization_id");',
+  'const login=document.querySelector("#login"),consent=document.querySelector("#consent"),status=document.querySelector("#status"),email=document.querySelector("#email"),send=document.querySelector("#send"),approve=document.querySelector("#approve"),deny=document.querySelector("#deny");',
+  'const say=(t)=>status.textContent=t||"";',
+  'async function boot(){if(!authorizationId){say("Missing authorization request. Start the connection from ChatGPT.");return}const s=await supabase.auth.getSession();if(!s.data.session){login.classList.remove("hidden");say("Sign in to continue.");return}const r=await supabase.auth.oauth.getAuthorizationDetails(authorizationId);if(r.error){say(r.error.message||"Could not load the authorization request.");return}document.querySelector("#clientName").textContent=r.data?.client?.name||r.data?.client_name||"ChatGPT";document.querySelector("#scopeText").textContent=r.data?.scope||"email";consent.classList.remove("hidden");login.classList.add("hidden");say("Review the request, then approve or deny.")}',
+  'send.addEventListener("click",async()=>{const v=email.value.trim();if(!v){say("Enter your email address.");return}send.disabled=true;const r=await supabase.auth.signInWithOtp({email:v,options:{emailRedirectTo:location.href}});send.disabled=false;say(r.error?r.error.message:"Check your email for the sign-in link.")});',
+  'approve.addEventListener("click",async()=>{approve.disabled=true;const r=await supabase.auth.oauth.approveAuthorization(authorizationId);if(r.error){approve.disabled=false;say(r.error.message);return}location.href=r.data.redirect_url});',
+  'deny.addEventListener("click",async()=>{deny.disabled=true;const r=await supabase.auth.oauth.denyAuthorization(authorizationId);if(r.error){deny.disabled=false;say(r.error.message);return}location.href=r.data.redirect_url});',
+  'supabase.auth.onAuthStateChange(()=>boot());boot();',
+  '</script></body></html>',
+].join('')
+
+Deno.serve((req) => {
+  const url = new URL(req.url)
+  const path = url.pathname.replace(/^\/functions\/v1\/wpcontrol-auth/, '') || '/'
+
+  if (req.method === 'GET' && path === '/health') {
+    return Response.json({ ok: true, service: 'wpcontrol-auth', version: '0.1.0' })
+  }
+
+  if (req.method !== 'GET') {
+    return Response.json({ ok: false, error: 'method_not_allowed' }, { status: 405 })
+  }
+
+  return new Response(page, {
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'content-security-policy':
+        "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://*.supabase.co; style-src 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      'referrer-policy': 'no-referrer',
+      'x-content-type-options': 'nosniff',
+    },
+  })
+})
