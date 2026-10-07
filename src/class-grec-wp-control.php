@@ -446,22 +446,6 @@ final class GREC_WordPress_Control {
 			true
 		);
 
-		wp_register_ability(
-			'wp-control/cleanup-stale-disabled-copy',
-			array(
-				'label'               => __( 'Remove stale Engagement Core copy', 'engagement-core' ),
-				'description'         => __( 'One-shot maintenance action that removes only the inactive engagement-core.disabled directory without running plugin uninstall hooks.', 'engagement-core' ),
-				'category'            => self::CATEGORY,
-				'execute_callback'    => array( __CLASS__, 'cleanup_stale_disabled_copy' ),
-				'permission_callback' => array( __CLASS__, 'can_manage_options' ),
-				'meta'                => array(
-					'public'       => false,
-					'show_in_rest' => true,
-					'annotations'  => array( 'readonly' => false, 'destructive' => true, 'idempotent' => true ),
-					'mcp'          => array( 'public' => false ),
-				),
-			)
-		);
 	}
 
 	private static function register_ability( $name, $label, $description, array $input_schema, $execute_callback, $permission_callback, $readonly, $destructive, $idempotent ): void {
@@ -1206,45 +1190,6 @@ final class GREC_WordPress_Control {
 		);
 	}
 
-
-	public static function cleanup_stale_disabled_copy() {
-		require_once ABSPATH . 'wp-admin/includes/file.php';
-		require_once ABSPATH . 'wp-admin/includes/plugin.php';
-
-		$plugin = 'engagement-core.disabled/engagement-core.php';
-		$target = trailingslashit( WP_PLUGIN_DIR ) . 'engagement-core.disabled';
-		$canonical = trailingslashit( WP_PLUGIN_DIR ) . 'engagement-core';
-
-		if ( is_plugin_active( $plugin ) ) {
-			return new WP_Error( 'wp_control_stale_copy_active', 'Refusing to remove the stale copy because it is active.' );
-		}
-
-		if ( ! is_dir( $canonical ) || ! defined( 'GREC_VERSION' ) ) {
-			return new WP_Error( 'wp_control_canonical_missing', 'Canonical Engagement Core installation is not healthy.' );
-		}
-
-		if ( ! is_dir( $target ) ) {
-			return array( 'ok' => true, 'removed' => false, 'reason' => 'already_absent' );
-		}
-
-		global $wp_filesystem;
-		if ( ! WP_Filesystem() || ! $wp_filesystem ) {
-			return new WP_Error( 'wp_control_filesystem_unavailable', 'WordPress filesystem access is unavailable.' );
-		}
-
-		$removed = $wp_filesystem->delete( $target, true );
-		if ( ! $removed || $wp_filesystem->exists( $target ) ) {
-			return new WP_Error( 'wp_control_stale_copy_delete_failed', 'The stale Engagement Core directory could not be removed.' );
-		}
-
-		return array(
-			'ok'        => true,
-			'removed'   => true,
-			'target'    => 'engagement-core.disabled',
-			'canonical' => basename( $canonical ),
-			'version'   => (string) GREC_VERSION,
-		);
-	}
 
 	public static function theme_list(): array {
 		$rows   = array();
