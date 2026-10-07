@@ -21,7 +21,7 @@ export function gatewayConstants() {
     mcpUrl: BASE + '/mcp',
     resourceMetadata: RESOURCE_METADATA,
     authIssuer: SUPABASE_URL + '/auth/v1',
-    scopes: ['email'],
+    scopes: ['email', 'offline_access'],
   }
 }
 
