@@ -325,6 +325,30 @@ final class GREC_WordPress_Control {
 		);
 
 		self::register_ability(
+			'wp-control/oauth-registration-status',
+			'GPT OAuth registration status',
+			'Return the direct MCP endpoint and whether Cowboy MCP OAuth and its temporary new-connections window are available.',
+			array(),
+			array( __CLASS__, 'oauth_registration_status' ),
+			array( __CLASS__, 'can_manage_options' ),
+			true,
+			false,
+			true
+		);
+
+		self::register_ability(
+			'wp-control/oauth-registration-open',
+			'Open GPT OAuth registration window',
+			'Open Cowboy MCP dynamic client registration for 30 minutes so a new ChatGPT MCP app can register. Existing OAuth safety rules and redirect allowlists remain enforced.',
+			array(),
+			array( __CLASS__, 'oauth_registration_open' ),
+			array( __CLASS__, 'can_manage_options' ),
+			false,
+			false,
+			false
+		);
+
+		self::register_ability(
 			'wp-control/package-sync',
 			'Sync Git-managed package',
 			'Ask WordPress itself to pull and install a configured plugin or theme from its Deployer for Git source. This removes GitHub Actions from the deployment path.',
@@ -893,6 +917,44 @@ final class GREC_WordPress_Control {
 
 		return array( 'items' => $wpdb->get_results( $sql, ARRAY_A ) );
 	}
+
+	public static function oauth_registration_status(): array {
+		$available = class_exists( 'Cowboy_MCP_OAuth' );
+		$settings  = get_option( 'cowboy_mcp_settings', array() );
+		$seconds   = $available ? Cowboy_MCP_OAuth::registration_seconds_left() : 0;
+
+		return array(
+			'available'            => $available,
+			'oauth_enabled'        => is_array( $settings ) && ! empty( $settings['oauth_enabled'] ),
+			'registration_open'    => $seconds > 0,
+			'seconds_left'         => $seconds,
+			'mcp_endpoint'         => rest_url( 'cowboy-mcp/v1/endpoint' ),
+			'protected_resource'   => home_url( '/.well-known/oauth-protected-resource' ),
+			'authorization_server'=> home_url( '/.well-known/oauth-authorization-server' ),
+			'power_mode_exposed'   => false,
+		);
+	}
+
+	public static function oauth_registration_open() {
+		if ( ! class_exists( 'Cowboy_MCP_OAuth' ) ) {
+			return new WP_Error( 'wp_control_cowboy_missing', 'Cowboy MCP is not active.' );
+		}
+
+		$settings = get_option( 'cowboy_mcp_settings', array() );
+		if ( ! is_array( $settings ) || empty( $settings['oauth_enabled'] ) ) {
+			return new WP_Error( 'wp_control_cowboy_oauth_disabled', 'Cowboy MCP OAuth is disabled.' );
+		}
+
+		$until = Cowboy_MCP_OAuth::open_registration_window();
+		return array(
+			'ok'                => true,
+			'registration_open' => true,
+			'closes_at_utc'     => gmdate( DATE_ATOM, $until ),
+			'seconds_left'      => Cowboy_MCP_OAuth::registration_seconds_left(),
+			'mcp_endpoint'      => rest_url( 'cowboy-mcp/v1/endpoint' ),
+		);
+	}
+
 
 	private static function dfg_packages( string $type ): array {
 		$option = 'theme' === $type ? 'dfg_themes_list' : 'dfg_plugins_list';
