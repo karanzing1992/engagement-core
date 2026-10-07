@@ -11,6 +11,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class GREC_WordPress_Control {
 	private const CATEGORY = 'wp-control';
+	private const AUDIT_DB_VERSION = '1';
+	private static $audit_starts = array();
 
 	private const MCP_ABILITY_ALLOWLIST = array(
 		'core/get-site-info',
@@ -61,6 +63,9 @@ final class GREC_WordPress_Control {
 		add_filter( 'wp_register_ability_args', array( __CLASS__, 'expose_existing_abilities_to_mcp' ), 20, 2 );
 		add_action( 'wp_abilities_api_categories_init', array( __CLASS__, 'register_category' ) );
 		add_action( 'wp_abilities_api_init', array( __CLASS__, 'register_abilities' ), 20 );
+		add_action( 'init', array( __CLASS__, 'ensure_audit_table' ), 5 );
+		add_action( 'wp_before_execute_ability', array( __CLASS__, 'audit_before' ), 10, 3 );
+		add_action( 'wp_after_execute_ability', array( __CLASS__, 'audit_after' ), 10, 4 );
 	}
 
 	public static function expose_existing_abilities_to_mcp( array $args, string $ability_name ): array {
@@ -285,6 +290,56 @@ final class GREC_WordPress_Control {
 			array( __CLASS__, 'can_manage_options' ),
 			true,
 			false,
+			true
+		);
+
+		self::register_ability(
+			'wp-control/audit-query',
+			'Query GPT control audit log',
+			'Return recent privacy-safe execution records for wp-control abilities. Inputs and content bodies are never stored; only an input hash is retained.',
+			array(
+				'type'       => 'object',
+				'properties' => array(
+					'limit'   => array( 'type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'default' => 50 ),
+					'ability' => array( 'type' => 'string', 'default' => '' ),
+					'outcome' => array( 'type' => 'string', 'enum' => array( '', 'success', 'error' ), 'default' => '' ),
+				),
+			),
+			array( __CLASS__, 'audit_query' ),
+			array( __CLASS__, 'can_manage_options' ),
+			true,
+			false,
+			true
+		);
+
+		self::register_ability(
+			'wp-control/package-list',
+			'List Git-managed packages',
+			'List Deployer for Git packages that WordPress is already configured to pull. Repository credentials and secrets are never returned.',
+			array(),
+			array( __CLASS__, 'package_list' ),
+			array( __CLASS__, 'can_manage_options' ),
+			true,
+			false,
+			true
+		);
+
+		self::register_ability(
+			'wp-control/package-sync',
+			'Sync Git-managed package',
+			'Ask WordPress itself to pull and install a configured plugin or theme from its Deployer for Git source. This removes GitHub Actions from the deployment path.',
+			array(
+				'type'       => 'object',
+				'required'   => array( 'type', 'package' ),
+				'properties' => array(
+					'type'    => array( 'type' => 'string', 'enum' => array( 'plugin', 'theme' ) ),
+					'package' => array( 'type' => 'string' ),
+				),
+			),
+			array( __CLASS__, 'package_sync' ),
+			array( __CLASS__, 'can_manage_options' ),
+			false,
+			true,
 			true
 		);
 	}
@@ -709,6 +764,219 @@ final class GREC_WordPress_Control {
 			'actions' => array_values( array_unique( $actions ) ),
 		);
 	}
+
+	private static function audit_table(): string {
+		global $wpdb;
+		return $wpdb->prefix . 'grec_wp_control_audit';
+	}
+
+	public static function ensure_audit_table(): void {
+		if ( get_option( 'grec_wp_control_audit_db_version' ) === self::AUDIT_DB_VERSION ) {
+			return;
+		}
+
+		global $wpdb;
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$table   = self::audit_table();
+		$charset = $wpdb->get_charset_collate();
+		$sql     = "CREATE TABLE {$table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			created_at datetime NOT NULL,
+			ability_name varchar(191) NOT NULL,
+			user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			context varchar(32) NOT NULL DEFAULT 'php',
+			outcome varchar(16) NOT NULL DEFAULT 'success',
+			error_code varchar(191) NOT NULL DEFAULT '',
+			duration_ms int(10) unsigned NOT NULL DEFAULT 0,
+			input_hash char(64) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY ability_name (ability_name),
+			KEY created_at (created_at),
+			KEY user_id (user_id)
+		) {$charset};";
+
+		dbDelta( $sql );
+		update_option( 'grec_wp_control_audit_db_version', self::AUDIT_DB_VERSION, false );
+	}
+
+	private static function audit_context(): string {
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
+			return 'cli';
+		}
+
+		if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+			$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+			return false !== strpos( $uri, '/mcp/' ) ? 'mcp' : 'rest';
+		}
+
+		return 'php';
+	}
+
+	public static function audit_before( $ability_name, $input, $ability ): void {
+		if ( 0 !== strpos( (string) $ability_name, 'wp-control/' ) ) {
+			return;
+		}
+
+		if ( ! isset( self::$audit_starts[ $ability_name ] ) ) {
+			self::$audit_starts[ $ability_name ] = array();
+		}
+		self::$audit_starts[ $ability_name ][] = microtime( true );
+	}
+
+	public static function audit_after( $ability_name, $input, $result, $ability ): void {
+		if ( 0 !== strpos( (string) $ability_name, 'wp-control/' ) || 'wp-control/audit-query' === $ability_name ) {
+			return;
+		}
+
+		self::ensure_audit_table();
+
+		$started = microtime( true );
+		if ( ! empty( self::$audit_starts[ $ability_name ] ) ) {
+			$started = array_pop( self::$audit_starts[ $ability_name ] );
+		}
+
+		$encoded = wp_json_encode( $input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		$hash    = is_string( $encoded ) ? hash( 'sha256', $encoded ) : '';
+
+		global $wpdb;
+		$wpdb->insert(
+			self::audit_table(),
+			array(
+				'created_at'  => current_time( 'mysql', true ),
+				'ability_name'=> (string) $ability_name,
+				'user_id'     => get_current_user_id(),
+				'context'     => self::audit_context(),
+				'outcome'     => is_wp_error( $result ) ? 'error' : 'success',
+				'error_code'  => is_wp_error( $result ) ? (string) $result->get_error_code() : '',
+				'duration_ms' => max( 0, (int) round( ( microtime( true ) - $started ) * 1000 ) ),
+				'input_hash'  => $hash,
+			),
+			array( '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s' )
+		);
+
+		if ( false === get_transient( 'grec_wp_control_audit_pruned' ) ) {
+			$table = self::audit_table();
+			$wpdb->query( "DELETE FROM {$table} WHERE created_at < (UTC_TIMESTAMP() - INTERVAL 90 DAY)" );
+			set_transient( 'grec_wp_control_audit_pruned', '1', 12 * HOUR_IN_SECONDS );
+		}
+	}
+
+	public static function audit_query( $input ): array {
+		self::ensure_audit_table();
+		$input = is_array( $input ) ? $input : array();
+		$limit = max( 1, min( 100, isset( $input['limit'] ) ? absint( $input['limit'] ) : 50 ) );
+
+		$where  = array( '1=1' );
+		$params = array();
+
+		if ( ! empty( $input['ability'] ) ) {
+			$where[]  = 'ability_name = %s';
+			$params[] = sanitize_text_field( $input['ability'] );
+		}
+		if ( ! empty( $input['outcome'] ) && in_array( $input['outcome'], array( 'success', 'error' ), true ) ) {
+			$where[]  = 'outcome = %s';
+			$params[] = $input['outcome'];
+		}
+
+		global $wpdb;
+		$table = self::audit_table();
+		$sql   = "SELECT id, created_at, ability_name, user_id, context, outcome, error_code, duration_ms, input_hash
+			FROM {$table}
+			WHERE " . implode( ' AND ', $where ) . "
+			ORDER BY id DESC
+			LIMIT " . (int) $limit;
+
+		if ( $params ) {
+			$sql = $wpdb->prepare( $sql, $params );
+		}
+
+		return array( 'items' => $wpdb->get_results( $sql, ARRAY_A ) );
+	}
+
+	private static function dfg_packages( string $type ): array {
+		$option = 'theme' === $type ? 'dfg_themes_list' : 'dfg_plugins_list';
+		$rows   = get_option( $option, array() );
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	public static function package_list(): array {
+		$out = array( 'plugins' => array(), 'themes' => array() );
+
+		foreach ( array( 'plugin' => 'plugins', 'theme' => 'themes' ) as $type => $bucket ) {
+			foreach ( self::dfg_packages( $type ) as $row ) {
+				if ( ! is_array( $row ) || empty( $row['slug'] ) ) {
+					continue;
+				}
+				$out[ $bucket ][] = array(
+					'slug'                  => sanitize_key( $row['slug'] ),
+					'repo_url'              => isset( $row['repo_url'] ) ? esc_url_raw( $row['repo_url'] ) : '',
+					'branch'                => isset( $row['branch'] ) ? sanitize_text_field( $row['branch'] ) : '',
+					'provider'              => isset( $row['provider'] ) ? sanitize_key( $row['provider'] ) : '',
+					'is_private_repository' => ! empty( $row['is_private_repository'] ),
+				);
+			}
+		}
+
+		return $out;
+	}
+
+	public static function package_sync( $input ) {
+		$input   = is_array( $input ) ? $input : array();
+		$type    = isset( $input['type'] ) ? sanitize_key( $input['type'] ) : '';
+		$package = isset( $input['package'] ) ? sanitize_key( $input['package'] ) : '';
+
+		if ( ! in_array( $type, array( 'plugin', 'theme' ), true ) || ! $package ) {
+			return new WP_Error( 'wp_control_invalid_package', 'A configured plugin/theme package is required.' );
+		}
+
+		$allowed = array();
+		foreach ( self::dfg_packages( $type ) as $row ) {
+			if ( is_array( $row ) && ! empty( $row['slug'] ) ) {
+				$allowed[] = sanitize_key( $row['slug'] );
+			}
+		}
+		if ( ! in_array( $package, $allowed, true ) ) {
+			return new WP_Error( 'wp_control_package_not_configured', 'Package is not configured in Deployer for Git.' );
+		}
+
+		$secret = (string) get_option( 'deployer_for_git_api_secret', '' );
+		if ( '' === $secret ) {
+			return new WP_Error( 'wp_control_deployer_unavailable', 'Deployer for Git is not configured.' );
+		}
+
+		$request = new WP_REST_Request( 'POST', '/dfg/v1/package_update' );
+		$request->set_query_params(
+			array(
+				'secret'  => $secret,
+				'type'    => $type,
+				'package' => $package,
+			)
+		);
+		$response = rest_do_request( $request );
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$status = $response->get_status();
+		$data   = $response->get_data();
+		if ( $status >= 400 || ! is_array( $data ) || empty( $data['success'] ) ) {
+			return new WP_Error(
+				'wp_control_package_sync_failed',
+				is_array( $data ) && ! empty( $data['message'] ) ? sanitize_text_field( $data['message'] ) : 'Package sync failed.',
+				array( 'status' => $status )
+			);
+		}
+
+		return array(
+			'ok'      => true,
+			'type'    => $type,
+			'package' => $package,
+			'message' => isset( $data['message'] ) ? sanitize_text_field( $data['message'] ) : 'Package updated successfully.',
+		);
+	}
+
 
 	public static function cron_list( $input ): array {
 		$limit = is_array( $input ) && isset( $input['limit'] )
