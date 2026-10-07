@@ -68,6 +68,7 @@ final class GREC_WordPress_Control {
 		add_action( 'wp_after_execute_ability', array( __CLASS__, 'audit_after' ), 10, 4 );
 		add_action( 'rest_api_init', array( __CLASS__, 'register_gateway_routes' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_oauth_consent' ), 0 );
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_render_pairing_page' ), 1 );
 	}
 
 	public static function expose_existing_abilities_to_mcp( array $args, string $ability_name ): array {
@@ -538,6 +539,40 @@ final class GREC_WordPress_Control {
 		);
 	}
 
+
+
+	public static function maybe_render_pairing_page(): void {
+		if ( is_admin() ) {
+			return;
+		}
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$path = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
+		if ( '/wp-control/pairing' !== untrailingslashit( $path ) ) {
+			return;
+		}
+		if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+			status_header( 403 );
+			wp_die( esc_html__( 'Administrator access is required.', 'engagement-core' ), 'Forbidden', array( 'response' => 403 ) );
+		}
+		$pairing = self::create_pairing_code();
+		status_header( 200 );
+		nocache_headers();
+		header( 'Content-Type: text/html; charset=' . get_bloginfo( 'charset' ) );
+		header( 'Referrer-Policy: no-referrer' );
+		header( 'X-Content-Type-Options: nosniff' );
+		?>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WP Control Pairing</title>
+<style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f6f5f1;color:#191919;margin:0;padding:32px}.card{max-width:560px;margin:auto;background:#fff;border:1px solid #ddd9cf;border-radius:18px;padding:28px}.code{font:700 28px ui-monospace,monospace;letter-spacing:.08em;padding:16px;background:#f5f2ea;border-radius:12px;text-align:center}.muted{color:#666}</style>
+</head><body><main class="card"><p class="muted">WP CONTROL</p><h1>Pair ChatGPT</h1>
+<p>Use this one-time code to pair this WordPress site. It expires in 15 minutes.</p>
+<div class="code"><?php echo esc_html( (string) $pairing['code'] ); ?></div>
+<p class="muted">Site: <?php echo esc_html( (string) $pairing['site_name'] ); ?><br>Site ID: <?php echo esc_html( (string) $pairing['site_id'] ); ?></p>
+</main></body></html>
+		<?php
+		exit;
+	}
 
 	public static function maybe_render_oauth_consent(): void {
 		if ( is_admin() ) {
