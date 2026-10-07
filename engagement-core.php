@@ -1,10 +1,10 @@
 <?php
 /**
  * Plugin Name: Engagement Core
- * Description: Brand-agnostic social engagement and publishing core for YouTube, Telegram and VK distribution.
- * Version: 0.7.4
+ * Description: Brand-agnostic social engagement, publishing and WordPress AI control core.
+ * Version: 0.8.0
  * Author: KaranBiz
- * Requires at least: 6.4
+ * Requires at least: 6.9
  * Requires PHP: 7.4
  * Text Domain: engagement-core
  */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'GREC_VERSION', '0.7.4' );
+define( 'GREC_VERSION', '0.8.0' );
 define( 'GREC_FILE', __FILE__ );
 define( 'GREC_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -27,12 +27,14 @@ require_once GREC_DIR . 'src/class-grec-vk.php';
 require_once GREC_DIR . 'src/class-grec-ok.php';
 require_once GREC_DIR . 'src/class-grec-snapchat.php';
 require_once GREC_DIR . 'src/class-grec-publisher-rest.php';
+require_once GREC_DIR . 'src/class-grec-wp-control.php';
 
 final class GREC_Plugin {
 	public static function init(): void {
 		GREC_Scheduler::init();
 		GREC_Admin::init();
 		GREC_Publisher_REST::init();
+		GREC_WordPress_Control::init();
 	}
 
 	public static function activate(): void {
