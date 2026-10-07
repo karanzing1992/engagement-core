@@ -16,6 +16,8 @@ final class GREC_Admin {
 		add_action( 'admin_post_grec_save_telegram', array( __CLASS__, 'save_telegram' ) );
 		add_action( 'admin_post_grec_test_telegram', array( __CLASS__, 'test_telegram' ) );
 		add_action( 'admin_post_grec_publish_telegram', array( __CLASS__, 'publish_telegram' ) );
+		add_action( 'admin_post_grec_generate_publish_key', array( __CLASS__, 'generate_publish_key' ) );
+		add_action( 'admin_post_grec_revoke_publish_key', array( __CLASS__, 'revoke_publish_key' ) );
 		add_action( 'admin_post_grec_save_vk', array( __CLASS__, 'save_vk' ) );
 		add_action( 'admin_post_grec_test_vk', array( __CLASS__, 'test_vk' ) );
 		add_action( 'admin_post_grec_publish_vk', array( __CLASS__, 'publish_vk' ) );
@@ -182,6 +184,25 @@ final class GREC_Admin {
 		}
 	}
 
+
+	public static function generate_publish_key(): void {
+		self::guard();
+		check_admin_referer( 'grec_generate_publish_key' );
+		$key = 'grec_' . bin2hex( random_bytes( 32 ) );
+		update_option( 'grec_publish_key_hash', hash( 'sha256', $key ), false );
+		delete_option( 'grec_publish_key' );
+		set_transient( 'grec_publish_key_once_' . get_current_user_id(), $key, 5 * MINUTE_IN_SECONDS );
+		self::redirect( 'Publisher key generated. Copy it now; it will only be shown once.' );
+	}
+
+	public static function revoke_publish_key(): void {
+		self::guard();
+		check_admin_referer( 'grec_revoke_publish_key' );
+		delete_option( 'grec_publish_key_hash' );
+		delete_option( 'grec_publish_key' );
+		delete_transient( 'grec_publish_key_once_' . get_current_user_id() );
+		self::redirect( 'Publisher key revoked.' );
+	}
 
 	public static function save_vk(): void {
 		self::guard();
@@ -529,6 +550,19 @@ final class GREC_Admin {
 			<hr>
 			<h2>Telegram Publisher</h2>
 			<p>One encrypted bot can publish to multiple Telegram groups/channels. Use levels such as <code>primary</code>, <code>community</code>, <code>partner</code>, or <code>promo</code>.</p>
+			<?php
+			$publisher_key_once = get_transient( 'grec_publish_key_once_' . get_current_user_id() );
+			$publisher_key_ready = defined( 'GREC_PUBLISH_KEY' ) || '' !== (string) get_option( 'grec_publish_key_hash', '' );
+			if ( $publisher_key_once ) { delete_transient( 'grec_publish_key_once_' . get_current_user_id() ); }
+			?>
+			<div style="background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:14px 16px;margin:12px 0;max-width:1000px">
+				<h3 style="margin-top:0">Private publishing API</h3>
+				<p><strong>Status:</strong> <?php echo $publisher_key_ready ? 'Key active' : 'No key'; ?>. This key only authorizes Telegram status and publishing endpoints.</p>
+				<?php if ( $publisher_key_once ) : ?><p><strong>Copy now — shown once:</strong><br><input class="large-text code" readonly onclick="this.select()" value="<?php echo esc_attr( $publisher_key_once ); ?>"></p><?php endif; ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;margin-right:8px"><input type="hidden" name="action" value="grec_generate_publish_key"><?php wp_nonce_field( 'grec_generate_publish_key' ); ?><?php submit_button( $publisher_key_ready ? 'Rotate publishing key' : 'Generate publishing key', 'primary', 'submit', false ); ?></form>
+				<?php if ( $publisher_key_ready && ! defined( 'GREC_PUBLISH_KEY' ) ) : ?><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block"><input type="hidden" name="action" value="grec_revoke_publish_key"><?php wp_nonce_field( 'grec_revoke_publish_key' ); ?><?php submit_button( 'Revoke key', 'delete', 'submit', false ); ?></form><?php endif; ?>
+				<p class="description">Only a SHA-256 hash is retained by WordPress. The plaintext key is displayed once after generation and is never committed to Git.</p>
+			</div>
 			<?php
 			$telegram_destinations = GREC_Telegram::destinations();
 			$telegram_rows = $telegram_destinations;
@@ -1083,6 +1117,8 @@ final class GREC_Admin {
 					grec_save_telegram: 'Saving Telegram destinations…',
 					grec_test_telegram: 'Testing Telegram destinations…',
 					grec_publish_telegram: 'Publishing to Telegram…',
+					grec_generate_publish_key: 'Generating publishing key…',
+					grec_revoke_publish_key: 'Revoking publishing key…',
 					grec_save_vk: 'Saving VK settings…',
 					grec_test_vk: 'Testing VK connection…',
 					grec_publish_vk: 'Publishing to VK…',
