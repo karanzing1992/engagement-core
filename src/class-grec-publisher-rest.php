@@ -82,18 +82,20 @@ final class GREC_Publisher_REST {
 		return current_user_can( 'manage_options' );
 	}
 
-	public static function publisher_key(): string {
-		$key = defined( 'GREC_PUBLISH_KEY' ) ? (string) GREC_PUBLISH_KEY : (string) get_option( 'grec_publish_key', '' );
-		return trim( $key );
-	}
-
 	public static function publisher_auth( WP_REST_Request $request ): bool {
 		if ( self::admin() ) {
 			return true;
 		}
-		$expected = self::publisher_key();
 		$provided = trim( (string) $request->get_header( 'x-grec-publish-key' ) );
-		return '' !== $expected && '' !== $provided && hash_equals( $expected, $provided );
+		if ( '' === $provided ) {
+			return false;
+		}
+		if ( defined( 'GREC_PUBLISH_KEY' ) ) {
+			$expected = trim( (string) GREC_PUBLISH_KEY );
+			return '' !== $expected && hash_equals( $expected, $provided );
+		}
+		$expected_hash = trim( (string) get_option( 'grec_publish_key_hash', '' ) );
+		return '' !== $expected_hash && hash_equals( $expected_hash, hash( 'sha256', $provided ) );
 	}
 
 	public static function health(): WP_REST_Response {
