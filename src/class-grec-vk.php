@@ -131,7 +131,7 @@ final class GREC_VK {
 			$items = $data['items'];
 		} elseif ( isset( $data['groups'] ) && is_array( $data['groups'] ) ) {
 			$items = $data['groups'];
-		} elseif ( array_is_list( $data ) ) {
+		} elseif ( isset( $data[0] ) ) {
 			$items = $data;
 		}
 
