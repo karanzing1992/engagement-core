@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
   const cfg = gatewayConstants()
 
   if (req.method === 'GET' && path === '/health') {
-    return jsonResponse({ ok: true, service: 'wordpress-control', version: '0.1.0' })
+    return jsonResponse({ ok: true, service: 'wordpress-control', version: '0.1.1' })
   }
 
   if (req.method === 'GET' && path === '/.well-known/oauth-protected-resource') {
@@ -28,7 +28,10 @@ Deno.serve(async (req) => {
 
   const ctx = await authenticate(req)
   const server = makeServer(ctx)
-  const transport = new WebStandardStreamableHTTPServerTransport()
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  })
   await server.connect(transport)
   try {
     return await transport.handleRequest(req)
