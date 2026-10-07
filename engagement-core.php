@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'GREC_VERSION', '0.8.6' )
+define( 'GREC_VERSION', '0.8.6' );
 define( 'GREC_FILE', __FILE__ );
 define( 'GREC_DIR', plugin_dir_path( __FILE__ ) );
 

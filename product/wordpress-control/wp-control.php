@@ -12,7 +12,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WPCONTROL_VERSION', '0.1.1' )
+define( 'WPCONTROL_VERSION', '0.1.1' );
 define( 'WPCONTROL_FILE', __FILE__ );
 define( 'WPCONTROL_DIR', plugin_dir_path( __FILE__ ) );
 
