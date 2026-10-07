@@ -31,6 +31,7 @@ Last reviewed: 2026-10-07
 - [x] Central audit schema stores tool metadata only; no raw tool input/body/token column.
 - [x] Supabase security advisor reports no WP Control table security lint.
 - [x] OAuth consent UI is Git-backed and deployed from this repository.
+- [x] Auth UI project includes an ignored-build rule scoped to `product/oauth-ui`.
 
 ## Must pass before external submission
 
