@@ -281,8 +281,30 @@ export async function callWordPress(
       })
     }
 
+    let result = body?.result ?? body
+
+    // Normalize provider-specific WordPress shapes into the stable public
+    // WP Control contract. Cowboy MCP uses an uppercase ID for created posts
+    // and "entries" for its undo journal; clients should not have to know that.
+    if (result && typeof result === 'object') {
+      if (action === 'create_content') {
+        const row = result as Record<string, any>
+        const id = row.id ?? row.post_id ?? row.ID
+        if (id != null) {
+          if (row.id == null) row.id = Number(id)
+          if (row.post_id == null) row.post_id = Number(id)
+        }
+      }
+      if (action === 'list_changes') {
+        const row = result as Record<string, any>
+        if (Array.isArray(row.entries) && !Array.isArray(row.items)) {
+          row.items = row.entries
+        }
+      }
+    }
+
     await audit(siteId, ctx.id, toolName, true, performance.now() - started)
-    return body?.result ?? body
+    return result
   } catch (error) {
     const code = String((error as any)?.code || 'gateway_error')
     await audit(siteId || null, ctx.id, toolName, false, performance.now() - started, code)
