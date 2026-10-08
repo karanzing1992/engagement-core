@@ -24,7 +24,6 @@ final class GREC_Snap_Public_API {
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
         add_action( 'admin_post_grec_snap_api_save', array( __CLASS__, 'save' ) );
         add_action( 'admin_post_grec_snap_api_start', array( __CLASS__, 'start' ) );
-        add_action( 'admin_post_grec_snap_api_callback', array( __CLASS__, 'callback' ) );
         add_action( 'admin_post_grec_snap_api_verify', array( __CLASS__, 'verify' ) );
         add_action( 'admin_post_grec_snap_api_publish', array( __CLASS__, 'admin_publish' ) );
         add_action( 'admin_post_grec_snap_api_disconnect', array( __CLASS__, 'disconnect' ) );
@@ -41,7 +40,7 @@ final class GREC_Snap_Public_API {
         update_option( self::SECRET_OPTION, GREC_Secrets::seal( $secret ), false );
     }
     public static function redirect_uri(): string {
-        return admin_url( 'admin-post.php?action=grec_snap_api_callback' );
+        return rest_url( 'engagement-core/v1/snapchat/api/oauth/callback' );
     }
     private static function uuid( string $value ): string {
         $value = strtolower( trim( $value ) );
@@ -68,6 +67,16 @@ final class GREC_Snap_Public_API {
         );
     }
     public static function routes(): void {
+        // The OAuth redirect uses a query-free callback URL. Random, one-use state
+        // replaces reliance on admin cookies during Snapchat's cross-site redirect.
+        register_rest_route( 'engagement-core/v1', '/snapchat/api/oauth/callback', array(
+            'methods' => 'GET',
+            'callback' => static function() {
+                GREC_Snap_Public_API::callback(); // Redirects to the dashboard and exits.
+                return rest_ensure_response( array( 'ok' => false ) );
+            },
+            'permission_callback' => '__return_true',
+        ) );
         register_rest_route( 'engagement-core/v1', '/snapchat/api/status', array(
             'methods' => 'GET',
             'callback' => static function() { return rest_ensure_response( GREC_Snap_Public_API::status() ); },
@@ -162,7 +171,7 @@ final class GREC_Snap_Public_API {
             self::back( 'Save the Business Dashboard OAuth Client ID and Client Secret first.', true );
         }
         $state = bin2hex( random_bytes( 32 ) );
-        set_transient( 'grec_snap_state_' . get_current_user_id(), hash( 'sha256', $state ), 10 * MINUTE_IN_SECONDS );
+        set_transient( 'grec_snap_state_' . hash( 'sha256', $state ), (string) get_current_user_id(), 10 * MINUTE_IN_SECONDS );
         $url = add_query_arg( array(
             'response_type' => 'code',
             'client_id' => $c['client_id'],
@@ -196,11 +205,11 @@ final class GREC_Snap_Public_API {
     }
 
     public static function callback(): void {
-        if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'Administrator login required.' ); }
         $state = sanitize_text_field( (string) wp_unslash( $_GET['state'] ?? '' ) );
-        $expected = get_transient( 'grec_snap_state_' . get_current_user_id() );
-        delete_transient( 'grec_snap_state_' . get_current_user_id() );
-        if ( ! $expected || ! hash_equals( (string) $expected, hash( 'sha256', $state ) ) ) {
+        $state_key = 'grec_snap_state_' . hash( 'sha256', $state );
+        $expected_user = get_transient( $state_key );
+        delete_transient( $state_key );
+        if ( strlen( $state ) !== 64 || ! ctype_xdigit( $state ) || ! $expected_user ) {
             self::back( 'Snapchat OAuth state check failed.', true );
         }
         if ( ! empty( $_GET['error'] ) ) { self::back( 'Snapchat access was denied.', true ); }
@@ -511,7 +520,7 @@ final class GREC_Snap_Public_API {
             <p><a href="https://developers.snap.com/marketing-api/Public-Profile-API/GetStarted" target="_blank" rel="noopener noreferrer">Official Snap setup guide</a></p>
             <?php if ( $notice ) : ?><div class="notice notice-<?php echo ! empty( $_GET['snap_error'] ) ? 'error' : 'success'; ?>"><p><?php echo esc_html( $notice ); ?></p></div><?php endif; ?>
             <p>OAuth: <strong><?php echo $status['oauth_connected'] ? 'Connected' : 'Not connected'; ?></strong> · API read verification: <strong><?php echo $status['api_access_verified'] ? 'Verified' : 'Not verified'; ?></strong> · Publishing: <strong>Not verified until a real post</strong></p>
-            <p><strong>Register this exact redirect URI in Snapchat Business Dashboard:</strong><br><code><?php echo esc_html( self::redirect_uri() ); ?></code></p>
+            <p><strong>Register this query-free redirect URI in Snapchat Business Dashboard:</strong><br><code><?php echo esc_html( self::redirect_uri() ); ?></code></p>
             <p><strong>Important:</strong> Create the Marketing API OAuth app in Snapchat Ads Manager → Business Dashboard → Business Details, <em>not</em> the generic Developer Portal. Send only the Client ID to your Snap contact for Public Profile API allowlisting; never send the Client Secret.</p>
             <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                 <input type="hidden" name="action" value="grec_snap_api_save"><?php wp_nonce_field( 'grec_snap_api_save' ); ?>
