@@ -83,7 +83,7 @@ final class GREC_Publisher_REST {
 	}
 
 	public static function machine_scopes(): array {
-		$defaults = array( 'telegram.status', 'telegram.publish', 'vk.status', 'vk.publish', 'ok.status', 'ok.publish', 'snapchat.status', 'snapchat.handoff' );
+		$defaults = array( 'telegram.status', 'telegram.publish', 'vk.status', 'vk.publish', 'ok.status', 'ok.publish', 'snapchat.status', 'snapchat.handoff', 'snapchat.publish' );
 		$stored = get_option( 'grec_publish_key_scopes', $defaults );
 		return is_array( $stored ) ? array_values( array_unique( array_map( 'sanitize_key', $stored ) ) ) : $defaults;
 	}
