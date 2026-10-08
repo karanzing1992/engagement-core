@@ -24,6 +24,22 @@ Do not confuse the two Snapchat application IDs. The Public Profile API OAuth ap
 
 The Public Profile OAuth Client ID must be allowlisted before profile requests will succeed. A `403 AUTHORIZATION_PERMISSION_DENIED` should be treated as permission or allowlist failure, not retried indefinitely.
 
+## Moksha production account mapping (verified 8 October 2026)
+
+The **Andaz Arambol** Snapchat Business Organization contains two separately selectable Public Profiles: **Andaz Arambol** and **Moksha Wellness**. The direct publisher for mokshagoa.com must target Moksha only.
+
+- Business organization UUID: `1506718b-44fb-4d12-b6ed-9210da299d5d`
+- Selected Moksha Public Profile UUID: `cb5390d3-17c5-4b99-a93f-4da27cd90b25`
+- Moksha Public Profile display name: `Moksha Wellness`; handle: `moksha.goa`
+- Separate Andaz Public Profile UUID: `5bf85f42-e91c-41b5-8676-fffd73a50a0c` — **never use for Moksha posts**
+- Snapchat OAuth app name: `Moksha Engagement Core`, created in the Andaz Business Organization
+- OAuth Client ID (not a secret): `3c66a60c-7412-47a2-a216-5f1ec4c6185f`
+- Authorized redirect: `https://mokshagoa.com/wp-json/engagement-core/v1/snapchat/api/oauth/callback`
+- Snapchat Business Support allowlisting request: case `05751423` (submitted; approval **not** yet confirmed)
+- The OAuth Client Secret was shown once by Snapchat in the authenticated Business Manager; **never store the secret in Git, a task queue, or a log**. Save it privately in WordPress's encrypted settings after the adapter passes QA and is deployed.
+
+**Current state:** OAuth app created and Moksha profile ID verified through authenticated Snapchat Profile Manager. Adapter remains in draft pull request and has **not** passed live OAuth, publishing, or allowlist verification.
+
 ## Direct publishing
 
 Authenticated WordPress API:
