@@ -47,7 +47,7 @@ final class GREC_VK {
 	}
 
 	public static function oauth_callback_url(): string {
-		return admin_url( 'admin-post.php?action=grec_vk_oauth_callback' );
+		return home_url( '/vk-oauth/callback/' );
 	}
 
 	public static function oauth_authorize_url( string $state ): string {
