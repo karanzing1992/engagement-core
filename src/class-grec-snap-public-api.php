@@ -315,8 +315,33 @@ final class GREC_Snap_Public_API {
             throw new InvalidArgumentException( 'Snapchat Spotlight requires an MP4 video.' );
         }
         $m = wp_get_attachment_metadata( $id );
+        $m = is_array( $m ) ? $m : array();
+        // Remote-media importers sometimes register an MP4 without extracting
+        // duration or dimensions. Use WordPress's bundled getID3 reader rather
+        // than rejecting a valid file or trusting unverified client metadata.
+        if ( 'video/mp4' === $mime && ( empty( $m['length'] ) || empty( $m['width'] ) || empty( $m['height'] ) ) ) {
+            if ( ! function_exists( 'wp_read_video_metadata' ) ) {
+                require_once ABSPATH . 'wp-admin/includes/media.php';
+            }
+            $parsed = wp_read_video_metadata( $path );
+            if ( is_array( $parsed ) ) {
+                $updated = false;
+                foreach ( array( 'length', 'width', 'height', 'filesize', 'mime_type', 'length_formatted' ) as $field ) {
+                    if ( empty( $m[ $field ] ) && ! empty( $parsed[ $field ] ) ) {
+                        $m[ $field ] = $parsed[ $field ];
+                        $updated = true;
+                    }
+                }
+                if ( $updated ) {
+                    wp_update_attachment_metadata( $id, $m );
+                }
+            }
+        }
         $width = absint( $m['width'] ?? 0 );
         $height = absint( $m['height'] ?? 0 );
+        if ( 'video/mp4' === $mime && ( ! $width || ! $height ) ) {
+            throw new InvalidArgumentException( 'Could not verify MP4 dimensions from WordPress video metadata.' );
+        }
         if ( $width && $height && ( $width < 540 || $height < 960 ) ) {
             throw new InvalidArgumentException( 'Snapchat requires media at least 540 x 960 pixels. Re-export your 9:16 master.' );
         }
