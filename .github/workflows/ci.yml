@@ -21,3 +21,7 @@ jobs:
       - name: PHP syntax check
         run: |
           find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Snapchat encryption smoke test
+        run: php tests/snapchat-crypto-smoke.php
+      - name: Publisher API permission-scope smoke test
+        run: php tests/publisher-scopes-smoke.php

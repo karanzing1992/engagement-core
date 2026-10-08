@@ -83,9 +83,19 @@ final class GREC_Publisher_REST {
 	}
 
 	public static function machine_scopes(): array {
-		$defaults = array( 'telegram.status', 'telegram.publish', 'vk.status', 'vk.publish', 'ok.status', 'ok.publish', 'snapchat.status', 'snapchat.handoff' );
+		$defaults = array( 'telegram.status', 'telegram.publish', 'vk.status', 'vk.publish', 'ok.status', 'ok.publish', 'snapchat.status', 'snapchat.handoff', 'snapchat.publish' );
 		$stored = get_option( 'grec_publish_key_scopes', $defaults );
-		return is_array( $stored ) ? array_values( array_unique( array_map( 'sanitize_key', $stored ) ) ) : $defaults;
+		if ( ! is_array( $stored ) ) { return $defaults; }
+		// WordPress sanitize_key() strips periods, silently invalidating valid scopes
+		// such as snapchat.publish, telegram.publish and vk.status.
+		$scopes = array();
+		foreach ( $stored as $scope ) {
+			$scope = strtolower( trim( (string) $scope ) );
+			if ( preg_match( '/^[a-z0-9_.-]+$/', $scope ) ) {
+				$scopes[] = $scope;
+			}
+		}
+		return array_values( array_unique( $scopes ) );
 	}
 
 	public static function scope_permission( string $scope ): Closure {
