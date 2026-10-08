@@ -23,6 +23,7 @@ final class GREC_Admin {
 		add_action( 'admin_post_grec_publish_vk', array( __CLASS__, 'publish_vk' ) );
 		add_action( 'admin_post_grec_vk_oauth_start', array( __CLASS__, 'vk_oauth_start' ) );
 		add_action( 'admin_post_grec_vk_oauth_callback', array( __CLASS__, 'vk_oauth_callback' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'vk_oauth_pretty_callback' ), 0 );
 		add_action( 'admin_post_grec_vk_select_group', array( __CLASS__, 'vk_select_group' ) );
 		add_action( 'admin_post_grec_vk_disconnect', array( __CLASS__, 'vk_disconnect' ) );
 		add_action( 'admin_post_grec_save_ok', array( __CLASS__, 'save_ok' ) );
@@ -263,6 +264,18 @@ final class GREC_Admin {
 		} catch ( Throwable $e ) {
 			self::redirect( $e->getMessage(), 'error' );
 		}
+	}
+
+	public static function vk_oauth_pretty_callback(): void {
+		$request_path = wp_parse_url( (string) ( $_SERVER['REQUEST_URI'] ?? '' ), PHP_URL_PATH );
+		$callback_path = wp_parse_url( GREC_VK::oauth_callback_url(), PHP_URL_PATH );
+		if ( ! is_string( $request_path ) || ! is_string( $callback_path ) ) {
+			return;
+		}
+		if ( untrailingslashit( $request_path ) !== untrailingslashit( $callback_path ) ) {
+			return;
+		}
+		self::vk_oauth_callback();
 	}
 
 	public static function vk_oauth_callback(): void {
