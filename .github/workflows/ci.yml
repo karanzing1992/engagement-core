@@ -2,6 +2,9 @@ name: PHP checks
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/snapchat-video-metadata-import
 
 permissions:
   contents: read
