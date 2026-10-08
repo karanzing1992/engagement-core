@@ -274,6 +274,14 @@ final class GREC_Snap_Public_API {
         try {
             $data = self::profiles();
             $c = self::config();
+            $selected = (string) ( $c['profile_id'] ?? '' );
+            if ( '' !== $selected ) {
+                $found = false;
+                foreach ( (array) ( $data['public_profiles'] ?? array() ) as $item ) {
+                    if ( $selected === (string) ( $item['public_profile']['id'] ?? '' ) ) { $found = true; break; }
+                }
+                if ( ! $found ) { throw new RuntimeException( 'The configured Public Profile ID was not returned for your organization. Check account permissions and the UUID.' ); }
+            }
             $c['verified_at'] = gmdate( 'c' );
             update_option( self::CONFIG_OPTION, $c, false );
             self::back( 'Snapchat API read access verified: ' . count( $data['public_profiles'] ?? array() ) . ' profile(s) returned. Publishing remains untested.' );
@@ -325,7 +333,7 @@ final class GREC_Snap_Public_API {
             $last_iv = $iv;
             while ( ! feof( $in ) ) {
                 $read = fread( $in, 1048576 );
-                if ( false === $read ) { throw new RuntimeException( 'Cannot read Snapchat media.' ); }
+                if ( false === $read || ( '' === $read && ! feof( $in ) ) ) { throw new RuntimeException( 'Cannot read Snapchat media.' ); }
                 $pending .= $read;
                 $count = strlen( $pending ) - 16; // Reserve at least one block for final padding.
                 $count -= $count % 16;
@@ -410,6 +418,7 @@ final class GREC_Snap_Public_API {
         $lock = 'grec_snap_pub_' . md5( $profile . '|' . $destination . '|' . $attachment_id );
         if ( get_transient( $lock ) ) { throw new RuntimeException( 'A publish attempt for this media is already in progress. Check Snapchat before retrying.' ); }
         set_transient( $lock, 1, 5 * MINUTE_IN_SECONDS );
+        $submitted = false;
         try {
             $media_id = self::upload( $media, $profile );
             if ( 'story' === $destination ) {
@@ -445,6 +454,7 @@ final class GREC_Snap_Public_API {
                 'spotlight_id' => $result['spotlight_id'] ?? null,
                 'submitted_at' => gmdate( 'c' ),
             ), false );
+            $submitted = true;
             return array(
                 'ok' => true,
                 'status' => 'submitted_to_snapchat',
@@ -453,7 +463,10 @@ final class GREC_Snap_Public_API {
                 'spotlight_id' => $result['spotlight_id'] ?? null,
                 'note' => 'Snapchat accepted the request; check platform visibility/moderation separately.',
             );
-        } finally { delete_transient( $lock ); }
+        } finally {
+            // Preserve the short deduplication window when Snapchat accepted the request.
+            if ( ! $submitted ) { delete_transient( $lock ); }
+        }
     }
 
     public static function admin_publish(): void {
