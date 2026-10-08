@@ -27,6 +27,7 @@ require_once GREC_DIR . 'src/class-grec-telegram.php';
 require_once GREC_DIR . 'src/class-grec-vk.php';
 require_once GREC_DIR . 'src/class-grec-ok.php';
 require_once GREC_DIR . 'src/class-grec-snapchat.php';
+require_once GREC_DIR . 'src/class-grec-snap-public-api.php';
 require_once GREC_DIR . 'src/class-grec-publisher-rest.php';
 require_once GREC_DIR . 'src/class-grec-wp-control.php';
 
@@ -36,6 +37,7 @@ final class GREC_Plugin {
 		GREC_Updater::init();
 		GREC_Admin::init();
 		GREC_Publisher_REST::init();
+		GREC_Snap_Public_API::init();
 		GREC_WordPress_Control::init();
 	}
 
