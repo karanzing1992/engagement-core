@@ -25,3 +25,5 @@ jobs:
         run: php tests/snapchat-crypto-smoke.php
       - name: Publisher API permission-scope smoke test
         run: php tests/publisher-scopes-smoke.php
+      - name: Snapchat imported-video metadata smoke test
+        run: php tests/snapchat-imported-video-metadata-smoke.php
