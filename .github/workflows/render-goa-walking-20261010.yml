@@ -1,0 +1,68 @@
+name: Render Goa Walking Break (Approval Only)
+on:
+  push:
+    branches:
+      - automation/goa-beach-walk-final-20261010
+    paths:
+      - tools/render_goa_walking_20261010.py
+      - .github/workflows/render-goa-walking-20261010.yml
+  pull_request:
+    paths:
+      - tools/render_goa_walking_20261010.py
+      - .github/workflows/render-goa-walking-20261010.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-reel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install free local FFmpeg and typography tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg python3-pil fonts-dejavu-core
+          ffmpeg -version | sed -n '1p'
+      - name: Download verified free-use Goa walking sources and approved audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          curl --retry 2 --retry-all-errors -fL --connect-timeout 20 --max-time 240 \
+            -A 'Mozilla/5.0 (X11; Linux x86_64)' \
+            'https://www.pexels.com/download/video/34648932/' \
+            -o assets/goa_morning.mp4
+          curl --retry 2 --retry-all-errors -fL --connect-timeout 20 --max-time 240 \
+            -A 'Mozilla/5.0 (X11; Linux x86_64)' \
+            'https://www.pexels.com/download/video/10918852/' \
+            -o assets/goa_walk_sunset.mp4
+          curl --retry 2 --retry-all-errors -fL --connect-timeout 20 --max-time 120 \
+            'https://mokshagoa.com/wp-content/uploads/2026/08/Logo-Mark.png' \
+            -o assets/official_logo_mark.png
+          curl --retry 2 --retry-all-errors -fL --connect-timeout 20 --max-time 180 \
+            'https://static.metricool.com/planner/202610/5679005-file-2332576044192518328.mp4' \
+            -o assets/approved_music_source.mp4
+          for source in assets/*.mp4; do
+            echo "Source: $source ($(stat -c%s "$source") bytes)"
+            ffprobe -v error -show_entries stream=codec_type -of csv=p=0 "$source" | grep -q video
+          done
+          file assets/official_logo_mark.png
+          echo 'Source provenance: Pexels 34648932 Goa morning; Pexels 10918852 couple walk Goa; official WordPress mark; previously approved soundtrack' >> "$GITHUB_STEP_SUMMARY"
+      - name: Build 30-second vertical word-by-word social Reel
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/render_goa_walking_20261010.py
+          ffprobe -v error -show_entries format=duration,size:stream=codec_name,width,height -of default=noprint_wrappers=1 output/movement_break_GOA_beachwalk_FINAL_1080x1920.mp4 | tee -a "$GITHUB_STEP_SUMMARY"
+          test -s output/movement_break_GOA_beachwalk_FINAL_1080x1920.mp4
+      - name: Save Reel and visual QA frames for approval
+        uses: actions/upload-artifact@v4
+        with:
+          name: goa-walking-reel-APPROVAL-ONLY
+          path: |
+            output/movement_break_GOA_beachwalk_FINAL_1080x1920.mp4
+            output/preview_*.jpg
+            output/README.txt
+          retention-days: 7
+          if-no-files-found: error
