@@ -2,6 +2,7 @@ name: Public Beach Walking Source Check
 on:
   push:
     branches:
+      - main
       - automation/beach-footage-recovery-20261010
     paths:
       - .github/workflows/check-beach-walking-stock.yml
