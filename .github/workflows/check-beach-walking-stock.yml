@@ -1,0 +1,54 @@
+name: Public Beach Walking Source Check
+on:
+  push:
+    branches:
+      - main
+      - automation/beach-footage-recovery-20261010
+    paths:
+      - .github/workflows/check-beach-walking-stock.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  download-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Download legally reusable walking footage
+        shell: bash
+        run: |
+          mkdir -p output downloads
+          set -uo pipefail
+          echo 'Checking Pexels Goa beach walking scene' >> "$GITHUB_STEP_SUMMARY"
+          curl -fLsS --retry 2 --connect-timeout 15 --max-time 90 \
+            -A 'Mozilla/5.0' \
+            'https://www.pexels.com/download/video/4440806/' \
+            -o downloads/pexels-goa.mp4 || true
+          if [ -s downloads/pexels-goa.mp4 ] && ffprobe -v error -show_entries stream=codec_type -of csv=p=0 downloads/pexels-goa.mp4 | grep -q video; then
+            cp downloads/pexels-goa.mp4 downloads/walking-original.mp4
+            echo 'selected: Pexels 4440806, Goa-tagged walking on beach' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Pexels access unavailable, trying Mixkit free-commercial walking shot' >> "$GITHUB_STEP_SUMMARY"
+            curl -fLsS --retry 2 --connect-timeout 15 --max-time 90 \
+              'https://assets.mixkit.co/videos/preview/mixkit-feet-walking-on-the-beach-1013-large.mp4' \
+              -o downloads/mixkit.mp4
+            ffprobe -v error -show_entries stream=codec_type -of csv=p=0 downloads/mixkit.mp4 | grep -q video
+            cp downloads/mixkit.mp4 downloads/walking-original.mp4
+            echo 'selected: Mixkit 1013, walking on beach, location not verified as Goa' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          ffprobe -v error -show_entries format=duration,size:stream=width,height -of default=noprint_wrappers=1 downloads/walking-original.mp4 | tee -a "$GITHUB_STEP_SUMMARY"
+          ffmpeg -hide_banner -loglevel error -y -i downloads/walking-original.mp4 -t 9 \
+            -vf 'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,fps=24' \
+            -c:v libx264 -preset fast -crf 24 -pix_fmt yuv420p -an \
+            -movflags +faststart output/walking_preview_720x1280.mp4
+          test -s output/walking_preview_720x1280.mp4
+      - name: Save checked footage
+        uses: actions/upload-artifact@v4
+        with:
+          name: walking-footage-reviewed
+          path: output/walking_preview_720x1280.mp4
+          retention-days: 3
