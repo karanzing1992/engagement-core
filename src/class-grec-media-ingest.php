@@ -135,6 +135,10 @@ final class GREC_Media_Ingest {
         if ( ! add_option( self::PREFIX . $id, $record, '', false ) ) {
             return self::fail( 'mrs_ingest_db', 'Could not persist upload session', 503 );
         }
+        // Bounded private queue. The remote cloud worker never scans wp_options.
+        $pending = (array) get_option( 'grec_mrs_pending_sessions', array() );
+        $pending[] = $id;
+        update_option( 'grec_mrs_pending_sessions', array_slice( array_values( array_unique( $pending ) ), -25 ), false );
         return new WP_REST_Response( array(
             'ok' => true, 'id' => $id, 'chunk_size' => self::CHUNK,
             'files' => $normalized, 'state' => 'uploading', 'private' => true,
