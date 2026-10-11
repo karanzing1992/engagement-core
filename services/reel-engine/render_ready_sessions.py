@@ -164,6 +164,10 @@ def process_session(wp: WP, record: dict):
 def main():
     wp=WP(token_from_existing_hook())
     ready=wp.j("ready").get("sessions",[])
+    if "--check" in sys.argv:
+        # Cheap queue poll: no ffmpeg boot, no video download, no rerender.
+        print(len(ready))
+        return
     if not ready:
         print("No pending private uploads; no FFmpeg work, no GitHub artifact.",flush=True)
         return
