@@ -85,9 +85,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for path in 'mrs/v1/jobs' 'wp-control/v1/media-studio/queue'; do
-            code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://mokshagoa.com/wp-json/$path")"
-            echo "Anonymous $path: HTTP $code"
-            case "$code" in 401|403) ;; *) echo "Access control failure"; exit 1;; esac
-          done
+          code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' https://mokshagoa.com/wp-json/mrs/v1/jobs)"
+          echo "Anonymous Media Studio drafts: HTTP $code"
+          case "$code" in 401|403) ;; *) echo "Draft access control failure"; exit 1;; esac
+          code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{}' https://mokshagoa.com/wp-json/wp-control/v1/media-studio/queue)"
+          echo "Anonymous WP Control media queue POST: HTTP $code"
+          case "$code" in 401|403) ;; *) echo "Queue access control failure"; exit 1;; esac
           echo 'Media Studio is private and publication remains disabled.'
