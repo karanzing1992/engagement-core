@@ -10,3 +10,5 @@ Paste into **Project settings → Instructions** for projects that must apply th
 - If the Skill is available across the user's ChatGPT chats, it can be selected within multiple Projects, but tools still require their own connections and authorization.
 - GitHub agent instructions are repository-scoped; the Apps Script watcher covers only the nine explicitly allowlisted repositories.
 - For a new project with a new repo, explicitly review and add the repository to the worker allowlist and check its permissions. Never silently enroll an unrelated repository.
+
+For the **Ashwakaal — Support Channels** project, use the same shared Master Stack Skill, but do not infer any channel is connected or monitored. Its register is https://github.com/karanzing1992/engagement-core/blob/main/docs/ASHWAKAAL_SUPPORT_CHANNELS.md . Until a verified repository is explicitly enrolled, source-backed non-GitHub channel changes must use the authorized Supabase inbox route. Keep Ashwakaal account and audience data separate from the other projects.
