@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "updated_at": "2026-10-11",
+  "project": "Moksha Four Natural Sounds 85s Reel (#13099)",
+  "canva_editorial_rule": "Use existing Canva video media only inside a finished licensed Canva design/export. Stock catalog metadata is candidate evidence, not verified capture geography.",
+  "auto_publish": false,
+  "auto_schedule": false,
+  "asset_review": [
+    {
+      "role": "ocean_waves",
+      "source": "canva_stock_video",
+      "title": "Sunset Beach, Goa",
+      "canva_video_asset_id": "VAEHaiFASHE",
+      "canva_original_design_id": "DAErkvbnG1k",
+      "working_copy_design_id": "DAHXrpphUIw",
+      "working_copy_edit_url": "https://www.canva.com/d/LPmRrVG2cv9BOyN",
+      "working_copy_view_url": "https://www.canva.com/d/aEoz3HTXWD3sUvd",
+      "asset_metadata": {
+        "width": 1920,
+        "height": 1080,
+        "duration_seconds": 20,
+        "source_tags": [
+          "Goa",
+          "India",
+          "Indian Ocean",
+          "Wave - Water",
+          "Sunset Beach"
+        ]
+      },
+      "geography_review": "goa_india_catalog_tags_match;human_source_location_approval_pending",
+      "rights_review": "Use only as licensed component in Canva design and exported original creative; validate Free/Pro/Editorial restrictions and paid access. Do not treat as separately downloadable royalty-free stock.",
+      "visual_review": "pending_9_16_crop_and_ambient_sound_suitability",
+      "editorial_decision": "conditional_shortlist",
+      "do_not_publish_until": "human geography/licence/visual review"
+    },
+    {
+      "role": "rain",
+      "editorial_decision": "not_sourced_in_canva",
+      "suggested_library_queries": [
+        "Goa monsoon rain on leaves",
+        "Goa Western Ghats rain forest"
+      ],
+      "constraint": "Real Indian location evidence required; no generic tropical footage masquerading as Goa."
+    },
+    {
+      "role": "birds",
+      "editorial_decision": "not_sourced_in_canva",
+      "suggested_library_queries": [
+        "Goa birds wildlife Malabar hornbill",
+        "Western Ghats birds in forest"
+      ],
+      "constraint": "Actual bird location evidence and rights review required."
+    },
+    {
+      "role": "stream",
+      "editorial_decision": "not_sourced_in_canva",
+      "suggested_library_queries": [
+        "Dudhsagar stream Goa",
+        "Goa forest flowing water",
+        "Western Ghats river stream India"
+      ],
+      "constraint": "Quiet flowing water footage, not storm waterfall; verified capture location required."
+    }
+  ],
+  "excluded_from_reuse": [
+    {
+      "asset_id": "VAEBAnG3Q2s",
+      "reason": "Canada-tagged mud run"
+    },
+    {
+      "asset_id": "VAEDcJ77jvw",
+      "reason": "Thailand-tagged sauna"
+    },
+    {
+      "asset_id": "VAGZaxK8sls",
+      "reason": "Hawaii/Polynesian beach dance"
+    },
+    {
+      "asset_id": "VAF49ZmMWnk",
+      "reason": "Slovenia-tagged meditation"
+    },
+    {
+      "asset_id": "VAEJwTJw-rM",
+      "reason": "Mixed incompatible country tags, geography unverified"
+    }
+  ],
+  "licensing_reference": "https://www.canva.com/en_in/policies/content-license-agreement/",
+  "state": "incomplete_pending_geography_and_rights_review",
+  "output_status": "working_canva_ocean_clip_only;85s_full_reel_not_yet_rendered"
+}
