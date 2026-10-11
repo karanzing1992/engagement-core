@@ -1,4 +1,4 @@
-name: Reel Engine verified logo release
+name: Reel Engine private resumable multi-clip release
 on:
   workflow_dispatch:
   push:
@@ -27,7 +27,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg
-          python -m pip install --disable-pip-version-check pytest requests
+          python -m pip install --disable-pip-version-check pytest requests fastapi==0.115.6 httpx==0.28.1 pydantic==2.10.4 python-multipart==0.0.20
       - name: Verify approved Drive-logo master
         run: |
           python - <<'PY'
@@ -40,9 +40,9 @@ jobs:
           PY
       - name: Check logo sourcing, overlay and existing Reel Engine tests
         run: |
-          python -m unittest -v test_verified_logo.py test_geo_policy.py
+          python -m unittest -v test_verified_logo.py test_geo_policy.py test_chunked_ingest.py test_multiclip.py test_private_api.py
           python -m pytest -q test_quality.py test_social_publishers.py
-          python -m py_compile app.py renderer.py captions.py audio_sync.py quality.py media_handoff.py social_publishers.py verified_logo.py geo_policy.py
+          python -m py_compile app.py renderer.py captions.py audio_sync.py quality.py media_handoff.py social_publishers.py verified_logo.py geo_policy.py chunked_ingest.py upload_api.py multiclip.py multi_api.py private_upload_client.py
 
   build-and-test:
     needs: validate
@@ -64,7 +64,11 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/reel-logo-release/approved
           cp assets/brand/moksha-logo-source.jpg /tmp/reel-logo-release/approved/moksha-approved-master.jpg
+          TEST_TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$TEST_TOKEN"
+          echo "REEL_TEST_TOKEN=$TEST_TOKEN" >> "$GITHUB_ENV"
           docker run -d --name reel-logo-smoke --rm \
+            -e "REEL_ENGINE_TOKEN=$TEST_TOKEN" \
             --publish 127.0.0.1:18080:8080 \
             --volume /tmp/reel-logo-release:/data \
             --security-opt no-new-privileges:true \
@@ -77,9 +81,21 @@ jobs:
             fi
             sleep 2
           done
-          jq -e '.ok == true and .headless == true' /tmp/reel-logo-health.json >/dev/null
+          jq -e '.ok == true and .headless == true and (.features | index("private-resumable-upload") != null) and (.features | index("private-multiclip-queue") != null)' /tmp/reel-logo-health.json >/dev/null
+          curl -fsS --max-time 8 http://127.0.0.1:18080/openapi.json > /tmp/reel-openapi.json
+          jq -e '.paths["/v1/uploads"] and .paths["/v1/render/multi"]' /tmp/reel-openapi.json >/dev/null
+          echo 'Private chunked upload and async multi-source routes are live in the isolated container.'
           docker exec reel-logo-smoke python -c \
             'from verified_logo import DRIVE_ID,SHA256; assert DRIVE_ID=="1XwmlYRfjfkcnbEOlJLNJc8bGHm9uxkyv"; assert SHA256=="76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c"'
+      - name: Test authenticated upload policy with isolated container
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{}' http://127.0.0.1:18080/v1/uploads)"
+          test "$code" = 401
+          code="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $REEL_TEST_TOKEN" -H 'Content-Type: application/json' --data '{}' http://127.0.0.1:18080/v1/uploads)"
+          test "$code" = 422
+          echo 'Upload endpoint requires a private token and validates structured input.'
       - name: Render private approved-logo MP4 and retain audio
         shell: bash
         run: |
@@ -112,8 +128,8 @@ jobs:
         run: |
           set -euo pipefail
           docker push "$IMAGE:$GITHUB_SHA"
-          docker tag "$IMAGE:$GITHUB_SHA" "$IMAGE:verified-logo-v1"
-          docker push "$IMAGE:verified-logo-v1"
+          docker tag "$IMAGE:$GITHUB_SHA" "$IMAGE:resumable-multiclip-v2"
+          docker push "$IMAGE:resumable-multiclip-v2"
           echo "Released tested image: $IMAGE:$GITHUB_SHA"
       - name: Remove temporary private output
         if: always()
