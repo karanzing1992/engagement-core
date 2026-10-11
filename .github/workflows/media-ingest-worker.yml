@@ -1,6 +1,10 @@
 name: Private Reel Worker - authenticated 30s editing
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/media-ingest-worker.yml'
   schedule:
     # Low idle overhead: 2 brief queue checks/hour, FFmpeg only if jobs exist.
     - cron: '17,47 * * * *'
