@@ -1,0 +1,29 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "moksha-reel-shorts",
+  "version": "1.0.0",
+  "description": "Reusable, evidence-gated short-form Reel and Shorts production with source verification, clean nature audio, readable captions, authentic brand assets and carefully verified cross-platform scheduling.",
+  "repository": "https://github.com/karanzing1992/engagement-core",
+  "keywords": [
+    "reels",
+    "shorts",
+    "short-form-video",
+    "ffmpeg",
+    "wellness",
+    "sound-design",
+    "caption-safety",
+    "social-publishing"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Moksha Reel & Shorts Studio",
+        "shortDescription": "Verified short-form video",
+        "longDescription": "Create production-quality Reels and Shorts, inspect visual/audio QA, and schedule only on authorized, verified platforms. Works with the separately connected tools; does not grant publishing credentials.",
+        "developerName": "Moksha Wellness",
+        "category": "Productivity",
+        "defaultPrompt": "Create a 30-second wellness Reel using the connected video sources and approved brand assets. Verify clean audio, readable text, exact duration, and source rights before publishing."
+      }
+    }
+  }
+}
