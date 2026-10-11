@@ -47,3 +47,8 @@ Read the master Google Doc and check exact markers per commit/event. Unique mark
 When reporting, include exact project, source link, source/deployment level, destination marker and whether the registry has been verified updated. If nothing material changed, create no new event.
 
 See `references/project-instructions.md` for the tiny instruction to paste into project settings when stronger always-on behavior is desired.
+
+## Verified Automation & Systems mapping and Ashwakaal channel evidence
+Automation & Systems is a multi-repository workstream, not a single-repo ChatGPT Project. Verified source ownership: `moksha_wordpress` for Mac Opera/browser/WP, `android_gpt_bridge` for Android/native bridge, and `engagement-core` for shared orchestration/channels. All three default branches are in the Apps Script allowlist, but an unmerged branch is not scanned. Routing and evidence: https://github.com/karanzing1992/engagement-core/blob/main/docs/AUTOMATION_SYSTEMS_REPOSITORY_MAP.md .
+
+Ashwakaal's current authoritative support-channel state is **NO_VERIFIED_CHANNELS**. This is zero confirmed active integrations and should not be presented as a tested live channel. No Ashwakaal repo is in the watcher. The channel register https://github.com/karanzing1992/engagement-core/blob/main/docs/ASHWAKAAL_SUPPORT_CHANNELS.md requires exact official URL and ownership/access verification before any live status or action; otherwise use the restricted Supabase Route B for evidence-backed platform-only events.
