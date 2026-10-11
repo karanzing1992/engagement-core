@@ -29,6 +29,7 @@ final class GREC_Media_Ingest {
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/status', 'GET', 'status', 'admin_allowed' ),
             array( '/media-studio/ingest/ready', 'GET', 'ready', 'worker_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/source/(?P<file>[0-9]+)', 'GET', 'source', 'worker_allowed' ),
+            array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/source-part/(?P<file>[0-9]+)/(?P<part>[0-9]+)', 'GET', 'source_part', 'worker_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/render-start', 'POST', 'render_start', 'worker_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/render-chunk/(?P<part>[0-9]+)', 'POST', 'render_chunk', 'worker_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/render-finish', 'POST', 'render_finish', 'worker_allowed' ),
@@ -352,6 +353,20 @@ final class GREC_Media_Ingest {
         $path = $dir . '/source-' . $idx . '.' .
             strtolower( pathinfo( $record['files'][$idx]['name'], PATHINFO_EXTENSION ) );
         return self::stream_private( $path, $record['files'][$idx]['name'] );
+    }
+
+    public static function source_part( $request ) {
+        $record = self::load( $request['id'] );
+        if ( is_wp_error( $record ) ) { return $record; }
+        $idx=absint( $request['file'] ); $part=absint( $request['part'] );
+        if ( ! isset( $record['files'][$idx] ) || empty( $record['files'][$idx]['complete'] ) ||
+            ! in_array( $record['state'], array( 'ready', 'processing' ), true ) ||
+            $part >= $record['files'][$idx]['parts'] ) {
+            return self::fail( 'mrs_source_part_missing', 'Source part not ready', 404 );
+        }
+        $path = self::part_path( $record['id'], $idx, $part );
+        if ( is_wp_error( $path ) ) { return $path; }
+        return self::stream_private( $path, 'private-source-' . $idx . '-part-' . $part . '.bin' );
     }
 
     public static function render_start( $request ) {
