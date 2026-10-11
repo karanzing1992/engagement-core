@@ -2,6 +2,13 @@ name: Reel Engine CI
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'services/reel-engine/**'
+  push:
+    branches: [feature/reel-engine-resumable-multiclip]
+    paths:
+      - '.github/workflows/reel-engine-ci.yml'
 
 jobs:
   test:
@@ -15,7 +22,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - run: pip install pytest requests
+      - run: pip install pytest requests fastapi==0.115.6 httpx==0.28.1 pydantic==2.10.4 python-multipart==0.0.20
       - run: pytest -q test_quality.py test_social_publishers.py
-      - run: python -m unittest -q test_verified_logo.py test_geo_policy.py
-      - run: python -m py_compile app.py renderer.py captions.py audio_sync.py quality.py media_handoff.py social_publishers.py verified_logo.py geo_policy.py
+      - run: python -m unittest -q test_verified_logo.py test_geo_policy.py test_chunked_ingest.py test_multiclip.py test_private_api.py
+      - run: python -m py_compile app.py renderer.py captions.py audio_sync.py quality.py media_handoff.py social_publishers.py verified_logo.py geo_policy.py chunked_ingest.py upload_api.py multiclip.py multi_api.py private_upload_client.py
