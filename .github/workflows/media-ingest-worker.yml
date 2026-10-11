@@ -14,7 +14,6 @@ jobs:
   render-private-drafts:
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    environment: null
     env:
       MRS_SITE_URL: https://mokshagoa.com
     steps:
