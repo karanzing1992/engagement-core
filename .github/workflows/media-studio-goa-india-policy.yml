@@ -1,0 +1,78 @@
+name: Enforce Goa India footage on WordPress Media Studio
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/media-studio-goa-india-policy.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  protect-private-drafts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DFG_DEPLOY_URL: ${{ secrets.MOKSHA_DFG_ENGAGEMENT_CORE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PHP source and local queue policy checks
+        run: |
+          set -euo pipefail
+          php -l engagement-core.php
+          php -l src/class-grec-media-queue.php
+          php tests/media-studio-queue-smoke.php
+          grep -q 'Version: 0.9.11' engagement-core.php
+      - name: Deploy audited geography gate via in-house WP Control hook
+        run: |
+          set -euo pipefail
+          test -n "$DFG_DEPLOY_URL" || { echo 'Existing protected webhook secret unavailable'; exit 1; }
+          curl -fsS --retry 2 --retry-delay 2 --connect-timeout 15 --max-time 110 "$DFG_DEPLOY_URL" -o /tmp/deploy.json
+          jq -e '.success == true' /tmp/deploy.json >/dev/null
+          echo 'Engagement Core updated through first-party Deployer for Git.'
+      - name: Verify WordPress v0.9.11 and one-time existing preview quarantine
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            if curl --silent --show-error --fail --connect-timeout 10 --max-time 15 \
+              "https://mokshagoa.com/wp-json/engagement-core/v1/health?geo_check=$i" -o /tmp/health.json &&
+              jq -e '.ok == true and .version == "0.9.11"' /tmp/health.json >/dev/null; then
+              echo 'Regional-footage gate deployed and site health checked.'
+              break
+            fi
+            if [ "$i" = 10 ]; then echo 'Site health failed'; exit 1; fi
+            sleep 4
+          done
+      - name: Authenticate to scoped first-party private queue
+        run: |
+          set -euo pipefail
+          token="$(python3 - <<'PY'
+          import os,hmac,hashlib,urllib.parse
+          uri=urllib.parse.urlsplit(os.environ['DFG_DEPLOY_URL'])
+          if uri.scheme!='https' or uri.hostname!='mokshagoa.com':raise SystemExit('Invalid domain')
+          secret=urllib.parse.parse_qs(uri.query).get('secret',[''])[0]
+          if len(secret)<20:raise SystemExit('No valid existing secret')
+          print(hmac.new(secret.encode(),b'mrs-media-queue-v1',hashlib.sha256).hexdigest())
+          PY
+          )"
+          echo "::add-mask::$token"
+          echo "GEO_QUEUE_TOKEN=$token" >> "$GITHUB_ENV"
+      - name: Confirm former Iceland test requires revision and remains private
+        run: |
+          set -euo pipefail
+          BASE='https://mokshagoa.com/wp-json/wp-control/v1/media-studio/queue'
+          curl -fsS --connect-timeout 12 --max-time 22 \
+            -H "X-WP-Control-Media-Token: $GEO_QUEUE_TOKEN" \
+            "$BASE/13098?job_key=nature-ocean-sound-pilot-20261011" > /tmp/old.json
+          jq -e '.ok == true and .id == 13098 and .status == "needs_revision" and .worker_state == "blocked_nonlocal_footage" and .publish_enabled == false and .schedule_enabled == false' /tmp/old.json >/dev/null
+          echo 'Iceland test quarantined as requiring Goa/India replacement.'
+          curl -fsS --connect-timeout 12 --max-time 22 \
+            -H "X-WP-Control-Media-Token: $GEO_QUEUE_TOKEN" \
+            "$BASE/13099?job_key=nature-immersive-full-reel-20261011" > /tmp/full.json
+          jq -e '.ok == true and .id == 13099 and .status == "draft" and .publish_enabled == false' /tmp/full.json >/dev/null
+          echo '85-second nature project remains safely in private draft state.'
+      - name: Verify public access is denied
+        run: |
+          set -euo pipefail
+          code="$(curl -s --max-time 15 -o /dev/null -w '%{http_code}' https://mokshagoa.com/wp-json/mrs/v1/jobs)"
+          case "$code" in 401|403) echo "Private API protected ($code)";; *) echo "Unexpected access ($code)";exit 1;; esac
+          echo 'No social publishing or scheduling enabled.'
