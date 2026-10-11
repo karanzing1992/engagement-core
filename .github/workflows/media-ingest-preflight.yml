@@ -9,6 +9,7 @@ on:
       - 'services/reel-engine/multi_renderer.py'
       - 'services/reel-engine/test_multi_renderer.py'
       - 'tests/media-studio-ingest-smoke.php'
+      - 'tests/media-studio-ingest-large-smoke.php'
       - 'services/reel-engine/render_ready_sessions.py'
       - 'services/reel-engine/test_private_worker.py'
       - '.github/workflows/media-ingest-preflight.yml'
@@ -27,6 +28,8 @@ jobs:
           node --check assets/media-ingest.js
       - name: Verify 231MB multipart authorization without allocating 231MB
         run: php tests/media-studio-ingest-smoke.php
+      - name: Prove full 231MB upload assembly with bounded memory
+        run: php -d memory_limit=128M tests/media-studio-ingest-large-smoke.php
       - name: Install CPU-only FFmpeg
         run: |
           sudo apt-get update -qq
