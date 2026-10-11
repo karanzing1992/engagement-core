@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "updated_at": "2026-10-11",
+  "rule": "All video content must be relevant to Goa or India unless the user explicitly instructs otherwise.",
+  "geographic_priority": [
+    "verified original Moksha/Andaz Goa footage",
+    "licensed Goa footage with confirmed location",
+    "verified original India footage",
+    "licensed India footage with confirmed location"
+  ],
+  "default_editorial_region": "Goa",
+  "fallback_editorial_region": "India",
+  "brands": [
+    "moksha",
+    "andaz",
+    "andaz-vibe-stay"
+  ],
+  "applies_to": [
+    "reels",
+    "shorts",
+    "stories",
+    "videos",
+    "synthetic AI video prompts",
+    "automated clip sourcing"
+  ],
+  "unknown_location": "reject until human verified",
+  "foreign_footage": "not approved for brand content",
+  "source_evidence_required": [
+    "capture_country India",
+    "exact source URL",
+    "evidence URL supporting local location",
+    "verification_status human_verified",
+    "verified_by human reviewer"
+  ],
+  "generated_visuals": "Goa/India-specific prompts; mark illustrative; never falsely claim real local footage",
+  "exceptions": "Require an explicit user instruction and separate documented human approval; unattended engine cannot self-authorize exceptions.",
+  "historical_exception_status": {
+    "draft_id": 13098,
+    "origin": "Iceland",
+    "status": "technical_only_replace_before_approval"
+  },
+  "publishing_enabled": false,
+  "scheduling_enabled": false
+}

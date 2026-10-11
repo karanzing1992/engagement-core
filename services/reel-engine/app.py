@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from music_library import ingest_track, list_tracks, rank_tracks, select_track
 from renderer import render_reel
 from verified_logo import overlay_verified_logo
+from geo_policy import GeoPolicyError, validate_render_config
 from media_handoff import publish_media, delete_media
 from quality import media_preflight, detect_silence
 from social_publishers import capabilities
@@ -43,6 +44,7 @@ def health() -> dict:
             "public-media-handoff",
             "media-preflight",
             "dead-air-analysis",
+            "goa-india-geography-guard",
         ],
         "music_tracks": len(list_tracks(MUSIC)),
     }
@@ -127,6 +129,12 @@ def render(
         cfg = json.loads(config_json)
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid config_json: {exc}") from exc
+    # Fail before saving inputs or using compute. Captions saying Goa do not
+    # make a foreign stock clip Goa/India-relevant.
+    try:
+        regional_check = validate_render_config(cfg)
+    except GeoPolicyError as exc:
+        raise HTTPException(status_code=422, detail=f"Goa/India media policy: {exc}") from exc
 
     job_id = uuid.uuid4().hex
     job_dir = JOBS / job_id
@@ -191,6 +199,7 @@ def render(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    result["geography"] = regional_check
     result["selected_music"] = _public_track(selected_music)
     (job_dir / "result.json").write_text(json.dumps(result, indent=2))
     return {

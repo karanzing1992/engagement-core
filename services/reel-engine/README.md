@@ -115,3 +115,17 @@ python services/reel-engine/verified_logo.py \
 ```
 
 `python -m unittest -q test_verified_logo.py` checks the original bytes, cache tampering, valid/invalid source lookup, offline fallback and an actual FFmpeg overlay. The `ops/brand-assets/registry.json` policy controls the approval requirements for future brands and variants.
+
+## Required geographical relevance: Goa / India
+
+Every Reel, Short, Story or video for Moksha and Andaz is geographically relevant to Goa first or India second, except when the user explicitly instructs otherwise.
+
+Do not infer a video's capture location from the caption. Authentic source footage needs an exact source URL, separate geographic evidence, capture_country=India (capture_region=Goa preferred), verification_status=human_verified, and a human reviewer. A video shot in Iceland is not made suitable by labelling it Goa.
+
+The in-house Reel Engine rejects a render request before accepting input files unless its config_json has editorial_region=Goa or India and source_provenance contains the human-reviewed provenance of every visual source. See geo_policy.py and test_geo_policy.py. The API has no self-service geography-bypass flag; a foreign-video exception requires separate user approval and implementation.
+
+Generated videos must depict a Goa or India-specific subject, be human-reviewed and explicitly illustrative, and must not claim they are real footage of Goa. If geography or source evidence is unknown, the content is a sourcing candidate only, not an approved video.
+
+The Iceland ocean clip generated on 2026-10-11 remains private historical engineering test footage, not eligible social creative. The 85-second nature Reel must source confirmed Goa/India scenery and pass geographic review before preview_ready, approval, or publishing.
+
+See ops/media-studio/regional-content-policy.json for the governing policy.

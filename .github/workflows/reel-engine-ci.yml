@@ -17,5 +17,5 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pip install pytest requests
       - run: pytest -q test_quality.py test_social_publishers.py
-      - run: python -m unittest -q test_verified_logo.py
-      - run: python -m py_compile app.py renderer.py captions.py audio_sync.py quality.py media_handoff.py social_publishers.py verified_logo.py
+      - run: python -m unittest -q test_verified_logo.py test_geo_policy.py
+      - run: python -m py_compile app.py renderer.py captions.py audio_sync.py quality.py media_handoff.py social_publishers.py verified_logo.py geo_policy.py
