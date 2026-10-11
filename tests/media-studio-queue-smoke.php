@@ -39,7 +39,7 @@ function esc_url_raw($x){return $x;}
 function wp_parse_url($url){return parse_url($url);}
 function register_rest_route($namespace,$route,$args){}
 function add_action($name,$fn,$priority=10){}
-require __DIR__.'/class-grec-media-queue.php';
+require __DIR__.'/../src/class-grec-media-queue.php';
 function ok($condition,$message){if(!$condition){fwrite(STDERR,'FAIL: '.$message."\n");exit(1);}echo 'PASS '.$message."\n";}
 $key=hash_hmac('sha256','mrs-media-queue-v1',$GLOBALS['opts']['deployer_for_git_api_secret']);
 $headers=['X-WP-Control-Media-Token'=>$key];
