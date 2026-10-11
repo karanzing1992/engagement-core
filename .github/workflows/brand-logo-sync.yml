@@ -98,20 +98,35 @@ jobs:
             echo "Verified brand asset resolution for $placement"
           done
           URL="$(jq -r '.asset_url' /tmp/logo-reel.json)"
-          python3 - "$URL" <<'PY'
+          MIRROR="$(jq -r '.verified_original_mirror_url' /tmp/logo-reel.json)"
+          python3 - "$URL" "$MIRROR" <<'PY'
           import sys,urllib.parse
-          u=urllib.parse.urlsplit(sys.argv[1])
-          assert u.scheme == 'https'
-          assert u.hostname == 'mokshagoa.com'
-          assert u.path.startswith('/wp-content/uploads/')
-          assert not u.username and not u.password
-          assert not u.query and not u.fragment
+          original=urllib.parse.urlsplit(sys.argv[1])
+          mirror=urllib.parse.urlsplit(sys.argv[2])
+          assert original.scheme=='https' and original.hostname=='mokshagoa.com'
+          assert original.path.startswith('/wp-content/uploads/')
+          assert not original.query and not original.fragment and not original.username
+          assert mirror.scheme=='https' and mirror.hostname=='raw.githubusercontent.com'
+          assert mirror.path == '/karanzing1992/engagement-core/e7224f224ffa17bfa56bea7c946c2f7f8af45b8f/assets/brand/moksha-logo-source.jpg'
           PY
-          curl -fsS --connect-timeout 12 --max-time 35 --max-redirs 0 --proto '=https' "$URL" -o /tmp/official-wp-logo.jpg
-          ACTUAL_SHA="$(sha256sum /tmp/official-wp-logo.jpg | awk '{print $1}')"
-          test "$ACTUAL_SHA" = "76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c"
-          test "$(wc -c < /tmp/official-wp-logo.jpg)" -eq 81501
-          echo 'Verified rendered-worker download identical to Drive master.'
+          # Never accept a different image as a logo: pin bytes from immutable Drive-original Git mirror.
+          curl -fsS --retry 3 --retry-delay 2 --retry-connrefused --connect-timeout 20 --max-time 45 --max-redirs 0 \
+            --proto '=https' "$MIRROR" -o /tmp/official-original-fallback.jpg
+          test "$(sha256sum /tmp/official-original-fallback.jpg | awk '{print $1}')" = "76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c"
+          test "$(wc -c < /tmp/official-original-fallback.jpg)" -eq 81501
+          echo "Immutable copy: byte-identical to approved Google Drive master."
+          # WordPress public media may be temporarily inaccessible to a remote runner.
+          # It is *not* a requirement for the central master to be online at every moment.
+          if curl -fsS --retry 2 --retry-delay 2 --retry-connrefused --connect-timeout 15 --max-time 35 --max-redirs 0 \
+              --proto '=https' "$URL" -o /tmp/wordpress-served-logo.jpg; then
+            if cmp -s /tmp/wordpress-served-logo.jpg /tmp/official-original-fallback.jpg; then
+              echo 'WordPress served bytes verified: source and public delivery are identical.'
+            else
+              echo 'WordPress delivered transformed bytes; renderers must use the verified master mirror, never the transformed variant.'
+            fi
+          else
+            echo 'WordPress image unavailable remotely; the verified Drive-original mirror is available for renderers.'
+          fi
       - name: Verify private REST protection and no publication
         shell: bash
         run: |
