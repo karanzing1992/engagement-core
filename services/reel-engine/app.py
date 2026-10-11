@@ -15,6 +15,8 @@ from renderer import render_reel
 from multi_renderer import render_multiple, MultiClipError
 from verified_logo import overlay_verified_logo
 from geo_policy import GeoPolicyError, validate_render_config
+from upload_api import router as private_upload_router
+from multi_api import router as private_multiclip_router
 from media_handoff import publish_media, delete_media
 from quality import media_preflight, detect_silence
 from social_publishers import capabilities
@@ -27,7 +29,9 @@ MUSIC = ROOT / "music"
 for p in (UPLOADS, JOBS, OUTPUTS, MUSIC):
     p.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title="Reel Engine", version="0.4.0")
+app = FastAPI(title="Reel Engine", version="0.5.0")
+app.include_router(private_upload_router)
+app.include_router(private_multiclip_router)
 
 
 @app.get("/health")
@@ -47,6 +51,8 @@ def health() -> dict:
             "media-preflight",
             "dead-air-analysis",
             "goa-india-geography-guard",
+            "private-resumable-upload",
+            "private-multiclip-queue",
         ],
         "music_tracks": len(list_tracks(MUSIC)),
     }
