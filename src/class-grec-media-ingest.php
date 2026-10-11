@@ -464,6 +464,21 @@ final class GREC_Media_Ingest {
         echo '<p><label><input id="mrs-geocheck" type="checkbox"> I confirm these clips were filmed in Goa/India and I hold rights to use them. Independent review still applies before publishing.</label></p>';
         echo '<p><button id="mrs-start" type="button" class="button button-primary">Upload and queue private 30s Reel</button></p>';
         echo '<div id="mrs-upload-feedback" role="status" aria-live="polite"></div>';
+        echo '<h2>Recent private uploads</h2><table class="widefat striped"><thead><tr><th>Session</th><th>Clips</th><th>Status</th><th>Private preview</th></tr></thead><tbody>';
+        foreach ( array_reverse( (array) array_slice( (array) get_option( 'grec_mrs_pending_sessions', array() ), -15 ) ) as $id ) {
+            $record = self::load( $id );
+            if ( ! is_array( $record ) ) { continue; }
+            echo '<tr><td><code>' . esc_html( substr( $id, 0, 12 ) ) . '</code></td>';
+            echo '<td>' . esc_html( implode( ', ', array_map( function( $item ) { return $item['name']; }, $record['files'] ) ) ) . '</td>';
+            echo '<td>' . esc_html( $record['state'] ) . '</td><td>';
+            if ( $record['state'] === 'preview_ready_private' ) {
+                echo '<button type="button" class="button" data-private-preview="' . esc_attr( $id ) . '">Download private 30s MP4</button>';
+            } else {
+                echo 'Not ready';
+            }
+            echo '</td></tr>';
+        }
+        echo '</tbody></table>';
         echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=mrs-studio' ) ) .
             '">Open Media Studio drafts</a></p></div>';
         echo '<script>window.MRSIngest=' . wp_json_encode( $config ) . ';</script>';
