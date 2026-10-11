@@ -1,0 +1,120 @@
+name: Reel Engine verified logo release
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/reel-engine-logo-release.yml'
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: reel-engine-logo-release
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: services/reel-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install FFmpeg and testing libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          python -m pip install --disable-pip-version-check pytest requests
+      - name: Verify approved Drive-logo master
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          data=Path('../../assets/brand/moksha-logo-source.jpg').read_bytes()
+          assert len(data)==81501
+          assert hashlib.sha256(data).hexdigest()=='76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c'
+          print('Official Drive original verified.')
+          PY
+      - name: Check logo sourcing, overlay and existing Reel Engine tests
+        run: |
+          python -m unittest -v test_verified_logo.py
+          python -m pytest -q test_quality.py test_social_publishers.py
+          python -m py_compile app.py renderer.py captions.py audio_sync.py quality.py media_handoff.py social_publishers.py verified_logo.py
+
+  build-and-test:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build Linux AMD64 container
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'IMAGE=ghcr.io/karanzing1992/engagement-core/reel-engine' >> "$GITHUB_ENV"
+          docker buildx build --platform linux/amd64 --load \
+            --tag "ghcr.io/karanzing1992/engagement-core/reel-engine:$GITHUB_SHA" services/reel-engine
+      - name: Start isolated private test container and check API
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/reel-logo-release/approved
+          cp assets/brand/moksha-logo-source.jpg /tmp/reel-logo-release/approved/moksha-approved-master.jpg
+          docker run -d --name reel-logo-smoke --rm \
+            --publish 127.0.0.1:18080:8080 \
+            --volume /tmp/reel-logo-release:/data \
+            --security-opt no-new-privileges:true \
+            --memory 4g --pids-limit 300 "$IMAGE:$GITHUB_SHA"
+          for n in $(seq 1 90); do
+            if curl -fsS --connect-timeout 2 --max-time 3 http://127.0.0.1:18080/health > /tmp/reel-logo-health.json; then break; fi
+            if ! docker inspect --format '{{.State.Running}}' reel-logo-smoke | grep -q true; then
+              docker logs reel-logo-smoke --tail 55
+              exit 1
+            fi
+            sleep 2
+          done
+          jq -e '.ok == true and .headless == true' /tmp/reel-logo-health.json >/dev/null
+          docker exec reel-logo-smoke python -c \
+            'from verified_logo import DRIVE_ID,SHA256; assert DRIVE_ID=="1XwmlYRfjfkcnbEOlJLNJc8bGHm9uxkyv"; assert SHA256=="76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c"'
+      - name: Render private approved-logo MP4 and retain audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec reel-logo-smoke ffmpeg -hide_banner -loglevel error -y \
+            -f lavfi -i 'color=c=0x364d49:s=540x960:r=15' \
+            -f lavfi -i 'sine=frequency=300:sample_rate=48000' \
+            -t 3.5 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac /data/technical-source.mp4
+          docker exec reel-logo-smoke python verified_logo.py \
+            --input /data/technical-source.mp4 \
+            --output /data/verified-branded.mp4 \
+            --brand moksha --placement reel \
+            --cache-dir /data/approved > /tmp/reel-logo-release/brand-provenance.json
+          test -s /tmp/reel-logo-release/verified-branded.mp4
+          docker exec reel-logo-smoke ffprobe -v error \
+            -show_entries stream=codec_type -of json /data/verified-branded.mp4 \
+            > /tmp/reel-logo-release/probe.json
+          jq -e '([.streams[].codec_type] | index("video") != null) and ([.streams[].codec_type] | index("audio") != null)' /tmp/reel-logo-release/probe.json >/dev/null
+          jq -e '.logo.sha256 == "76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c" and .publishing_enabled == false' \
+            /tmp/reel-logo-release/brand-provenance.json >/dev/null
+          echo 'Logo overlay verified inside release container.'
+      - name: Authenticate GHCR only after all tests pass
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push verified image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE:$GITHUB_SHA"
+          docker tag "$IMAGE:$GITHUB_SHA" "$IMAGE:verified-logo-v1"
+          docker push "$IMAGE:verified-logo-v1"
+          echo "Released tested image: $IMAGE:$GITHUB_SHA"
+      - name: Remove temporary private output
+        if: always()
+        run: docker rm -f reel-logo-smoke >/dev/null 2>&1 || true
