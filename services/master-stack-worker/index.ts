@@ -62,6 +62,15 @@ async function scan(item){
 }
 Deno.serve(async req=>{
  if(req.method!=="POST")return response(405,{ok:false});
+ const bearer=req.headers.get("Authorization")||"";
+ const jwt=bearer.startsWith("Bearer ")?bearer.slice(7):"";
+ let role="";
+ try {
+   const part=jwt.split(".")[1]||"";
+   const decoded=atob(part.replace(/-/g,"+").replace(/_/g,"/"));
+   role=JSON.parse(decoded).role||"";
+ } catch {return response(403,{ok:false,error:"Forbidden"});}
+ if(role!=="service_role")return response(403,{ok:false,error:"Forbidden"});
  if(!URL_BASE||!ADMIN_KEY)return response(503,{ok:false,error:"Service configuration missing"});
  const mode=(await req.json().catch(()=>({}))).mode||"scan";
  if(mode==="health")return response(200,{ok:true,worker:"master-stack-worker",github_private_available:!!GH_TOKEN,google_docs_publisher_configured:false});
