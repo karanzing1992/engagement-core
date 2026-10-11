@@ -5,6 +5,19 @@
 **Working independent Google Apps Script:** [Code.gs](../services/master-stack-worker/apps-script/Code.gs) | [Setup, health checks and recovery](../services/master-stack-worker/apps-script/README.md)  
 **Internal Supabase:** project `saczglesalubroyaucqe`, private table `public.master_stack_change_events`
 
+## Reusable GPT Skill and Plugin — 11 October 2026
+
+The existing nine GitHub repositories are already trained through their `.github/copilot-instructions.md` files. A **skills-only portable Plugin** also packages this procedure for use in supported ChatGPT chats:
+
+- Source: https://github.com/karanzing1992/engagement-core/tree/main/plugins/moksha-master-stack
+- Main Skill: `plugins/moksha-master-stack/skills/master-stack-sync/SKILL.md`
+- Onboarding Skill: `plugins/moksha-master-stack/skills/setup-master-stack/SKILL.md`
+- Portable manifest: `plugins/moksha-master-stack/plugin.json`
+
+**What it does:** use the correct verified Route A (GitHub commit → Apps Script → canonical Doc), or Route B (authorized Supabase inbox → separate publisher → canonical Doc), with idempotent source references and proper tenant/security controls. The Skill is guidance, **not new credentials, privileges, independent cron or a direct connection**.
+
+**ChatGPT installation:** using supported Plugin Creator/Skills interfaces requires a user's explicit installation action and may depend on plan/workspace. Uploading this source to GitHub does **not** install or enable it in existing ChatGPT Projects. Available plugin Skills can be reused across chats, but existing Project Instructions are not automatically edited; for always-on instructions use the `references/project-instructions.md` text packaged with the main Skill. Connected GitHub, Supabase and Google Drive authorization is still checked per tool and project.
+
 ## Two separate, complementary update routes
 
 ### Route A — source commits in approved GitHub repositories (working; live-tested)
