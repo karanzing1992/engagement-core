@@ -28,6 +28,7 @@ final class GREC_Media_Ingest {
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/finish/(?P<file>[0-9]+)', 'POST', 'finish', 'admin_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/status', 'GET', 'status', 'admin_allowed' ),
             array( '/media-studio/ingest/ready', 'GET', 'ready', 'worker_allowed' ),
+            array( '/media-studio/ingest/health', 'GET', 'health', 'worker_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/source/(?P<file>[0-9]+)', 'GET', 'source', 'worker_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/source-part/(?P<file>[0-9]+)/(?P<part>[0-9]+)', 'GET', 'source_part', 'worker_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/render-start', 'POST', 'render_start', 'worker_allowed' ),
@@ -306,6 +307,20 @@ final class GREC_Media_Ingest {
             'rendered' => $record['state'] === 'preview_ready_private',
             'private_preview_url' => $record['state'] === 'preview_ready_private' ?
                 rest_url( 'wp-control/v1/media-studio/ingest/' . $record['id'] . '/preview' ) : '',
+            'publishing_enabled' => false ), 200 );
+    }
+
+    public static function health( $request ) {
+        $root = self::root();
+        if ( is_wp_error( $root ) ) { return $root; }
+        if ( ! is_writable( $root ) ) {
+            return self::fail( 'mrs_vault_read_only',
+                'Private storage directory is not writable by WordPress.', 503 );
+        }
+        return new WP_REST_Response( array(
+            'ok' => true, 'private_vault' => true, 'writable' => true,
+            'chunk_size_bytes' => self::CHUNK,
+            'max_file_bytes' => self::FILE_MAX,
             'publishing_enabled' => false ), 200 );
     }
 
