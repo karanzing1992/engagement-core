@@ -1,0 +1,90 @@
+name: One-time Media Studio deploy via in-house WP Control
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-media-studio-once.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  media-studio-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DFG_DEPLOY_URL: ${{ secrets.MOKSHA_DFG_ENGAGEMENT_CORE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check pinned WordPress bootstrap code
+        run: |
+          php -l engagement-core.php
+          php -l src/class-grec-media-bootstrap.php
+          grep -q "media-studio-bootstrap-v010" src/class-grec-media-bootstrap.php
+          grep -q "Version: 0.9.7" engagement-core.php
+      - name: Require existing in-house deploy credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$DFG_DEPLOY_URL" ]; then
+            echo 'Existing MOKSHA_DFG_ENGAGEMENT_CORE_URL secret is not configured.'
+            exit 1
+          fi
+      - name: Refresh Engagement Core through existing Deployer for Git hook
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --connect-timeout 12 --max-time 100 "$DFG_DEPLOY_URL" > /tmp/deployer-response.json
+          jq -e '.success == true' /tmp/deployer-response.json > /dev/null
+          echo 'Existing WP Control plugin updated via in-house Deployer for Git.'
+      - name: Verify upgraded WP Control is healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 8); do
+            if curl --silent --fail --max-time 12 "https://mokshagoa.com/wp-json/engagement-core/v1/health?media_check=$i" > /tmp/grec-health.json &&
+               jq -e '.ok == true and .version == "0.9.7"' /tmp/grec-health.json > /dev/null; then
+              echo 'Engagement Core v0.9.7 health verified.'
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Engagement Core v0.9.7 health validation failed.'
+          exit 1
+      - name: Generate scoped deployment authorization from existing protected hook secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(python3 - <<'PY'
+          import os, urllib.parse, hmac, hashlib
+          hook=os.environ["DFG_DEPLOY_URL"]
+          parsed=urllib.parse.urlsplit(hook)
+          if parsed.scheme!="https" or parsed.hostname!="mokshagoa.com":
+              raise SystemExit("Existing deploy hook must be HTTPS on mokshagoa.com")
+          secret=urllib.parse.parse_qs(parsed.query).get("secret", [""])[0]
+          if len(secret)<20:
+              raise SystemExit("Existing deploy hook secret is missing or unexpectedly short")
+          print(hmac.new(secret.encode(), b"media-studio-bootstrap-v010", hashlib.sha256).hexdigest())
+          PY
+          )"
+          echo "::add-mask::$TOKEN"
+          echo "MRS_DEPLOY_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+      - name: Trigger the purpose-bound WP Control Media Studio bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --show-error --connect-timeout 12 --max-time 100 -o /tmp/media-install.json -w '%{http_code}' -X POST -H "Content-Type: application/json" -H "X-WP-Control-Bootstrap: $MRS_DEPLOY_TOKEN" --data '{}' https://mokshagoa.com/wp-json/wp-control/v1/bootstrap-media-studio)"
+          if [ "$code" != "200" ] || ! jq -e '.ok == true and .active == true and .plugin == "mrs-media-studio/mrs-media-studio.php" and .version == "0.1.0"' /tmp/media-install.json > /dev/null; then
+            echo "Media Studio bootstrap failed with HTTP $code."
+            jq -r '.code // .message // "Unknown deployment response"' /tmp/media-install.json || true
+            exit 1
+          fi
+          echo 'Media Studio v0.1.0 installed and activated via in-house WP Control.'
+      - name: Assert Media Studio draft endpoint is private
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error --max-time 15 -o /tmp/mrs-anon.json -w '%{http_code}' https://mokshagoa.com/wp-json/mrs/v1/jobs)"
+          echo "Anonymous draft API HTTP status: $status"
+          case "$status" in 401|403) ;; *) echo "Expected access denial"; exit 1;; esac
+          echo 'Private draft API access check passed; no content was published.'
