@@ -281,6 +281,47 @@ final class GREC_WordPress_Control {
 			true
 		);
 
+
+		self::register_ability(
+			'wp-control/cache-diagnose',
+			'Diagnose public page cache',
+			'Compare canonical and cache-busted public HTML plus allowlisted cache headers for one published page. No arbitrary URLs or credentials.',
+			array(
+				'type' => 'object',
+				'required' => array( 'post_id' ),
+				'properties' => array(
+					'post_id' => array( 'type' => 'integer', 'minimum' => 1 ),
+					'expected_text' => array( 'type' => 'string', 'maxLength' => 160 ),
+				),
+			),
+			array( 'GREC_Cache_Tools', 'diagnose' ),
+			array( __CLASS__, 'can_manage_options' ),
+			true,
+			false,
+			true
+		);
+
+		self::register_ability(
+			'wp-control/cache-purge-target',
+			'Purge one page cache',
+			'Dispatch a LiteSpeed cache purge for one published page URL or its post tag. Requires explicit confirm; does not purge all.',
+			array(
+				'type' => 'object',
+				'required' => array( 'post_id' ),
+				'properties' => array(
+					'post_id' => array( 'type' => 'integer', 'minimum' => 1 ),
+					'mode' => array( 'type' => 'string', 'enum' => array( 'url', 'post' ), 'default' => 'url' ),
+					'confirm' => array( 'type' => 'boolean' ),
+					'dry_run' => array( 'type' => 'boolean', 'default' => false ),
+				),
+			),
+			array( 'GREC_Cache_Tools', 'purge_target' ),
+			array( __CLASS__, 'can_manage_options' ),
+			false,
+			false,
+			false
+		);
+
 		self::register_ability(
 			'wp-control/cache-purge',
 			'Purge caches',
@@ -1361,6 +1402,8 @@ final class GREC_WordPress_Control {
 			case 'seo_audit': return self::native_seo_audit( $input );
 			case 'update_seo': return self::native_update_seo( $input );
 			case 'flush_cache': return self::native_flush_cache( $input );
+			case 'cache_diagnose': return GREC_Cache_Tools::diagnose( $input );
+			case 'cache_purge_target': return GREC_Cache_Tools::purge_target( $input );
 			case 'list_changes': return self::native_list_changes( $input );
 			case 'undo_change': return self::native_undo_change( $input );
 			case 'plugin_list': return self::plugin_list();
