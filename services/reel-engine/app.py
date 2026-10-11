@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 
 from music_library import ingest_track, list_tracks, rank_tracks, select_track
 from renderer import render_reel
+from verified_logo import overlay_verified_logo
 from media_handoff import publish_media, delete_media
 from quality import media_preflight, detect_silence
 from social_publishers import capabilities
@@ -172,6 +173,21 @@ def render(
             music_path=music_path,
             srt_path=srt_path,
         )
+        # Final Moksha drafts must use the immutable approved Google Drive logo;
+        # no filename search, AI reconstruction, auto-publishing or unverified fallback.
+        if str(cfg.get("brand", "")).strip().lower() == "moksha":
+            branded_output = job_dir / "verified-logo-final.mp4"
+            provenance = overlay_verified_logo(
+                output_path,
+                branded_output,
+                brand="moksha",
+                placement=str(cfg.get("placement", "reel")),
+                wp_token=os.environ.get("MRS_BRAND_ASSET_TOKEN") or None,
+                cache_dir=ROOT / "verified-brand-assets",
+            )
+            shutil.move(str(branded_output), str(output_path))
+            provenance["output_video"] = str(output_path)
+            result["official_logo"] = provenance
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
