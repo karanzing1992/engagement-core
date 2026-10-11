@@ -1,0 +1,34 @@
+name: Verify external delivery of official logo
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/brand-logo-delivery-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-public-delivery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare website-delivered image to exact Drive master mirror
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://mokshagoa.com/wp-content/uploads/2026/10/moksha-wellness-official-logo-76e89b836678.jpg'
+          MIRROR='https://raw.githubusercontent.com/karanzing1992/engagement-core/e7224f224ffa17bfa56bea7c946c2f7f8af45b8f/assets/brand/moksha-logo-source.jpg'
+          curl -fsS --connect-timeout 10 --max-time 30 -D /tmp/origin-headers.txt -o /tmp/wordpress-logo 'https://mokshagoa.com/wp-content/uploads/2026/10/moksha-wellness-official-logo-76e89b836678.jpg'
+          curl -fsS --connect-timeout 10 --max-time 30 -D /tmp/mirror-headers.txt -o /tmp/git-original "$MIRROR"
+          echo "Downloaded file sizes, source checksums and MIME types:"
+          wc -c /tmp/wordpress-logo /tmp/git-original assets/brand/moksha-logo-source.jpg
+          sha256sum /tmp/wordpress-logo /tmp/git-original assets/brand/moksha-logo-source.jpg
+          file --mime-type /tmp/wordpress-logo /tmp/git-original
+          grep -iE '^(HTTP/|content-type:|content-encoding:|location:|cache-control:)' /tmp/origin-headers.txt | head -15 || true
+          test "$(sha256sum /tmp/git-original | awk '{print $1}')" = "76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c"
+          if cmp -s /tmp/wordpress-logo /tmp/git-original; then
+            echo "PUBLIC WORDPRESS URL IS BYTE IDENTICAL TO APPROVED MASTER"
+          else
+            echo "WordPress public URL is NOT byte-identical. A secured CDN fallback is needed; never use it as an approved original."
+          fi
