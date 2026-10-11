@@ -5,6 +5,7 @@
   const choose = document.querySelector("#mrs-files");
   const start = document.querySelector("#mrs-start");
   const status = document.querySelector("#mrs-upload-feedback");
+  const geo = document.querySelector("#mrs-geocheck");
   if (!ui || !choose || !start || !status) return;
   const storeKey = "mrsPrivateUploadSession:v1";
   const pause = n => new Promise(resolve => setTimeout(resolve, n));
@@ -40,6 +41,7 @@
     return files.map(f=>f.name+"|"+f.size+"|"+f.lastModified).join(";");
   }
   async function run() {
+    if(!geo || !geo.checked) throw new Error("Confirm your clips were filmed in Goa/India and may be used.");
     const files=Array.from(choose.files||[]);
     if (!files.length || files.length>8) throw new Error("Select 1–8 MP4 or MOV clips.");
     for(const f of files) {
@@ -52,7 +54,7 @@
     let session=prev&&prev.fingerprint===key?prev.id:null;
     if(session) { try { await request(ui.api+session+"/status"); } catch { session=null; } }
     if(!session) {
-      const r=await request(ui.api+"start",{method:"POST",body:{files:files.map(f=>({name:f.name,size:f.size}))}});
+      const r=await request(ui.api+"start",{method:"POST",body:{files:files.map(f=>({name:f.name,size:f.size})),owner_attests_goa_india:true,owner_attests_rights:true}});
       session=r.id;
       localStorage.setItem(storeKey,JSON.stringify({id:session,fingerprint:key}));
     }
