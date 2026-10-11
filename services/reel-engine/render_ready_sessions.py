@@ -123,8 +123,6 @@ def upload_private_preview(wp: WP, ident: str, video: Path):
         while True:
             chunk=f.read(CHUNK)
             if not chunk:break
-            wp.j(f"{ident}/render-chunk/{i}",method="POST",
-                 data=None) if False else None
             result=json.loads(wp.call(f"{ident}/render-chunk/{i}",method="POST",
                                       data=chunk,digest=hashlib.sha256(chunk).hexdigest()))
             if not result.get("ok"):raise RuntimeError("WordPress failed to store private output chunk")
@@ -156,7 +154,7 @@ def process_session(wp: WP, record: dict):
         output=probe_media(final)
         if not output["has_audio"] or abs(output["duration"]-30)>0.28:
             raise RuntimeError("Final has incorrect duration/audio after official logo")
-        if branding["sha256"]!=SHA256 and branding.get("logo",{}).get("sha256")!=SHA256:
+        if branding.get("logo",{}).get("sha256")!=SHA256:
             raise RuntimeError("Official logo provenance failed validation")
         print(f"Two-source private Reel rendered: {output['duration']:.2f}s, {output['width']}x{output['height']}",flush=True)
         upload_private_preview(wp,record["id"],final)
