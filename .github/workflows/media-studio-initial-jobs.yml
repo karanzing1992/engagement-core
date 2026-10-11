@@ -69,7 +69,7 @@ jobs:
           while IFS= read -r item; do
             payload="$(echo "$item" | jq -c 'del(.verified_preview_url)')"
             response="$(curl -fsS --connect-timeout 12 --max-time 45 -X POST -H "Content-Type: application/json" -H "X-WP-Control-Media-Token: $MRS_QUEUE_AUTH" --data "$payload" "$base")"
-            echo "$response" | jq -e '.ok == true and .publish_enabled == false and .schedule_enabled == false and .status == "draft"' > /dev/null
+            echo "$response" | jq -e '.ok == true and .publish_enabled == false and .schedule_enabled == false and (.status == "draft" or .status == "preview_ready")' > /dev/null
             id="$(echo "$response" | jq -r '.id')"
             key="$(echo "$item" | jq -r '.job_key')"
             echo "Private WordPress draft created/confirmed: id=$id key=$key"
