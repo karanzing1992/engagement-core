@@ -1,0 +1,46 @@
+name: Large Reel ingest + multi-clip preflight
+on:
+  push:
+    branches:
+      - feature/mrs-large-upload-multiclip-v1
+    paths:
+      - 'src/class-grec-media-ingest.php'
+      - 'assets/media-ingest.js'
+      - 'services/reel-engine/multi_renderer.py'
+      - 'services/reel-engine/test_multi_renderer.py'
+      - 'tests/media-studio-ingest-smoke.php'
+      - 'tests/media-studio-ingest-large-smoke.php'
+      - 'services/reel-engine/render_ready_sessions.py'
+      - 'services/reel-engine/test_private_worker.py'
+      - '.github/workflows/media-ingest-preflight.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  private-ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PHP and JavaScript source
+        run: |
+          php -l src/class-grec-media-ingest.php
+          node --check assets/media-ingest.js
+      - name: Verify 231MB multipart authorization without allocating 231MB
+        run: php tests/media-studio-ingest-smoke.php
+      - name: Prove full 231MB upload assembly with bounded memory
+        run: php -d memory_limit=128M tests/media-studio-ingest-large-smoke.php
+      - name: Install CPU-only FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+      - name: Execute FFmpeg real two-source and looping export tests
+        run: |
+          ffmpeg -version | head -1
+          cd services/reel-engine
+          python -m unittest -v test_multi_renderer.py test_private_worker.py
+      - name: Verify regional rules and original-logo regression
+        run: |
+          cd services/reel-engine
+          python -m unittest -q test_geo_policy.py
+          python -m py_compile app.py multi_renderer.py geo_policy.py verified_logo.py render_ready_sessions.py

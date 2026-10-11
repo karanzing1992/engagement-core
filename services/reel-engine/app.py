@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import json
+import hmac
 import os
 import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, Header
 from fastapi.responses import FileResponse
 
 from music_library import ingest_track, list_tracks, rank_tracks, select_track
 from renderer import render_reel
+from multi_renderer import render_multiple, MultiClipError
 from verified_logo import overlay_verified_logo
 from geo_policy import GeoPolicyError, validate_render_config
 from media_handoff import publish_media, delete_media
@@ -213,8 +215,105 @@ def render(
     }
 
 
+
+# Private, request-authenticated multi-source video endpoint. The cloud renderer
+# accepts multiple streamed uploads; connectors may still need a byte transfer
+# bridge, provided by the WordPress upload vault rather than public URL sharing.
+def _require_render_token(provided: str | None) -> None:
+    expected=os.environ.get("REEL_ENGINE_API_TOKEN", "")
+    if len(expected) < 32:
+        raise HTTPException(status_code=503,detail="Private render authentication not configured")
+    if not provided or not hmac.compare_digest(expected,provided):
+        raise HTTPException(status_code=403,detail="Invalid private render authorization")
+
+
+def _private_job(job_id: str) -> bool:
+    return (JOBS/job_id/"private-multi.flag").exists()
+
+
+def _require_if_private(job_id: str, token: str | None) -> None:
+    if _private_job(job_id):
+        _require_render_token(token)
+
+
+@app.post("/v1/render-multi")
+def render_multi(
+    videos: list[UploadFile] = File(...),
+    config_json: str = Form(...),
+    x_reel_engine_token: str | None = Header(default=None),
+):
+    _require_render_token(x_reel_engine_token)
+    try:
+        cfg=json.loads(config_json)
+    except (TypeError,ValueError) as exc:
+        raise HTTPException(status_code=400,detail=f"Invalid render JSON: {exc}") from exc
+    if len(videos)<1 or len(videos)>8:
+        raise HTTPException(status_code=400,detail="One to eight video sources required")
+    try:
+        regional_check=validate_render_config(cfg)
+    except GeoPolicyError as exc:
+        raise HTTPException(status_code=422,detail=f"Goa/India video policy: {exc}") from exc
+    if regional_check["clips_verified"] != len(videos):
+        raise HTTPException(status_code=422,detail="Each uploaded video needs a distinct verified source record")
+
+    job_id=uuid.uuid4().hex
+    workdir=JOBS/job_id
+    workdir.mkdir(parents=True,exist_ok=False)
+    (workdir/"private-multi.flag").write_text("review-only\n",encoding="utf-8")
+    inputs=[]
+    target=OUTPUTS/f"{job_id}.mp4"
+    try:
+        for i,media in enumerate(videos):
+            suffix=Path(media.filename or "clip.mp4").suffix.lower()
+            if suffix not in (".mp4",".mov",".m4v"):
+                raise HTTPException(status_code=400,detail=f"Source {i+1}: unsupported video extension")
+            source=UPLOADS/f"{job_id}-{i}{suffix}"
+            amount=0
+            with source.open("xb") as stream:
+                while True:
+                    chunk=media.file.read(1024*1024)
+                    if not chunk:break
+                    amount+=len(chunk)
+                    if amount > 800*1024*1024:
+                        raise HTTPException(status_code=413,detail=f"Source {i+1} exceeds 800 MB")
+                    stream.write(chunk)
+            if amount < 1024:
+                raise HTTPException(status_code=400,detail=f"Source {i+1} is empty")
+            inputs.append(source)
+
+        info=render_multiple(inputs,target,cfg,workdir)
+        if str(cfg.get("brand","")).lower()=="moksha":
+            official=workdir/"branded-official-logo.mp4"
+            data=overlay_verified_logo(
+                target,official,brand="moksha",
+                placement=str(cfg.get("placement","reel")),
+                wp_token=os.environ.get("MRS_BRAND_ASSET_TOKEN") or None,
+                cache_dir=ROOT/"verified-brand-assets",
+            )
+            shutil.move(str(official),str(target))
+            info["official_logo"]=data
+        info["geography"]=regional_check
+        info["job_id"]=job_id
+        (workdir/"result.json").write_text(json.dumps(info,indent=2))
+        return {"job_id":job_id,"status":"preview_ready_private",
+                "duration":info["duration"],"download_path":f"/v1/jobs/{job_id}/video",
+                "published":False,"requires_review":True}
+    except HTTPException:
+        target.unlink(missing_ok=True)
+        raise
+    except (MultiClipError,ValueError) as exc:
+        target.unlink(missing_ok=True)
+        raise HTTPException(status_code=422,detail=str(exc)) from exc
+    except Exception as exc:
+        target.unlink(missing_ok=True)
+        raise HTTPException(status_code=500,detail="Private multi-clip processing failed") from exc
+    finally:
+        for path in inputs:
+            path.unlink(missing_ok=True)
+
 @app.get("/v1/jobs/{job_id}")
-def job_result(job_id: str):
+def job_result(job_id: str, x_reel_engine_token: str | None = Header(default=None)):
+    _require_if_private(job_id, x_reel_engine_token)
     path = JOBS / job_id / "result.json"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Job not found")
@@ -222,7 +321,8 @@ def job_result(job_id: str):
 
 
 @app.get("/v1/jobs/{job_id}/video")
-def job_video(job_id: str):
+def job_video(job_id: str, x_reel_engine_token: str | None = Header(default=None)):
+    _require_if_private(job_id, x_reel_engine_token)
     path = OUTPUTS / f"{job_id}.mp4"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Render not found")
@@ -230,7 +330,8 @@ def job_video(job_id: str):
 
 
 @app.get("/v1/jobs/{job_id}/srt")
-def job_srt(job_id: str):
+def job_srt(job_id: str, x_reel_engine_token: str | None = Header(default=None)):
+    _require_if_private(job_id, x_reel_engine_token)
     path = OUTPUTS / f"{job_id}.srt"
     if not path.exists():
         raise HTTPException(status_code=404, detail="SRT not found")
@@ -239,6 +340,8 @@ def job_srt(job_id: str):
 
 @app.post("/v1/jobs/{job_id}/publish-media")
 def publish_job_media(job_id: str, brand: str = Query("default")):
+    if _private_job(job_id):
+        raise HTTPException(status_code=403, detail="Private video cannot be published by worker")
     path = OUTPUTS / f"{job_id}.mp4"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Render not found")
@@ -268,7 +371,8 @@ def delete_job_media(job_id: str):
 
 
 @app.get("/v1/jobs/{job_id}/quality")
-def job_quality(job_id: str):
+def job_quality(job_id: str, x_reel_engine_token: str | None = Header(default=None)):
+    _require_if_private(job_id, x_reel_engine_token)
     path = OUTPUTS / f"{job_id}.mp4"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Render not found")
