@@ -19,6 +19,36 @@ final class GREC_Media_Studio_Bootstrap {
         if ( function_exists( 'wp_register_ability' ) ) {
             add_action( 'wp_abilities_api_init', array( __CLASS__, 'register_ability' ), 30 );
         }
+        add_action( 'rest_api_init', array( __CLASS__, 'register_deploy_route' ), 30 );
+    }
+
+    /**
+     * A narrow WordPress-owned deployment endpoint. This route can install only
+     * the immutable Media Studio release above. It cannot install arbitrary URLs
+     * or execute PHP supplied by the caller.
+     */
+    public static function register_deploy_route(): void {
+        register_rest_route( 'wp-control/v1', '/bootstrap-media-studio', array(
+            'methods' => 'POST',
+            'callback' => array( __CLASS__, 'deploy_from_control' ),
+            'permission_callback' => array( __CLASS__, 'verify_deploy_auth' ),
+        ) );
+    }
+
+    public static function verify_deploy_auth( $request ): bool {
+        $secret = (string) get_option( 'deployer_for_git_api_secret', '' );
+        $token = is_object( $request ) ? (string) $request->get_header( 'X-WP-Control-Bootstrap' ) : '';
+        if ( strlen( $secret ) < 20 || ! preg_match( '/^[0-9a-f]{64}$/D', $token ) ) {
+            return false;
+        }
+        return hash_equals( hash_hmac( 'sha256', 'media-studio-bootstrap-v010', $secret ), $token );
+    }
+
+    public static function deploy_from_control( $request ) {
+        if ( ! self::verify_deploy_auth( $request ) ) {
+            return new WP_Error( 'mrs_bootstrap_unauthorized', 'Invalid deployment authorization.', array( 'status' => 403 ) );
+        }
+        return self::install_trusted_package();
     }
 
     public static function register_ability(): void {
@@ -45,7 +75,10 @@ final class GREC_Media_Studio_Bootstrap {
         if ( ! self::authorized() ) {
             return new WP_Error( 'mrs_bootstrap_forbidden', 'Administrator plugin installation permission required.', array( 'status' => 403 ) );
         }
+        return self::install_trusted_package();
+    }
 
+    private static function install_trusted_package() {
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
