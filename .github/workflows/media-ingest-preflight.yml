@@ -9,6 +9,8 @@ on:
       - 'services/reel-engine/multi_renderer.py'
       - 'services/reel-engine/test_multi_renderer.py'
       - 'tests/media-studio-ingest-smoke.php'
+      - 'services/reel-engine/render_ready_sessions.py'
+      - 'services/reel-engine/test_private_worker.py'
       - '.github/workflows/media-ingest-preflight.yml'
   workflow_dispatch:
 permissions:
@@ -33,9 +35,9 @@ jobs:
         run: |
           ffmpeg -version | head -1
           cd services/reel-engine
-          python -m unittest -v test_multi_renderer.py
+          python -m unittest -v test_multi_renderer.py test_private_worker.py
       - name: Verify regional rules and original-logo regression
         run: |
           cd services/reel-engine
           python -m unittest -q test_geo_policy.py
-          python -m py_compile app.py multi_renderer.py geo_policy.py verified_logo.py
+          python -m py_compile app.py multi_renderer.py geo_policy.py verified_logo.py render_ready_sessions.py
