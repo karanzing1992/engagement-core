@@ -106,6 +106,10 @@ final class GREC_Media_Ingest {
         if ( ! is_array( $files ) || count( $files ) < 1 || count( $files ) > 8 ) {
             return self::fail( 'mrs_ingest_files', 'One to eight clips required.' );
         }
+        if ( empty( $data['owner_attests_goa_india'] ) || empty( $data['owner_attests_rights'] ) ) {
+            return self::fail( 'mrs_owner_attestation',
+                'An administrator must confirm Indian capture location and permission to use the footage.' );
+        }
         $normalized = array();
         $sum = 0;
         foreach ( $files as $entry ) {
@@ -131,6 +135,10 @@ final class GREC_Media_Ingest {
         if ( is_wp_error( $dir ) ) { return $dir; }
         $record = array( 'id' => $id, 'state' => 'uploading', 'files' => $normalized,
             'created_at' => time(), 'owner' => get_current_user_id(), 'target_seconds' => 30,
+            'owner_attestation' => array( 'capture_country' => 'India', 'editorial_region' => 'Goa',
+                'owner_attests_rights' => true, 'owner_attests_india' => true,
+                'verified_at' => time(), 'verified_by_user_id' => get_current_user_id(),
+                'independent_editorial_review_required' => true ),
             'output' => array(), 'last_error' => '', 'render_attempts' => 0 );
         if ( ! add_option( self::PREFIX . $id, $record, '', false ) ) {
             return self::fail( 'mrs_ingest_db', 'Could not persist upload session', 503 );
@@ -438,6 +446,7 @@ final class GREC_Media_Ingest {
         echo '<p>Upload 1–8 original phone clips directly in 4 MiB chunks, including videos larger than 200 MB. ';
         echo 'Only administrators can see previews. Original files stay outside the public website.</p>';
         echo '<p><input id="mrs-files" type="file" accept="video/mp4,video/quicktime,video/x-m4v" multiple></p>';
+        echo '<p><label><input id="mrs-geocheck" type="checkbox"> I confirm these clips were filmed in Goa/India and I hold rights to use them. Independent review still applies before publishing.</label></p>';
         echo '<p><button id="mrs-start" type="button" class="button button-primary">Upload and queue private 30s Reel</button></p>';
         echo '<div id="mrs-upload-feedback" role="status" aria-live="polite"></div>';
         echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=mrs-studio' ) ) .
