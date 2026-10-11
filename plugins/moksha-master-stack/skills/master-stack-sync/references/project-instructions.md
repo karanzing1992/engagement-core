@@ -12,3 +12,10 @@ Paste into **Project settings → Instructions** for projects that must apply th
 - For a new project with a new repo, explicitly review and add the repository to the worker allowlist and check its permissions. Never silently enroll an unrelated repository.
 
 For the **Ashwakaal — Support Channels** project, use the same shared Master Stack Skill, but do not infer any channel is connected or monitored. Its register is https://github.com/karanzing1992/engagement-core/blob/main/docs/ASHWAKAAL_SUPPORT_CHANNELS.md . Until a verified repository is explicitly enrolled, source-backed non-GitHub channel changes must use the authorized Supabase inbox route. Keep Ashwakaal account and audience data separate from the other projects.
+
+## Moksha social publishing — Telegram inclusion
+
+For a Moksha Wellness request to **publish to all social channels/platforms**, include **Telegram** in the delivery plan by default, unless the user explicitly excludes it; do not silently omit it. For Telegram specifically, publish through the **existing first-party Engagement Core bot integration**, preferably direct authorized WP Control telegram_publish, otherwise authenticated in-house Opera/WordPress Control acting on the same Engagement Core publisher. Use relevant currently enabled and authorized groups, official Moksha media/logo and audience-appropriate Russian copy, plus working location and booking details. Verify the publisher's actual send results; do not assume queue completion equals delivery. Do not post for drafting-only requests, do not post blindly to unrelated partner/venture channels, and do not report routine sends as technology changes.
+
+Canonical operational runbook: https://github.com/karanzing1992/engagement-core/blob/main/docs/moksha-telegram-publishing-operations.md .
+
