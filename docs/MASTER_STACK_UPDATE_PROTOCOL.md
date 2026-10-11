@@ -18,6 +18,14 @@ The existing nine GitHub repositories are already trained through their `.github
 
 **ChatGPT installation:** using supported Plugin Creator/Skills interfaces requires a user's explicit installation action and may depend on plan/workspace. Uploading this source to GitHub does **not** install or enable it in existing ChatGPT Projects. Available plugin Skills can be reused across chats, but existing Project Instructions are not automatically edited; for always-on instructions use the `references/project-instructions.md` text packaged with the main Skill. Connected GitHub, Supabase and Google Drive authorization is still checked per tool and project.
 
+## Ashwakaal — support channels
+
+**Registered workstream:** `ashwakaal-support-channels`. Include its support, community, incoming messages, publishing integrations and channel-related technology changes in the **same master technology inventory**, while keeping accounts, audiences, permissions and records **completely separate** from Moksha, Andaz and other brands.
+
+**Channel register and verification standard:** https://github.com/karanzing1992/engagement-core/blob/main/docs/ASHWAKAAL_SUPPORT_CHANNELS.md
+
+At registration, no official Ashwakaal channel URLs, handles, API integrations, live status, or dedicated monitored GitHub repository have been independently verified. Do not infer or reuse other ventures' channel credentials. Use **Route B**, the authorized Supabase inbox, for separately verified platform-only changes. Add a dedicated repository to **Route A** only after verifying the repository and explicitly onboarding it into the Apps Script allowlist/token scope. This workstream does not authorize messaging, unsolicited outreach, account creation or platform publication.
+
 ## Two separate, complementary update routes
 
 ### Route A — source commits in approved GitHub repositories (working; live-tested)
