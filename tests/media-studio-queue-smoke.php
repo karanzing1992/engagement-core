@@ -39,6 +39,9 @@ function esc_url_raw($x){return $x;}
 function wp_parse_url($url){return parse_url($url);}
 function register_rest_route($namespace,$route,$args){}
 function add_action($name,$fn,$priority=10){}
+function add_filter($name,$fn,$priority=10,$accepted=1){}
+function get_posts($args){return array_keys($GLOBALS['posts']);}
+function update_option($key,$value,$autoload=false){$GLOBALS['opts'][$key]=$value;return true;}
 require __DIR__.'/../src/class-grec-media-queue.php';
 function ok($condition,$message){if(!$condition){fwrite(STDERR,'FAIL: '.$message."\n");exit(1);}echo 'PASS '.$message."\n";}
 $key=hash_hmac('sha256','mrs-media-queue-v1',$GLOBALS['opts']['deployer_for_git_api_secret']);
@@ -56,7 +59,18 @@ $dup=GREC_Media_Queue::create_draft($r);
 ok($dup instanceof WP_REST_Response && $dup->status===200 && $dup->data['id']===$id,'repeat request idempotent');
 $bad_copy=$data;$bad_copy['job_key']='nature-different-20261011';$bad_copy['script']='Book a Moksha reset';
 ok(GREC_Media_Queue::create_draft(new WP_REST_Request($bad_copy,$headers)) instanceof WP_Error,'forbidden copy rejected');
-$ledger=[['source_url'=>'https://commons.wikimedia.org/wiki/File:Ocean_Waves.ogg','license_url'=>'https://creativecommons.org/licenses/by/3.0','creator'=>'Artist','license_name'=>'CC BY 3.0']];
+$ledger=[[
+ 'source_url'=>'https://commons.wikimedia.org/wiki/File:Goa_Coast.webm',
+ 'license_url'=>'https://creativecommons.org/licenses/by/3.0',
+ 'creator'=>'Local videographer','license_name'=>'CC BY 3.0','media_type'=>'video',
+ 'origin'=>'licensed_stock','capture_country'=>'India','capture_region'=>'Goa',
+ 'verification_status'=>'human_verified','verified_by'=>'Media Studio editor',
+ 'location_evidence_url'=>'https://commons.wikimedia.org/wiki/File:Goa_Coast.webm'
+ ],[
+ 'source_url'=>'https://commons.wikimedia.org/wiki/File:Ocean_Waves.ogg',
+ 'license_url'=>'https://creativecommons.org/licenses/by/3.0',
+ 'creator'=>'Audio Creator','license_name'=>'CC BY 3.0','media_type'=>'audio'
+ ]];
 $bad_preview=GREC_Media_Queue::attach_preview(new WP_REST_Request(['job_key'=>$data['job_key'],'private_preview_url'=>'https://github.com/evil/public/actions/runs/123/artifacts/12','ledger'=>$ledger],$headers,['id'=>$id]));
 ok($bad_preview instanceof WP_Error,'non-allowlisted preview link rejected');
 $good='https://github.com/karanzing1992/moksha_wordpress/actions/runs/38108426717/artifacts/11691350006';
@@ -64,3 +78,19 @@ $good_preview=GREC_Media_Queue::attach_preview(new WP_REST_Request(['job_key'=>$
 ok($good_preview instanceof WP_REST_Response && $good_preview->status===200,'allowlisted private artifact accepted');
 ok(get_post_meta($id,'_mrs_state',true)==='preview_ready','preview only, no publishing');
 ok($good_preview->data['publish_enabled']===false && $good_preview->data['schedule_enabled']===false,'publishing and scheduling always disabled');
+ok(GREC_Media_Queue::geo_ledger_errors($ledger)===[], 'verified Goa visual source accepted');
+$nonlocal=$ledger;
+$nonlocal[0]['capture_country']='Iceland';
+ok(count(GREC_Media_Queue::geo_ledger_errors($nonlocal))>0,'Iceland footage rejected even if title or copy suggests Goa');
+$remote=GREC_Media_Queue::attach_preview(new WP_REST_Request(
+ ['job_key'=>$data['job_key'],'private_preview_url'=>$good,'ledger'=>$nonlocal],
+ $headers,['id'=>$id]));
+ok($remote instanceof WP_Error && $remote->code==='mrs_queue_geo_policy','preview callback rejects foreign source');
+ok(get_post_meta($id,'_mrs_state',true)==='preview_ready','rejected callback does not overwrite prior approved candidate');
+
+update_post_meta($id,'_mrs_ledger',$nonlocal);
+GREC_Media_Queue::quarantine_legacy_previews();
+ok(get_post_meta($id,'_mrs_state',true)==='needs_revision','prior nonlocal preview quarantined for revision');
+ok(get_post_meta($id,'_mrs_worker_state',true)==='blocked_nonlocal_footage','legacy worker marked blocked');
+ok(get_post_meta($id,'_mrs_geo_review_status',true)==='regional_replacement_required','regional replacement required');
+ok(get_option('mrs_india_geo_audit_20261011')===1,'legacy migration marked complete');
