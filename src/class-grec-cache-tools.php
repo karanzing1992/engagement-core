@@ -15,7 +15,8 @@ final class GREC_Cache_Tools {
 		$post = $id ? get_post( $id ) : null;
 		$type = $post ? get_post_type_object( $post->post_type ) : null;
 
-		if ( ! $post || 'publish' !== $post->post_status || ! $type || ! $type->publicly_queryable ) {
+		if ( ! $post || 'publish' !== $post->post_status || ! $type || ! $type->public ||
+			( 'page' !== $post->post_type && ! $type->publicly_queryable ) ) {
 			return new WP_Error( 'wp_control_invalid_cache_target', 'Choose an existing published public post or page.', array( 'status' => 400 ) );
 		}
 		$url = get_permalink( $id );
