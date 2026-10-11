@@ -3,6 +3,24 @@ Effective 11 October 2026. Scope: Moksha Wellness Social Media only.
 Registry: https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit
 Protocol: https://github.com/karanzing1992/engagement-core/blob/main/docs/MASTER_STACK_UPDATE_PROTOCOL.md
 
+## Master content-publishing trigger: Telegram belongs in "all channels"
+
+For Moksha Wellness, the phrases **"post/push/share to all channels", "all platforms", and "publish everywhere"** are explicit publishing requests that **include Telegram** by default, alongside the other configured and authorized channels. Do not silently skip Telegram. A request only to draft, design or prepare material does **not** authorize sending. A Telegram-specific publishing instruction covers Telegram only; do not broaden it to other platforms unrequested.
+
+Use the in-house Engagement Core bot publisher for Telegram. Pick the relevant currently enabled group/channel destinations for this specific campaign; do **not** use "all enabled Telegram destinations" blindly when the WordPress list includes partner or separate-venture communities. For an authorized broadly relevant Moksha community announcement, all applicable enabled groups may be selected; otherwise choose only those relevant to the target audience. Recheck each destination's permissions at publish time.
+
+### Creative, language and call to action
+- Include the approved Moksha flyer/photo/video when relevant to the campaign, plus the **actual text caption**. A photo-only post without the booking, offer and location information is not complete.
+- Russian-language Telegram communities get **natural native Russian**, not literal word-for-word machine translation. Prepare English and Russian variants when users request both; choose the recipient-appropriate language by channel rather than dumping multiple duplicates in one group.
+- For session promotions, clearly distinguish event opening/closing window from duration of the purchased therapy, and verify current price and complementary inclusions before posting. Never carry a past date or price into a new campaign without review.
+- Include the verified Moksha name and location, current business booking contact/link, and suitable CTA. Use only the original official logo from approved brand assets and genuine Goa/India-appropriate Moksha images; verify visuals before posting.
+- Telegram photo captions have a practical **1,024-character caption constraint**. The existing native adapter can send a longer message separately after the image. Treat this as normal two-part Telegram delivery, not as an accidental duplicate.
+
+### Publishing receipts and exceptions
+- Report each requested channel as **sent, partially sent, failed, intentionally excluded, or not attempted**. Do not infer Telegram success from an in-house queue's completion alone; confirm Engagement Core's returned success/failure result and read back the notice/status. Include message IDs and per-destination failure details only when the integration actually exposes them.
+- On partial failure, reconcile the delivered recipients and retry only confirmed failures; never re-send an all-groups campaign because a page took time to refresh.
+- Do not add routine content publishing to the technology change registry. Only material new capabilities, integration, security or architecture changes belong in Master Stack change reporting.
+
 ## Default channel owner and routing
 Use existing Engagement Core on https://mokshagoa.com as the **primary Telegram publisher**, not a third-party service. Prefer a currently connected and authenticated first-party WP Control/MCP telegram_publish operation; otherwise use the already authenticated in-house Opera/WordPress Control worker to operate the Engagement Core admin composer. Both routes must call Engagement Core's native Telegram bot integration. If these routes fail, report a real blocker rather than claiming delivery or silently switching to a new bot/service. No new scheduler, publisher or credentials for routine posts.
 
