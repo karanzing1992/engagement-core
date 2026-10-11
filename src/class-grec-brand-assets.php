@@ -188,6 +188,8 @@ final class GREC_Brand_Assets {
         return array(
             'brand' => 'moksha', 'role' => 'official_full_logo', 'variant' => 'original_gold_on_black',
             'attachment_id' => $id, 'asset_url' => (string) wp_get_attachment_url( $id ),
+            // Immutable mirror of the identical approved Drive bytes; use ONLY after verifying SHA-256.
+            'verified_original_mirror_url' => 'https://raw.githubusercontent.com/karanzing1992/engagement-core/e7224f224ffa17bfa56bea7c946c2f7f8af45b8f/assets/brand/moksha-logo-source.jpg',
             'drive_file_id' => self::DRIVE_ID,
             'drive_url' => 'https://drive.google.com/file/d/' . self::DRIVE_ID . '/view',
             'source_name' => 'Moksha_Logo_Source_01.jpeg',
