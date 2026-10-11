@@ -341,7 +341,7 @@ export function makeServer(ctx: UserContext) {
     {
       post_id: z.number().int().positive(),
       mode: z.enum(['url', 'post']).default('url'),
-      confirm: z.literal(true),
+      confirm: z.boolean().optional(),
       dry_run: z.boolean().optional(),
     },
     'cache_purge_target',
