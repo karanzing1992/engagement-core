@@ -1,0 +1,29 @@
+name: Geography policy preflight
+on:
+  push:
+    branches:
+      - feature/goa-india-geo-guard
+    paths:
+      - 'services/reel-engine/geo_policy.py'
+      - 'services/reel-engine/test_geo_policy.py'
+      - 'services/reel-engine/app.py'
+      - 'src/class-grec-media-queue.php'
+      - 'tests/media-studio-queue-smoke.php'
+      - '.github/workflows/geo-policy-preflight.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  policy-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify source compiles and PHP geography gate
+        run: |
+          php -l src/class-grec-media-queue.php
+          php tests/media-studio-queue-smoke.php
+          python -m py_compile services/reel-engine/geo_policy.py services/reel-engine/app.py
+      - name: Run geographic and footage-source tests without paid APIs
+        working-directory: services/reel-engine
+        run: python -m unittest -v test_geo_policy.py
