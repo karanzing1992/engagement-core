@@ -39,3 +39,14 @@ When the Apps Script publishes successfully, disable the GitHub-discovery portio
 
 Master registry: https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit
 Shared architecture: https://docs.google.com/document/d/1ybmMCLX_9gy2SUAL9_h-8HpTWBVWt_ksbTShHn1FF5w/edit
+
+## Fix applied — 11 October 2026
+
+The initial Google Apps Script source used an unsupported `DocumentApp.flush()` at the end of `runMasterStackSync`, causing `TypeError: DocumentApp.flush is not a function` (earlier line 126).
+
+**Quick correction in the already-open Apps Script project:** replace `DocumentApp.flush();` with `doc.saveAndClose();`, save, and rerun `runMasterStackSync`.
+
+**Recommended full correction:** replace the project's entire `Code.gs` with the [current source](./Code.gs) and save. The revised version also buffers GitHub SHA cursors until after the master Doc is saved and the newly appended markers are verified by reading the Doc again. This prevents silent loss of commits when a Google Docs write fails. Pending markers are unique, so reruns skip already-published entries.
+
+**Important:** Updating this GitHub source does not update an existing independent script.google.com Apps Script project. The owner must copy the corrected source into Apps Script (or use an explicitly authorized deployment process). Run `runMasterStackSync`, then `masterStackStatus` and inspect the execution log; initial `lastPublished: 0` is normal when all repos are already baselined.
+
