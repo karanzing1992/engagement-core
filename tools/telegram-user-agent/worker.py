@@ -16,7 +16,8 @@ RESULTS = BASE / "queue" / "results"
 PYTHON = BASE / ".venv" / "bin" / "python"
 AGENT = BASE / "agent.py"
 
-POLL_SECONDS = max(10, int(os.getenv("TELEGRAM_QUEUE_POLL_SECONDS", "15")))
+POLL_SECONDS = max(60, int(os.getenv("TELEGRAM_QUEUE_POLL_SECONDS", "300")))
+MAX_POLL_SECONDS = max(POLL_SECONDS, int(os.getenv("TELEGRAM_QUEUE_MAX_POLL_SECONDS", "1800")))
 
 
 def run(*args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -113,26 +114,32 @@ def process(path: Path) -> None:
         run("git", "push", "origin", "main")
 
 
-def tick() -> None:
+def tick() -> int:
+    """Fetch once, process only outstanding tasks, and return the work count."""
     git_sync()
     TASKS.mkdir(parents=True, exist_ok=True)
     RESULTS.mkdir(parents=True, exist_ok=True)
-    for task in sorted(TASKS.glob("*.json")):
+    pending = [p for p in sorted(TASKS.glob("*.json")) if not (RESULTS / f"{p.stem}.json").exists()]
+    for task in pending:
         process(task)
+    return len(pending)
 
 
 def main() -> None:
     if not PYTHON.exists():
         raise SystemExit("Run ./bootstrap-mac.sh first.")
-    print(f"Telegram queue worker running from {REPO}; poll={POLL_SECONDS}s")
+    print(f"Telegram queue worker running from {REPO}; base poll={POLL_SECONDS}s, max={MAX_POLL_SECONDS}s")
+    delay = POLL_SECONDS
     while True:
         try:
-            tick()
+            processed = tick()
+            delay = POLL_SECONDS if processed else min(MAX_POLL_SECONDS, delay * 2)
         except KeyboardInterrupt:
             raise
         except Exception as exc:
             print(f"worker error: {type(exc).__name__}: {exc}", file=sys.stderr)
-        time.sleep(POLL_SECONDS)
+            delay = min(MAX_POLL_SECONDS, max(POLL_SECONDS, delay * 2))
+        time.sleep(delay)
 
 
 if __name__ == "__main__":
