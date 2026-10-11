@@ -1,0 +1,34 @@
+name: Private Reel OIDC security preflight
+on:
+  push:
+    branches:
+      - feature/oidc-reel-worker-v1
+    paths:
+      - 'src/class-grec-github-oidc.php'
+      - 'src/class-grec-media-ingest.php'
+      - 'services/reel-engine/render_ready_sessions.py'
+      - '.github/workflows/media-ingest-worker.yml'
+      - 'tests/media-studio-oidc-smoke.php'
+      - '.github/workflows/media-oidc-preflight.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate installed WordPress plugin integration
+        run: |
+          php -l engagement-core.php
+          php -l src/class-grec-media-ingest.php
+          php -l src/class-grec-github-oidc.php
+          php tests/media-studio-ingest-smoke.php
+      - name: Verify real OpenSSL RSA signatures, issuer, repo, branch, audience and workflow
+        run: php tests/media-studio-oidc-smoke.php
+      - name: Worker syntax and unit regression
+        run: |
+          cd services/reel-engine
+          python -m py_compile render_ready_sessions.py multi_renderer.py verified_logo.py
+          python -m unittest -q test_geo_policy.py

@@ -28,7 +28,7 @@ final class GREC_Media_Ingest {
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/finish/(?P<file>[0-9]+)', 'POST', 'finish', 'admin_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/status', 'GET', 'status', 'admin_allowed' ),
             array( '/media-studio/ingest/ready', 'GET', 'ready', 'worker_allowed' ),
-            array( '/media-studio/ingest/health', 'GET', 'health', 'worker_allowed' ),
+            array( '/media-studio/ingest/health', 'GET', 'health', 'health_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/source/(?P<file>[0-9]+)', 'GET', 'source', 'worker_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/source-part/(?P<file>[0-9]+)/(?P<part>[0-9]+)', 'GET', 'source_part', 'worker_allowed' ),
             array( '/media-studio/ingest/(?P<id>[a-f0-9]{32})/render-start', 'POST', 'render_start', 'worker_allowed' ),
@@ -49,10 +49,18 @@ final class GREC_Media_Ingest {
     }
 
     public static function worker_allowed( $request ): bool {
+        // Prefer GitHub's short-lived signed identity for new workers. Legacy
+        // independently scoped HMAC remains compatible with prior queue clients.
+        if ( class_exists( 'GREC_GitHub_Reel_OIDC' ) &&
+            GREC_GitHub_Reel_OIDC::allowed( $request ) ) { return true; }
         $secret = (string) get_option( 'deployer_for_git_api_secret', '' );
         $token = is_object( $request ) ? (string) $request->get_header( 'X-WP-Control-Media-Token' ) : '';
         return strlen( $secret ) >= 20 && preg_match( '/^[0-9a-f]{64}$/D', $token ) === 1
             && hash_equals( hash_hmac( 'sha256', self::CONTEXT, $secret ), $token );
+    }
+
+    public static function health_allowed( $request ): bool {
+        return current_user_can( 'manage_options' ) || self::worker_allowed( $request );
     }
 
     private static function fail( string $code, string $message, int $status = 400 ) {

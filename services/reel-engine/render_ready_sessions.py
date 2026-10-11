@@ -28,6 +28,37 @@ CHUNK = 4 * 1024 * 1024
 SOURCE_MAX = 800 * 1024 * 1024
 
 
+AUDIENCE = "mokshagoa.com/private-reel-ingest-v1"
+_oidc_cached = {"jwt": "", "expires": 0}
+
+def github_oidc_token() -> str:
+    """Get and cache GitHub's signed short-lived workload identity, not a shared secret."""
+    now=int(time.time())
+    if _oidc_cached["jwt"] and _oidc_cached["expires"] > now+90:
+        return _oidc_cached["jwt"]
+    uri=os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL","")
+    bearer=os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN","")
+    if not uri or not bearer:
+        raise RuntimeError("GitHub Actions OIDC identity is unavailable")
+    sep="&" if "?" in uri else "?"
+    url=uri+sep+"audience="+urllib.parse.quote(AUDIENCE,safe="")
+    req=urllib.request.Request(url,headers={"Authorization":"Bearer "+bearer,"Accept":"application/json"})
+    with urllib.request.urlopen(req,timeout=12) as response:
+        token=json.loads(response.read(16384)).get("value","")
+    if not isinstance(token,str) or len(token.split("."))!=3:
+        raise RuntimeError("OIDC provider did not return a signed JWT")
+    import base64
+    try:
+        claim=json.loads(base64.urlsafe_b64decode(token.split(".")[1]+"==="))
+        expiration=int(claim["exp"])
+    except (ValueError,KeyError,TypeError):
+        raise RuntimeError("OIDC expiry metadata invalid")
+    if expiration <= now+30:
+        raise RuntimeError("OIDC identity already expired")
+    _oidc_cached.update(jwt=token,expires=expiration)
+    return token
+
+
 def token_from_existing_hook() -> str:
     raw=os.environ.get("MOKSHA_DFG_ENGAGEMENT_CORE_URL","")
     p=urllib.parse.urlsplit(raw)
@@ -39,14 +70,19 @@ def token_from_existing_hook() -> str:
 
 
 class WP:
-    def __init__(self, token: str):
+    def __init__(self, token: str | None = None):
         self.token=token
 
     def call(self, path: str, *, method: str="GET", json_data=None, data=None, digest=None) -> bytes:
         if json_data is not None:
             data=json.dumps(json_data,separators=(",",":")).encode()
-        headers={"X-WP-Control-Media-Token":self.token,
-                 "User-Agent":"Moksha-Reel-Worker/1.0"}
+        headers={"User-Agent":"Moksha-Reel-Worker/1.0"}
+        if os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL"):
+            headers["X-GitHub-OIDC-Token"]=github_oidc_token()
+        elif self.token:
+            headers["X-WP-Control-Media-Token"]=self.token
+        else:
+            raise RuntimeError("No authorized private worker identity available")
         if json_data is not None:
             headers["Content-Type"]="application/json"
         elif digest is not None:
@@ -162,7 +198,7 @@ def process_session(wp: WP, record: dict):
 
 
 def main():
-    wp=WP(token_from_existing_hook())
+    wp=WP() if os.environ.get('ACTIONS_ID_TOKEN_REQUEST_URL') else WP(token_from_existing_hook())
     ready=wp.j("ready").get("sessions",[])
     if "--check" in sys.argv:
         # Cheap queue poll: no ffmpeg boot, no video download, no rerender.
