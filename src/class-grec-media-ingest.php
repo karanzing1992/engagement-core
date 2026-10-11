@@ -62,15 +62,23 @@ final class GREC_Media_Ingest {
     private static function root() {
         $webroot = realpath( ABSPATH );
         if ( ! $webroot ) { return self::fail( 'mrs_vault_webroot', 'WordPress root not accessible', 503 ); }
-        // A sibling of public_html, never under wp-content/uploads or other web-served folders.
-        $vault = dirname( $webroot ) . '/.moksha-private-media';
+        // Use the actual HTTP document root when WordPress runs in a subfolder.
+        // Never mistake ABSPATH's parent for private storage if it is public_html.
+        $docroot = isset( $_SERVER['DOCUMENT_ROOT'] ) ?
+            realpath( (string) $_SERVER['DOCUMENT_ROOT'] ) : false;
+        $base = $docroot ? $docroot : $webroot;
+        $vault = dirname( $base ) . '/.moksha-private-media';
         if ( is_link( $vault ) ) { return self::fail( 'mrs_vault_symlink', 'Unsafe vault link', 503 ); }
         if ( ! is_dir( $vault ) && ! @mkdir( $vault, 0700, true ) ) {
             return self::fail( 'mrs_vault_unavailable',
                 'Host must permit a private folder outside the WordPress document root.', 503 );
         }
         $real = realpath( $vault );
-        if ( ! $real || strpos( $real . '/', rtrim( $webroot, '/' ) . '/' ) === 0 ) {
+        if ( ! $real ||
+            $real === $webroot ||
+            strpos( $real . '/', rtrim( $webroot, '/' ) . '/' ) === 0 ||
+            ( $docroot && ( $real === $docroot ||
+                strpos( $real . '/', rtrim( $docroot, '/' ) . '/' ) === 0 ) ) ) {
             return self::fail( 'mrs_vault_public', 'Vault is not outside the public document root', 503 );
         }
         @chmod( $real, 0700 );
