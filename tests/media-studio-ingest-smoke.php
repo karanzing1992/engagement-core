@@ -56,7 +56,7 @@ function part_request($id,$file,$part,$data){
 }
 $r=GREC_Media_Ingest::start(req(array('files'=>array(
     array('name'=>'phone-large.mp4','size'=>230924113),
-    array('name'=>'phone-short.mp4','size'=>20442820)))));
+    array('name'=>'phone-short.mp4','size'=>20442820)),'owner_attests_goa_india'=>true,'owner_attests_rights'=>true)));
 check($r instanceof WP_REST_Response && $r->status===201,'231MB + 20MB phone sources accepted');
 $large=$r->data;
 check($large['files'][0]['parts']===56,'231MB source split into 4MiB resumable parts');
@@ -64,13 +64,13 @@ check($large['private']===true && $large['publishing_enabled']===false,'No publi
 $root=realpath(dirname(ABSPATH).'/.moksha-private-media');
 check($root && !str_starts_with($root,realpath(ABSPATH)),'Upload vault is outside public document root');
 $bad=GREC_Media_Ingest::start(req(array('files'=>array(
-    array('name'=>'shell.php','size'=>4096)))));
+    array('name'=>'shell.php','size'=>4096)),'owner_attests_goa_india'=>true,'owner_attests_rights'=>true)));
 check($bad instanceof WP_Error,'Executable extension rejected');
 
 $sample=4*1024*1024+1013;
 $r=GREC_Media_Ingest::start(req(array('files'=>array(
     array('name'=>'clip1.mp4','size'=>$sample),
-    array('name'=>'clip2.mp4','size'=>$sample)))));
+    array('name'=>'clip2.mp4','size'=>$sample)),'owner_attests_goa_india'=>true,'owner_attests_rights'=>true)));
 $id=$r->data['id'];
 $video='0000ftypisom'.str_repeat('A',$sample-12);
 $p0=substr($video,0,4194304);
