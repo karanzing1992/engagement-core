@@ -1,0 +1,52 @@
+name: Private Reel Worker - authenticated 30s editing
+on:
+  workflow_dispatch:
+  schedule:
+    # Low idle overhead: 2 brief queue checks/hour, FFmpeg only if jobs exist.
+    - cron: '17,47 * * * *'
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: moksha-private-reel-worker
+  cancel-in-progress: false
+jobs:
+  render-private-drafts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: null
+    env:
+      MRS_SITE_URL: https://mokshagoa.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Authenticated short-lived GitHub workload identity and empty-queue check
+        id: inspect
+        shell: bash
+        run: |
+          set -euo pipefail
+          count="$(python services/reel-engine/render_ready_sessions.py --check | tail -1)"
+          if ! [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo 'Invalid signed WordPress ready-queue response.'
+            exit 1
+          fi
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Ready private upload sessions: $count"
+      - name: Install CPU FFmpeg only when footage needs editing
+        if: steps.inspect.outputs.count != '0'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -1
+      - name: Render a single review-only 30s Reel and stream it back privately
+        if: steps.inspect.outputs.count != '0'
+        shell: bash
+        working-directory: services/reel-engine
+        run: |
+          set -euo pipefail
+          python render_ready_sessions.py
+      - name: Check idle skip
+        if: steps.inspect.outputs.count == '0'
+        run: echo "No footage queued. Zero media downloads, no FFmpeg, no public assets."
