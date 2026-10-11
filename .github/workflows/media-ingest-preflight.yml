@@ -25,6 +25,10 @@ jobs:
           node --check assets/media-ingest.js
       - name: Verify 231MB multipart authorization without allocating 231MB
         run: php tests/media-studio-ingest-smoke.php
+      - name: Install CPU-only FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
       - name: Execute FFmpeg real two-source and looping export tests
         run: |
           ffmpeg -version | head -1
