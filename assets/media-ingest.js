@@ -78,6 +78,27 @@
     localStorage.removeItem(storeKey);
     announce("All original clips uploaded privately. Session "+session+". Cloud worker will produce a 30-second review-only MP4. Nothing will be posted.");
   }
+  document.addEventListener("click",async(event)=>{
+    const button=event.target.closest("[data-private-preview]");
+    if(!button)return;
+    const id=button.dataset.privatePreview;
+    if(!/^[a-f0-9]{32}$/.test(id))return;
+    button.disabled=true;
+    announce("Retrieving authenticated private preview…");
+    try {
+      const res=await fetch(ui.api+id+"/preview",{headers:{"X-WP-Nonce":ui.nonce},credentials:"same-origin",cache:"no-store"});
+      if(!res.ok)throw new Error("Private preview unavailable (HTTP "+res.status+")");
+      const blob=await res.blob();
+      if(blob.size<1024||blob.type.indexOf("video/")!==0)throw new Error("Invalid private MP4.");
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement("a");
+      link.href=url;link.download="moksha-30s-private-preview.mp4";
+      document.body.appendChild(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      announce("Private MP4 download started. Nothing was published.");
+    }catch(e){announce("Preview download failed: "+e.message);}
+    finally{button.disabled=false;}
+  });
   start.addEventListener("click",async()=>{
     start.disabled=true;choose.disabled=true;
     announce("Preparing private upload…");
