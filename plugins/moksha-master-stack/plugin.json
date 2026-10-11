@@ -1,0 +1,21 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "moksha-master-stack",
+  "version": "1.0.0",
+  "description": "Share verified technology and capability changes across participating ChatGPT projects using an independent GitHub-to-Google-Docs worker and a private Supabase inbox. No credentials bundled.",
+  "repository": "https://github.com/karanzing1992/engagement-core",
+  "keywords": [
+    "projects",
+    "skills",
+    "technology-stack",
+    "change-reporting",
+    "github",
+    "supabase",
+    "google-docs"
+  ],
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/setup-master-stack/SKILL.md"
+    }
+  }
+}
