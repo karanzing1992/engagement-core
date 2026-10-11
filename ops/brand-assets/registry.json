@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0.0",
+  "registry_status": "approved_master_pinned",
+  "registry_date": "2026-10-11",
+  "source_of_truth": "Google Drive master asset library; no automatic approval of new or modified files",
+  "brands": {
+    "moksha": {
+      "brand_name": "Moksha Wellness",
+      "brand_slug": "moksha",
+      "master": {
+        "role": "official_full_logo",
+        "variant": "original_gold_on_black",
+        "provider": "google_drive",
+        "drive_file_id": "1XwmlYRfjfkcnbEOlJLNJc8bGHm9uxkyv",
+        "drive_file_name": "Moksha_Logo_Source_01.jpeg",
+        "drive_parent_id": "1vfbteCPWk_-JscgYk2WhW9rT9yU9yEYt",
+        "drive_view_url": "https://drive.google.com/file/d/1XwmlYRfjfkcnbEOlJLNJc8bGHm9uxkyv/view",
+        "drive_last_verified_modified_time": "2026-09-14T06:46:05.135Z",
+        "approval_policy_file_id": "1px59pg6Asp3AntBRvgUGO1zazcl39LX8",
+        "content_sha256": "76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c",
+        "bytes": 81501,
+        "mime_type": "image/jpeg",
+        "width_px": 737,
+        "height_px": 681,
+        "git_cached_copy": "assets/brand/moksha-logo-source.jpg",
+        "derivatives_may_replace_original": false,
+        "approved": true
+      },
+      "approved_variants": ["original_gold_on_black"],
+      "default_variant": "original_gold_on_black",
+      "selection_rules": {
+        "never_use_ai_generated_substitute": true,
+        "never_pick_by_filename_fuzziness": true,
+        "reject_unpinned_drive_id": true,
+        "require_exact_sha256": true,
+        "require_attachment_sha256_on_every_resolve": true,
+        "preserve_original_aspect_ratio": true,
+        "preserve_black_background": true,
+        "no_transparent_cutout_without_approval": true,
+        "no_recolor_without_approval": true,
+        "no_opening_logo_card_for_shorts_or_reels": true,
+        "no_social_publish_or_schedule": true,
+        "on_unavailable": "BLOCK_AND_REQUEST_REVIEW",
+        "on_file_changed": "BLOCK_AND_REQUEST_REAPPROVAL",
+        "placement_defaults": {
+          "reel": "closing_logo_after_hook",
+          "short": "closing_logo_after_hook",
+          "story": "corner_card_ui_safe_zones",
+          "feed": "corner_card",
+          "google-business": "corner_card",
+          "whatsapp": "corner_card",
+          "pinterest": "corner_card",
+          "website": "full_original",
+          "print": "full_original"
+        }
+      },
+      "variant_requests_not_approved": ["white_logo", "transparent_logo", "isolated_emblem", "gold_foil_vector", "redesigned_mark"]
+    }
+  }
+}

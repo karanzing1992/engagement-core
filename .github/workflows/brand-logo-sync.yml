@@ -1,0 +1,126 @@
+name: Sync official Drive logo to WordPress Brand Registry
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/brand-logo-sync.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-logo-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DFG_DEPLOY_URL: ${{ secrets.MOKSHA_DFG_ENGAGEMENT_CORE_URL }}
+      BRAND: moksha
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact Google Drive master mirror and registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l engagement-core.php
+          php -l src/class-grec-brand-assets.php
+          php tests/brand-assets-smoke.php
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          registry=json.loads(pathlib.Path("ops/brand-assets/registry.json").read_text())
+          brand=registry['brands']['moksha']
+          src=brand['master']
+          assert src['approved'] is True
+          assert src['drive_file_id']=='1XwmlYRfjfkcnbEOlJLNJc8bGHm9uxkyv'
+          assert src['variant']=='original_gold_on_black'
+          p=pathlib.Path(src['git_cached_copy'])
+          data=p.read_bytes()
+          assert len(data)==81501
+          assert hashlib.sha256(data).hexdigest()==src['content_sha256']
+          assert registry['brands']['moksha']['selection_rules']['never_use_ai_generated_substitute']
+          print('Verified exact approved Drive master mirror:',len(data),'bytes')
+          PY
+          grep -q 'Version: 0.9.10' engagement-core.php
+      - name: Verify existing first-party deploy secret is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DFG_DEPLOY_URL" || { echo 'Existing MOKSHA_DFG_ENGAGEMENT_CORE_URL secret not found.'; exit 1; }
+      - name: Deploy versioned first-party WP Control code
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --connect-timeout 12 --max-time 100 "$DFG_DEPLOY_URL" > /tmp/dfg-brand-result.json
+          jq -e '.success == true' /tmp/dfg-brand-result.json >/dev/null
+          echo 'Engagement Core deployed using existing in-house Deployer for Git hook.'
+      - name: Confirm WordPress health before asset operation
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            if curl -fsS --max-time 12 "https://mokshagoa.com/wp-json/engagement-core/v1/health?brand_probe=$i" > /tmp/brand-health.json \
+              && jq -e '.ok == true and .version == "0.9.10"' /tmp/brand-health.json >/dev/null; then
+              echo 'Engagement Core v0.9.10 is healthy.'
+              exit 0
+            fi
+            sleep 4
+          done
+          echo 'Brand asset deployment did not pass WordPress health check.'; exit 1
+      - name: Derive separate limited brand-resolver credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRAND_TOKEN="$(python3 - <<'PY'
+          import hmac,hashlib,os,urllib.parse
+          u=urllib.parse.urlsplit(os.environ['DFG_DEPLOY_URL'])
+          assert u.scheme=='https' and u.hostname=='mokshagoa.com'
+          secret=urllib.parse.parse_qs(u.query).get('secret',[''])[0]
+          if len(secret)<20: raise SystemExit('Invalid stored webhook secret')
+          print(hmac.new(secret.encode(),b'mrs-brand-assets-v1',hashlib.sha256).hexdigest())
+          PY
+          )"
+          echo "::add-mask::$BRAND_TOKEN"
+          echo "MRS_BRAND_TOKEN=$BRAND_TOKEN" >> "$GITHUB_ENV"
+      - name: Import the exact canonical Drive logo and link Media Studio drafts
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://mokshagoa.com/wp-json/wp-control/v1/brand-assets/moksha/sync'
+          curl -fsS --connect-timeout 12 --max-time 55 -X POST -H "X-WP-Control-Brand-Token: $MRS_BRAND_TOKEN" -H "Content-Type: application/json" --data '{}' "$url" > /tmp/brand-sync.json
+          jq -e '.ok == true and .asset_verified == true and .attachment_id > 0 and .sha256 == "76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c" and .publishing_enabled == false' /tmp/brand-sync.json >/dev/null
+          jq '{ok,attachment_id,imported,sha256,drive_file_id,drafts,publishing_enabled}' /tmp/brand-sync.json
+      - name: Resolve approved asset per format and verify served image bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for placement in reel short story feed google-business whatsapp pinterest website; do
+            curl -fsS --connect-timeout 12 --max-time 20 -H "X-WP-Control-Brand-Token: $MRS_BRAND_TOKEN" \
+              "https://mokshagoa.com/wp-json/wp-control/v1/brand-assets/moksha/resolve?placement=$placement" > "/tmp/logo-$placement.json"
+            jq -e --arg placement "$placement" '.ready == true and .brand == "moksha" and .role == "official_full_logo" and .placement == $placement and .drive_file_id == "1XwmlYRfjfkcnbEOlJLNJc8bGHm9uxkyv" and .approved_sha256 == "76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c" and .allow_ai_recreation == false' "/tmp/logo-$placement.json" >/dev/null
+            echo "Verified brand asset resolution for $placement"
+          done
+          URL="$(jq -r '.asset_url' /tmp/logo-reel.json)"
+          python3 - "$URL" <<'PY'
+          import sys,urllib.parse
+          u=urllib.parse.urlsplit(sys.argv[1])
+          assert u.scheme == 'https'
+          assert u.hostname == 'mokshagoa.com'
+          assert u.path.startswith('/wp-content/uploads/')
+          assert not u.username and not u.password
+          assert not u.query and not u.fragment
+          PY
+          curl -fsS --connect-timeout 12 --max-time 35 --max-redirs 0 --proto '=https' "$URL" -o /tmp/official-wp-logo.jpg
+          ACTUAL_SHA="$(sha256sum /tmp/official-wp-logo.jpg | awk '{print $1}')"
+          test "$ACTUAL_SHA" = "76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c"
+          test "$(wc -c < /tmp/official-wp-logo.jpg)" -eq 81501
+          echo 'Verified rendered-worker download identical to Drive master.'
+      - name: Verify private REST protection and no publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          for endpoint in 'brand-assets/moksha/status' 'brand-assets/moksha/resolve?placement=reel'; do
+            code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://mokshagoa.com/wp-json/wp-control/v1/$endpoint")"
+            echo "Unauthenticated brand endpoint status: HTTP $code"
+            case "$code" in 401|403) ;; *) echo 'Unauthenticated access unexpectedly granted'; exit 1;; esac
+          done
+          code="$(curl -sS -X POST -H 'Content-Type: application/json' --data '{}' --max-time 15 -o /dev/null -w '%{http_code}' 'https://mokshagoa.com/wp-json/wp-control/v1/brand-assets/moksha/sync')"
+          case "$code" in 401|403) ;; *) echo 'Unauthenticated logo sync unexpectedly granted'; exit 1;; esac
+          echo 'Access controls passed; no content published or scheduled.'
