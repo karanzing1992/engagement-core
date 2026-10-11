@@ -21,7 +21,7 @@ jobs:
           php -l engagement-core.php
           php -l src/class-grec-media-bootstrap.php
           grep -q "media-studio-bootstrap-v010" src/class-grec-media-bootstrap.php
-          grep -q "Version: 0.9.7" engagement-core.php
+          grep -q "Version: 0.9.8" engagement-core.php
       - name: Require existing in-house deploy credential
         shell: bash
         run: |
@@ -43,8 +43,8 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 8); do
             if curl --silent --fail --max-time 12 "https://mokshagoa.com/wp-json/engagement-core/v1/health?media_check=$i" > /tmp/grec-health.json &&
-               jq -e '.ok == true and .version == "0.9.7"' /tmp/grec-health.json > /dev/null; then
-              echo 'Engagement Core v0.9.7 health verified.'
+               jq -e '.ok == true and .version == "0.9.8"' /tmp/grec-health.json > /dev/null; then
+              echo 'Engagement Core v0.9.8 health verified.'
               exit 0
             fi
             sleep 5
