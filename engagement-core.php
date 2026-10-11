@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Engagement Core
  * Description: Brand-agnostic social engagement, publishing and WordPress AI control core.
- * Version: 0.9.8
+ * Version: 0.9.9
  * Author: KaranBiz
  * Requires at least: 6.9
  * Requires PHP: 7.4
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'GREC_VERSION', '0.9.8' );
+define( 'GREC_VERSION', '0.9.9' );
 define( 'GREC_FILE', __FILE__ );
 define( 'GREC_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -31,6 +31,7 @@ require_once GREC_DIR . 'src/class-grec-snap-public-api.php';
 require_once GREC_DIR . 'src/class-grec-publisher-rest.php';
 require_once GREC_DIR . 'src/class-grec-wp-control.php';
 require_once GREC_DIR . 'src/class-grec-media-bootstrap.php';
+require_once GREC_DIR . 'src/class-grec-media-queue.php';
 
 final class GREC_Plugin {
 	public static function init(): void {
@@ -41,6 +42,7 @@ final class GREC_Plugin {
 		GREC_Snap_Public_API::init();
 		GREC_WordPress_Control::init();
 		GREC_Media_Studio_Bootstrap::init();
+		GREC_Media_Queue::init();
 	}
 
 	public static function activate(): void {
