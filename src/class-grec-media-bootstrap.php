@@ -138,6 +138,21 @@ final class GREC_Media_Studio_Bootstrap {
             if ( ! is_file( $destination . '/' . self::ENTRYPOINT ) ) {
                 return new WP_Error( 'mrs_bootstrap_install_incomplete', 'Plugin entrypoint not found after installation.' );
             }
+            // WordPress caches plugin headers. When files are copied during a REST
+            // request, validate_plugin() may consult a list cached before install.
+            // Invalidate the cache and confirm the correct plugin is discoverable.
+            wp_clean_plugins_cache( true );
+            $discovered = get_plugins( '/' . self::PACKAGE );
+            if ( ! isset( $discovered[ self::ENTRYPOINT ] ) ) {
+                return new WP_Error(
+                    'mrs_bootstrap_discovery_failed',
+                    'Media Studio files were copied, but WordPress did not discover the plugin header.'
+                );
+            }
+            if ( (string) ( $discovered[ self::ENTRYPOINT ]['Version'] ?? '' ) !== self::EXPECTED_VERSION ) {
+                return new WP_Error( 'mrs_bootstrap_discovery_version', 'Media Studio discovered an unexpected version.' );
+            }
+
             // An activation failure is reversed by removing the freshly copied files.
             $activation = activate_plugin( $plugin_file, '', false, true );
             if ( is_wp_error( $activation ) ) {
@@ -163,6 +178,9 @@ final class GREC_Media_Studio_Bootstrap {
             global $wp_filesystem;
             if ( $wp_filesystem && is_dir( $scratch ) ) {
                 $wp_filesystem->delete( $scratch, true );
+            }
+            if ( $copied ) {
+                wp_clean_plugins_cache( true );
             }
         }
     }
