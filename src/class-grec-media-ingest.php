@@ -64,7 +64,7 @@ final class GREC_Media_Ingest {
         if ( ! $webroot ) { return self::fail( 'mrs_vault_webroot', 'WordPress root not accessible', 503 ); }
         // Use the actual HTTP document root when WordPress runs in a subfolder.
         // Never mistake ABSPATH's parent for private storage if it is public_html.
-        $docroot = isset( $_SERVER['DOCUMENT_ROOT'] ) ?
+        $docroot = ! empty( $_SERVER['DOCUMENT_ROOT'] ) ?
             realpath( (string) $_SERVER['DOCUMENT_ROOT'] ) : false;
         $base = $docroot ? $docroot : $webroot;
         $vault = dirname( $base ) . '/.moksha-private-media';
