@@ -91,6 +91,10 @@ function runMasterStackSync() {
     const markers = new Set((current.match(/\[MASTER-GITHUB-CHANGE:[^\]]+\]/g) || []));
     let published = 0, scanned = 0;
     const issues = [];
+    // Store cursor updates until the document has been saved AND read back.
+    // Otherwise a failed document write could permanently skip source commits.
+    const cursorUpdates = {};
+    const appendedMarkers = [];
     for (const repo of REPOS) {
       if (published >= MAX_DOCUMENT_EVENTS_PER_CYCLE) break;
       const cursorKey = 'master_sha_' + repo.replace(/[^a-z0-9]/gi, '_');
@@ -99,7 +103,7 @@ function runMasterStackSync() {
         const commits = githubRead('/repos/' + OWNER + '/' + repo + '/commits?per_page=' + PER_REPO_LIMIT);
         if (!Array.isArray(commits) || commits.length === 0) continue;
         if (!previous) {
-          props.setProperty(cursorKey, commits[0].sha);
+          cursorUpdates[cursorKey] = commits[0].sha;
           console.log(repo + ' initialized cursor at ' + commits[0].sha.slice(0, 12));
           continue;
         }
@@ -115,15 +119,30 @@ function runMasterStackSync() {
           const detail = githubRead('/repos/' + OWNER + '/' + repo + '/commits/' + commit.sha);
           scanned++;
           if (!isMaterial(commit, detail)) continue;
-          if (writeEvent(doc, markers, repo, commit, detail)) published++;
+          if (writeEvent(doc, markers, repo, commit, detail)) {
+            published++;
+            appendedMarkers.push('[MASTER-GITHUB-CHANGE:' + repo + ':' + commit.sha + ']');
+          }
         }
         // Persist only if all commits were inspected; prevents silent data loss.
-        if (finished) props.setProperty(cursorKey, commits[0].sha);
+        if (finished) cursorUpdates[cursorKey] = commits[0].sha;
       } catch (error) {
         issues.push(repo + ': ' + shortText(error.message, 160));
       }
     }
-    DocumentApp.flush();
+    // DocumentApp.flush() does not exist. Explicitly commit pending writes
+    // before advancing any GitHub SHA checkpoint or declaring success.
+    doc.saveAndClose();
+    if (appendedMarkers.length) {
+      const savedText = DocumentApp.openById(MASTER_DOC_ID).getBody().getText();
+      const missing = appendedMarkers.filter(marker => !savedText.includes(marker));
+      if (missing.length) {
+        throw new Error('Master document save verification failed; cursors unchanged');
+      }
+    }
+    if (Object.keys(cursorUpdates).length) {
+      props.setProperties(cursorUpdates, false);
+    }
     props.setProperty('master_last_success', new Date().toISOString());
     props.setProperty('master_last_count', String(published));
     console.log(JSON.stringify({scanned, published, issues}));
