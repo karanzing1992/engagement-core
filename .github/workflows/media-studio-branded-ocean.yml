@@ -1,0 +1,78 @@
+name: Attach approved-logo ocean draft to WordPress Media Studio
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/media-studio-branded-ocean.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  attach-private-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      DFG_DEPLOY_URL: ${{ secrets.MOKSHA_DFG_ENGAGEMENT_CORE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm official branding and signed private job metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DFG_DEPLOY_URL"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          jobs=json.loads(Path('ops/media-studio/initial-private-jobs.json').read_text())['jobs']
+          ocean=[x for x in jobs if x['job_key']=='nature-ocean-sound-pilot-20261011']
+          assert len(ocean)==1 and ocean[0]['duration_seconds']==15
+          assert len(ocean[0]['ledger'])>=2
+          print('Found intended private ocean draft and license ledger.')
+          PY
+      - name: Verify WordPress control bridge health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --retry 3 --retry-delay 2 --retry-connrefused -fsS --connect-timeout 15 --max-time 35 \
+            https://mokshagoa.com/wp-json/engagement-core/v1/health -o /tmp/site-health.json
+          jq -e '.ok == true and .version == "0.9.10"' /tmp/site-health.json >/dev/null
+      - name: Derive scoped first-party queue credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(python3 - <<'PY'
+          import urllib.parse,os,hmac,hashlib
+          u=urllib.parse.urlsplit(os.environ['DFG_DEPLOY_URL'])
+          if u.scheme!='https' or u.hostname!='mokshagoa.com': raise SystemExit('Unexpected domain')
+          key=urllib.parse.parse_qs(u.query).get('secret',[''])[0]
+          if len(key)<20: raise SystemExit('Missing deployment secret')
+          print(hmac.new(key.encode(),b'mrs-media-queue-v1',hashlib.sha256).hexdigest())
+          PY
+          )"
+          echo "::add-mask::$TOKEN"
+          echo "MRS_QUEUE_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+      - name: Attach actual branded Reel artifact to existing private draft #13098
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREVIEW='https://github.com/karanzing1992/moksha_wordpress/actions/runs/38113395395/artifacts/11692189153'
+          jq -ce --arg url "$PREVIEW" \
+            '.jobs[] | select(.job_key=="nature-ocean-sound-pilot-20261011") | {job_key,ledger,private_preview_url:$url}' \
+            ops/media-studio/initial-private-jobs.json > /tmp/branded-preview-payload.json
+          curl -fsS --retry 3 --retry-delay 2 --retry-connrefused \
+            --connect-timeout 15 --max-time 35 \
+            -X POST -H "Content-Type: application/json" -H "X-WP-Control-Media-Token: $MRS_QUEUE_TOKEN" \
+            --data-binary @/tmp/branded-preview-payload.json \
+            https://mokshagoa.com/wp-json/wp-control/v1/media-studio/queue/13098/preview \
+            -o /tmp/preview-attach-result.json
+          jq -e '.ok == true and .id == 13098 and .status == "preview_ready" and .worker_state == "rendered" and .publish_enabled == false and .schedule_enabled == false and .private_preview_url == "https://github.com/karanzing1992/moksha_wordpress/actions/runs/38113395395/artifacts/11692189153"' \
+            /tmp/preview-attach-result.json >/dev/null
+          echo 'Private draft #13098 now references the officially branded nature Reel.'
+      - name: Verify unauthenticated access remains denied
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS --connect-timeout 15 --max-time 20 -o /dev/null -w '%{http_code}' \
+            https://mokshagoa.com/wp-json/mrs/v1/jobs)"
+          case "$code" in 401|403) echo "Anonymous access denied: HTTP $code";; *) echo "Access failure: $code";exit 1;; esac
+          echo 'No public post, approval, or scheduled task created.'
