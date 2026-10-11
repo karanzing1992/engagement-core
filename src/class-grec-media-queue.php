@@ -16,6 +16,9 @@ final class GREC_Media_Queue {
 
     public static function init(): void {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ), 30 );
+        add_action( 'init', array( __CLASS__, 'quarantine_legacy_previews' ), 99 );
+        add_action( 'admin_post_mrs_transition', array( __CLASS__, 'guard_admin_approval' ), 1 );
+        add_filter( 'rest_pre_dispatch', array( __CLASS__, 'guard_rest_approval' ), 1, 3 );
     }
 
     public static function register_routes(): void {
@@ -47,6 +50,98 @@ final class GREC_Media_Queue {
 
     private static function error( string $code, string $message, int $status = 400 ): WP_Error {
         return new WP_Error( $code, $message, array( 'status' => $status ) );
+    }
+
+    /** No foreign or unverifiable scenic clips in Goa/India editorial, even if caption says Goa. */
+    public static function geo_ledger_errors( array $ledger ): array {
+        $errors = array();
+        $video_count = 0;
+        foreach ( $ledger as $i => $asset ) {
+            if ( ! is_array( $asset ) ) { $errors[] = 'Invalid asset metadata.'; continue; }
+            $kind = strtolower( (string) ( $asset['media_type'] ?? '' ) );
+            if ( ! in_array( $kind, array( 'video', 'visual' ), true ) ) { continue; }
+            ++$video_count;
+            $origin = strtolower( (string) ( $asset['origin'] ?? '' ) );
+            if ( ! in_array( $origin, array( 'owned', 'original', 'licensed_stock', 'generated' ), true ) ) {
+                $errors[] = 'Visual ' . ( $i + 1 ) . ': unverified origin.'; continue;
+            }
+            if ( $origin === 'generated' ) {
+                if ( ! in_array( strtolower( (string) ( $asset['subject_region'] ?? '' ) ), array( 'goa', 'india' ), true ) ||
+                    empty( $asset['is_illustrative'] ) || ! array_key_exists( 'claims_real_footage', $asset ) ||
+                    $asset['claims_real_footage'] !== false ) {
+                    $errors[] = 'Visual ' . ( $i + 1 ) . ': generated footage must depict Goa/India and be clearly illustrative.';
+                }
+            } elseif ( ! in_array( strtolower( (string) ( $asset['capture_country'] ?? '' ) ), array( 'india', 'in' ), true ) ) {
+                $errors[] = 'Visual ' . ( $i + 1 ) . ': footage must have verified India/Goa capture provenance.';
+            }
+            $who = trim( (string) ( $asset['verified_by'] ?? '' ) );
+            if ( ( $asset['verification_status'] ?? '' ) !== 'human_verified' || strlen( $who ) < 3 ) {
+                $errors[] = 'Visual ' . ( $i + 1 ) . ': human verification required.';
+            }
+            $proof = (string) ( $asset['location_evidence_url'] ?? '' );
+            $parts = wp_parse_url( $proof );
+            if ( ! is_array( $parts ) || ( $parts['scheme'] ?? '' ) !== 'https' ||
+                empty( $parts['host'] ) || isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
+                $errors[] = 'Visual ' . ( $i + 1 ) . ': valid HTTPS location evidence required.';
+            }
+        }
+        if ( $video_count === 0 ) {
+            $errors[] = 'At least one Goa/India-verified visual source must be listed before approval.';
+        }
+        return $errors;
+    }
+
+    /**
+     * Reject previously created foreign-source previews without destroying evidence.
+     * Operates once on private Reel drafts and records an audit entry for review.
+     */
+    public static function quarantine_legacy_previews(): void {
+        if ( get_option( 'mrs_india_geo_audit_20261011', false ) ) { return; }
+        if ( ! post_type_exists( self::MEDIA_POST_TYPE ) ) { return; }
+        $jobs = get_posts( array(
+            'post_type' => self::MEDIA_POST_TYPE, 'post_status' => 'private',
+            'numberposts' => 200, 'fields' => 'ids',
+        ) );
+        foreach ( $jobs as $id ) {
+            $id = (int) $id;
+            $state = (string) get_post_meta( $id, self::PREFIX . 'state', true );
+            $brand = (string) get_post_meta( $id, self::PREFIX . 'brand', true );
+            if ( ! in_array( $brand, array( 'moksha', 'andaz', 'andaz-vibe-stay' ), true ) ||
+                ! in_array( $state, array( 'approved', 'preview_ready' ), true ) ) { continue; }
+            $ledger = get_post_meta( $id, self::PREFIX . 'ledger', true );
+            if ( ! self::geo_ledger_errors( is_array( $ledger ) ? $ledger : array() ) ) { continue; }
+            update_post_meta( $id, self::PREFIX . 'state', 'needs_revision' );
+            update_post_meta( $id, self::PREFIX . 'worker_state', 'blocked_nonlocal_footage' );
+            update_post_meta( $id, self::PREFIX . 'geo_review_status', 'regional_replacement_required' );
+            $audit = get_post_meta( $id, self::PREFIX . 'audit', true );
+            $audit = is_array( $audit ) ? array_slice( $audit, -49 ) : array();
+            $audit[] = array( 'at' => gmdate( 'c' ), 'action' => 'regional_policy_quarantine_retain_preview_as_technical_only' );
+            update_post_meta( $id, self::PREFIX . 'audit', $audit );
+        }
+        update_option( 'mrs_india_geo_audit_20261011', 1, false );
+    }
+
+    public static function guard_admin_approval(): void {
+        if ( ! current_user_can( 'manage_options' ) ) { return; }
+        $to = sanitize_key( wp_unslash( $_POST['to'] ?? '' ) );
+        if ( ! in_array( $to, array( 'approved', 'preview_ready' ), true ) ) { return; }
+        $id = absint( wp_unslash( $_POST['job_id'] ?? 0 ) );
+        $ledger = get_post_meta( $id, self::PREFIX . 'ledger', true );
+        $issues = self::geo_ledger_errors( is_array( $ledger ) ? $ledger : array() );
+        if ( $issues ) { wp_die( esc_html( implode( ' ', $issues ) ), 'Regional video approval blocked', array( 'response' => 400 ) ); }
+    }
+
+    public static function guard_rest_approval( $result, $server, $request ) {
+        if ( ! is_object( $request ) || ! method_exists( $request, 'get_route' ) ||
+            ! method_exists( $request, 'get_method' ) || $request->get_method() !== 'POST' ) { return $result; }
+        $route = $request->get_route();
+        if ( ! preg_match( '#^/mrs/v1/jobs/([0-9]+)/transition$#D', $route, $matches ) ) { return $result; }
+        if ( ! current_user_can( 'manage_options' ) ) { return $result; }
+        $to = sanitize_key( (string) $request->get_param( 'to' ) );
+        if ( ! in_array( $to, array( 'approved', 'preview_ready' ), true ) ) { return $result; }
+        $ledger = get_post_meta( (int) $matches[1], self::PREFIX . 'ledger', true );
+        $issues = self::geo_ledger_errors( is_array( $ledger ) ? $ledger : array() );
+        return $issues ? self::error( 'mrs_geo_policy', implode( ' ', $issues ), 422 ) : $result;
     }
 
     private static function ready() {
@@ -171,6 +266,9 @@ final class GREC_Media_Queue {
         }
         $ledger_errors = MRS_Policy::validate_ledger( $ledger );
         if ( $ledger_errors ) { return self::error( 'mrs_queue_ledger', implode( ' ', $ledger_errors ) ); }
+        $geo_issues = self::geo_ledger_errors( $ledger );
+        if ( $geo_issues ) { return self::error( 'mrs_queue_geo_policy', implode( ' ', $geo_issues ), 422 ); }
+        update_post_meta( $id, self::PREFIX . 'geo_review_status', 'verified_india_visual_sources' );
         update_post_meta( $id, self::PREFIX . 'ledger', $ledger );
         update_post_meta( $id, self::PREFIX . 'private_preview_url', $url );
         update_post_meta( $id, self::PREFIX . 'worker_state', 'rendered' );
