@@ -152,7 +152,7 @@ def process_session(wp: WP, record: dict):
         final=root/"moksha-30-second-private-final.mp4"
         branding=overlay_verified_logo(result,final,brand="moksha",placement="reel",cache_dir=cache)
         output=probe_media(final)
-        if not output["has_audio"] or abs(output["duration"]-30)>0.28:
+        if not output["has_audio"] or abs(output["duration"]-cfg["target_seconds"])>0.28:
             raise RuntimeError("Final has incorrect duration/audio after official logo")
         if branding.get("logo",{}).get("sha256")!=SHA256:
             raise RuntimeError("Official logo provenance failed validation")
