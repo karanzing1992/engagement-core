@@ -1,10 +1,13 @@
 # Moksha Master Stack Worker — External Google scheduler
 
-## Status
-- **Google Apps Script worker source:** [Code.gs](./Code.gs), ready for the document owner's Google authorization.
-- **Deployment:** NOT YET installed in Google Apps Script. Merely committing this source does not create a trigger or grant document access.
-- **Alternative currently active:** the existing ChatGPT `Master Stack Sync Worker` task was repurposed to run hourly using connected GitHub/Supabase/Drive apps. This consumes one *existing* ChatGPT task slot but does not require a new one.
-- **Supabase Cron:** independently monitors worker heartbeat, inbox backlog and nine repository cursors. It does not directly publish Google Docs content.
+## Status — 11 October 2026
+- **Independent Apps Script has been installed and manually executed in the document owner's Google account.** A live GitHub → Google Docs synchronization was confirmed by readback from the master registry for three different source repositories: `gpt-pine-engineer`, `mokshasitemap`, and `synergistica-website`. Each canary was published once; no production code was deployed.
+- **Apps Script trigger:** `installMasterSyncTrigger` was previously run by the owner, but an **unattended time-triggered execution has not yet been independently verified** through the Google Apps Script Executions log. Manual sync is verified, not an hourly SLA.
+- **GitHub instructions:** all nine allowlisted repositories now include the shared, tested two-route protocol and know to label real changes `STACK CHANGE:`.
+- **Google Apps Script source:** [Code.gs](./Code.gs). The installed code should match this current source; GitHub commits do not update existing Apps Script projects automatically.
+- **Separate Supabase inbox:** external non-GitHub changes are submitted via the connected Supabase app, then handled by an existing hourly connected Master Inbox Sync task. Apps Script v1 does not access private Supabase tables.
+- **Supabase Cron:** separate internal health-monitoring tasks, not a direct Google Docs publisher.
+- **ChatGPT Project boundary:** repository files do not automatically become persistent Instructions in individual ChatGPT Projects. Follow the [reusable instruction](../../../docs/MASTER_STACK_UPDATE_PROTOCOL.md) and add it to each Project explicitly when required.
 
 ## One-time install in the Google account that can edit the registry
 
@@ -28,7 +31,7 @@
 ## Relationship to Supabase inbox
 The external Apps Script v1 is a **GitHub-commit-to-Google-Doc publisher**. It is not currently wired to read `public.master_stack_change_events` directly. The connected ChatGPT hourly task can separately verify and publish pending Supabase inbox events. A future dedicated restricted-access API or Google OAuth service-account integration may unify both. Avoid putting a Supabase service-role key into Google Script Properties: this Supabase project also hosts unrelated application data.
 
-When the Apps Script publishes successfully, disable the GitHub-discovery portion of the existing ChatGPT hourly task to prevent overlapping documentation. Keep its Supabase inbox-verification path if wanted; it consumes one existing task slot until that bridge is replaced.
+The connected hourly task has already been adjusted to **Supabase-inbox-only** publication (plus optional security advisories). This prevents overlapping GitHub discovery. Do not reenable its GitHub commit scanning while the independent Apps Script collector is active.
 
 ## Operational caveats
 - Google Apps Script hourly triggers run within Google's scheduling window, not guaranteed at exactly the top of an hour.
