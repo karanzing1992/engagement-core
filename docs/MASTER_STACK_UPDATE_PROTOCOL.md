@@ -24,7 +24,16 @@ The existing nine GitHub repositories are already trained through their `.github
 
 **Channel register and verification standard:** https://github.com/karanzing1992/engagement-core/blob/main/docs/ASHWAKAAL_SUPPORT_CHANNELS.md
 
+**Current Ashwakaal verification state:** `NO_VERIFIED_CHANNELS` (0 ownership-backed channel entries; not a claim no accounts exist). Until official channel URL and operator evidence are confirmed, no live Ashwakaal social/Telegram/WhatsApp/email/other integration can be classified as verified or active. The platform-only reporting route remains private Supabase Route B, not GitHub's nine-repo Apps Script collector.
+
+
 At registration, no official Ashwakaal channel URLs, handles, API integrations, live status, or dedicated monitored GitHub repository have been independently verified. Do not infer or reuse other ventures' channel credentials. Use **Route B**, the authorized Supabase inbox, for separately verified platform-only changes. Add a dedicated repository to **Route A** only after verifying the repository and explicitly onboarding it into the Apps Script allowlist/token scope. This workstream does not authorize messaging, unsolicited outreach, account creation or platform publication.
+
+## Automation & Systems — verified multi-repository mapping
+
+The Automation & Systems ChatGPT workstream does not have a single source repository. Its verified **component-to-code map** is `moksha_wordpress` (Mac Opera/browser/WordPress control), `android_gpt_bridge` (Android/Termux/Shizuku device control), and `engagement-core` (shared orchestration/channel/media workflows). All three default branches are already monitored in Route A. **Feature-branch-only changes are NOT detected by the Google Apps Script default-branch monitor**. Use a reviewed merge into the monitored branch, or a source-backed Route B event for separately verified non-default-branch/runtime-only developments. Do not infer GitHub code equals deployed Mac/Android/WordPress runtime.
+
+**Verified source map:** https://github.com/karanzing1992/engagement-core/blob/main/docs/AUTOMATION_SYSTEMS_REPOSITORY_MAP.md
 
 ## Two separate, complementary update routes
 
