@@ -1,0 +1,94 @@
+name: Seed first Media Studio drafts through in-house WP Control
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/media-studio-initial-jobs.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  seed-private-drafts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DFG_DEPLOY_URL: ${{ secrets.MOKSHA_DFG_ENGAGEMENT_CORE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate code and no-publishing queue contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l engagement-core.php
+          php -l src/class-grec-media-queue.php
+          php tests/media-studio-queue-smoke.php
+          jq -e '.auto_publish == false and .auto_schedule == false and (.jobs | length == 2)' ops/media-studio/initial-private-jobs.json
+          grep -q 'Version: 0.9.9' engagement-core.php
+      - name: Deploy queue endpoints using the existing protected Deployer for Git hook
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DFG_DEPLOY_URL" || { echo 'Existing deployment hook secret is not configured.'; exit 1; }
+          curl --silent --show-error --fail-with-body --connect-timeout 12 --max-time 100 "$DFG_DEPLOY_URL" > /tmp/dfg-media-response.json
+          jq -e '.success == true' /tmp/dfg-media-response.json > /dev/null
+          echo 'WordPress updated through in-house Git webhook.'
+      - name: Confirm live Engagement Core v0.9.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 8); do
+            if curl -fsS --max-time 10 "https://mokshagoa.com/wp-json/engagement-core/v1/health?media_queue_probe=$i" > /tmp/health.json &&
+               jq -e '.ok == true and .version == "0.9.9"' /tmp/health.json >/dev/null; then
+              echo 'Engagement Core v0.9.9 verified.'
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Live health/version validation failed.'; exit 1
+      - name: Authorize scoped draft-only queue operations
+        shell: bash
+        run: |
+          set -euo pipefail
+          AUTH="$(python3 - <<'PY'
+          import os, urllib.parse, hmac, hashlib
+          url=urllib.parse.urlsplit(os.environ['DFG_DEPLOY_URL'])
+          if url.scheme!='https' or url.hostname!='mokshagoa.com':
+              raise SystemExit('Unexpected deployment webhook host')
+          value=urllib.parse.parse_qs(url.query).get('secret',[''])[0]
+          if len(value)<20: raise SystemExit('Existing hook secret is absent/short')
+          print(hmac.new(value.encode(),b'mrs-media-queue-v1',hashlib.sha256).hexdigest())
+          PY
+          )"
+          echo "::add-mask::$AUTH"
+          echo "MRS_QUEUE_AUTH=$AUTH" >> "$GITHUB_ENV"
+      - name: Create two private WordPress drafts and attach only the verified 15s preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://mokshagoa.com/wp-json/wp-control/v1/media-studio/queue'
+          while IFS= read -r item; do
+            payload="$(echo "$item" | jq -c 'del(.verified_preview_url)')"
+            response="$(curl -fsS --connect-timeout 12 --max-time 45 -X POST -H "Content-Type: application/json" -H "X-WP-Control-Media-Token: $MRS_QUEUE_AUTH" --data "$payload" "$base")"
+            echo "$response" | jq -e '.ok == true and .publish_enabled == false and .schedule_enabled == false and (.status == "draft" or .status == "preview_ready")' > /dev/null
+            id="$(echo "$response" | jq -r '.id')"
+            key="$(echo "$item" | jq -r '.job_key')"
+            echo "Private WordPress draft created/confirmed: id=$id key=$key"
+            preview="$(echo "$item" | jq -r '.verified_preview_url // ""')"
+            if [ -n "$preview" ]; then
+              callback="$(echo "$item" | jq -c '{job_key, ledger, private_preview_url:.verified_preview_url}')"
+              result="$(curl -fsS --connect-timeout 12 --max-time 45 -X POST -H 'Content-Type: application/json' -H "X-WP-Control-Media-Token: $MRS_QUEUE_AUTH" --data "$callback" "$base/$id/preview")"
+              echo "$result" | jq -e '.ok == true and .status == "preview_ready" and .worker_state == "rendered" and .publish_enabled == false' > /dev/null
+              echo "Preview attached to private draft $id (awaiting human review)."
+            fi
+          done < <(jq -c '.jobs[]' ops/media-studio/initial-private-jobs.json)
+      - name: Confirm unauthenticated visitors cannot access Media Studio
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' https://mokshagoa.com/wp-json/mrs/v1/jobs)"
+          echo "Anonymous Media Studio drafts: HTTP $code"
+          case "$code" in 401|403) ;; *) echo "Draft access control failure"; exit 1;; esac
+          code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{}' https://mokshagoa.com/wp-json/wp-control/v1/media-studio/queue)"
+          echo "Anonymous WP Control media queue POST: HTTP $code"
+          case "$code" in 401|403) ;; *) echo "Queue access control failure"; exit 1;; esac
+          echo 'Media Studio is private and publication remains disabled.'
