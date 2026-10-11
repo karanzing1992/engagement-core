@@ -307,7 +307,7 @@ final class GREC_WordPress_Control {
 			'Dispatch a LiteSpeed cache purge for one published page URL or its post tag. Requires explicit confirm; does not purge all.',
 			array(
 				'type' => 'object',
-				'required' => array( 'post_id', 'confirm' ),
+				'required' => array( 'post_id' ),
 				'properties' => array(
 					'post_id' => array( 'type' => 'integer', 'minimum' => 1 ),
 					'mode' => array( 'type' => 'string', 'enum' => array( 'url', 'post' ), 'default' => 'url' ),
