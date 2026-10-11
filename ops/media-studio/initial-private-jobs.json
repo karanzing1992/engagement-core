@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-11",
+  "auto_publish": false,
+  "auto_schedule": false,
+  "jobs": [
+    {
+      "job_key": "nature-ocean-sound-pilot-20261011",
+      "brand": "moksha",
+      "title": "Ocean Soundscape — 15s private preview",
+      "topic": "Natural ocean sound, immersive headphone listening",
+      "script": "Put on headphones.\nLet the waves slow the moment.",
+      "caption": "Headphones on. Listen to the waves for a moment. Which natural sound helps you unwind?",
+      "notes": "Verified 15-second preview from our original private GitHub Actions render. Different visual and audio locations; do not misrepresent as one live recording. CC BY 3.0 attribution to Alexander Grebenkov required. No voiceover or promotional language.",
+      "duration_seconds": 15,
+      "ledger": [
+        {
+          "source_url": "https://commons.wikimedia.org/wiki/File:Ocean_waves_at_L%C3%A6kjavik_beach,_Iceland.webm",
+          "license_url": "https://creativecommons.org/licenses/by/3.0",
+          "license_name": "CC BY 3.0",
+          "creator": "Alexander Grebenkov",
+          "media_type": "video",
+          "note": "Attribution required; Iceland footage, not Goa"
+        },
+        {
+          "source_url": "https://commons.wikimedia.org/wiki/File:Ocean_Waves_on_a_Tropical_Beach.ogg",
+          "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "license_name": "CC0",
+          "creator": "Jarrod Stanley",
+          "media_type": "audio",
+          "note": "Separate natural ocean sound recording"
+        }
+      ],
+      "verified_preview_url": "https://github.com/karanzing1992/moksha_wordpress/actions/runs/38108426717/artifacts/11691350006"
+    },
+    {
+      "job_key": "nature-immersive-full-reel-20261011",
+      "brand": "moksha",
+      "title": "Four Natural Sounds — 85s private Reel",
+      "topic": "Slow natural soundscape: rain, birds, ocean, stream; premium stress-relief content, headphones intro",
+      "script": "Put on headphones.\nGive yourself 85 seconds to listen.\nRain on leaves.\nBirdsong at dawn.\nWaves moving toward shore.\nWater flowing over stones.\nWhich sound would you choose?",
+      "caption": "Headphones on 🎧 Rain, birdsong, waves or flowing water — which natural sound helps you unwind? Save this soundscape for a quiet moment.",
+      "notes": "85-second immersive, 9:16 private draft; genuine openly licensed nature footage and authentic synchronized sounds only; no music, narration, prices or promotional overlay. Natural audio from original recordings, match scene and provenance; no generic synthetic fillers. Use only the verified official logo when available. Four remaining scenes are not yet licensed/approved; do not call this preview-ready.",
+      "duration_seconds": 85,
+      "ledger": [
+        {
+          "source_url": "https://commons.wikimedia.org/wiki/File:Ocean_waves_at_L%C3%A6kjavik_beach,_Iceland.webm",
+          "license_url": "https://creativecommons.org/licenses/by/3.0",
+          "license_name": "CC BY 3.0",
+          "creator": "Alexander Grebenkov",
+          "media_type": "video",
+          "note": "Attribution required; Iceland footage, not Goa"
+        },
+        {
+          "source_url": "https://commons.wikimedia.org/wiki/File:Ocean_Waves_on_a_Tropical_Beach.ogg",
+          "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "license_name": "CC0",
+          "creator": "Jarrod Stanley",
+          "media_type": "audio",
+          "note": "Separate natural ocean sound recording"
+        }
+      ]
+    }
+  ]
+}
