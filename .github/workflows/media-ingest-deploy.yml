@@ -1,0 +1,94 @@
+name: Deploy secure large-file Reel ingest through WP Control
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/media-ingest-deploy.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy-private-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DFG_DEPLOY_URL: ${{ secrets.MOKSHA_DFG_ENGAGEMENT_CORE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PHP and uploader sources before deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l engagement-core.php
+          php -l src/class-grec-media-ingest.php
+          node --check assets/media-ingest.js
+          php tests/media-studio-ingest-smoke.php
+          grep -q 'Version: 0.9.12' engagement-core.php
+      - name: Use our already connected first-party WordPress deployment webhook
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DFG_DEPLOY_URL"
+          curl --silent --show-error --fail-with-body --retry 3 --retry-connrefused \
+            --connect-timeout 12 --max-time 110 "$DFG_DEPLOY_URL" -o /tmp/grec-private-ingest-deploy.json
+          jq -e '.success == true' /tmp/grec-private-ingest-deploy.json >/dev/null
+      - name: Verify the actual live core version
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 12); do
+            if curl --silent --fail --max-time 15 \
+                 "https://mokshagoa.com/wp-json/engagement-core/v1/health?ingest_version=$i" -o /tmp/grec-health.json &&
+               jq -e '.ok == true and .version == "0.9.12"' /tmp/grec-health.json >/dev/null; then
+              echo 'Engagement Core v0.9.12 live and responding.'
+              exit 0
+            fi
+            sleep 4
+          done
+          echo 'Live version check failed.'
+          exit 1
+      - name: Derive scope-limited worker credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          token="$(python3 - <<'PY'
+          import urllib.parse,os,hmac,hashlib
+          url=urllib.parse.urlsplit(os.environ['DFG_DEPLOY_URL'])
+          if url.scheme!='https' or url.hostname!='mokshagoa.com':
+              raise SystemExit('Unexpected deploy webhook domain')
+          secret=urllib.parse.parse_qs(url.query).get('secret',[''])[0]
+          if len(secret)<20:raise SystemExit('Existing hook secret is missing')
+          print(hmac.new(secret.encode(),b'mrs-media-queue-v1',hashlib.sha256).hexdigest())
+          PY
+          )"
+          echo "::add-mask::$token"
+          echo "REEL_MEDIA_WORKER_TOKEN=$token" >> "$GITHUB_ENV"
+      - name: Confirm private vault is writable OUTSIDE public WordPress root
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --silent --show-error --fail-with-body --connect-timeout 12 --max-time 28 \
+            -H "X-WP-Control-Media-Token: $REEL_MEDIA_WORKER_TOKEN" \
+            https://mokshagoa.com/wp-json/wp-control/v1/media-studio/ingest/health \
+            -o /tmp/private-ingest-health.json
+          jq -e '.ok == true and .private_vault == true and .writable == true and .chunk_size_bytes == 4194304 and .max_file_bytes >= 230924113 and .publishing_enabled == false' \
+            /tmp/private-ingest-health.json >/dev/null
+          echo 'Private WordPress media vault ready for 231MB+ chunked uploads.'
+      - name: Verify job queue and anonymous access protections
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --silent --show-error --fail-with-body --connect-timeout 12 --max-time 25 \
+            -H "X-WP-Control-Media-Token: $REEL_MEDIA_WORKER_TOKEN" \
+            https://mokshagoa.com/wp-json/wp-control/v1/media-studio/ingest/ready \
+            -o /tmp/private-ingest-ready.json
+          jq -e '.ok == true and .publishing_enabled == false and (.sessions|type=="array")' /tmp/private-ingest-ready.json >/dev/null
+          code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' \
+            https://mokshagoa.com/wp-json/wp-control/v1/media-studio/ingest/ready)"
+          case "$code" in 401|403) ;; *) echo "Anonymous worker queue leaked: HTTP $code"; exit 1;; esac
+          code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -X POST \
+             -H 'Content-Type: application/json' \
+             --data '{"files":[{"name":"test.mp4","size":1000000}]}' \
+             https://mokshagoa.com/wp-json/wp-control/v1/media-studio/ingest/start)"
+          case "$code" in 401|403) ;; *) echo "Unauthorized ingest accepted: HTTP $code"; exit 1;; esac
+          echo 'Both anonymous source-upload and worker-download operations denied.'
