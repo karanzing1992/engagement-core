@@ -322,6 +322,33 @@ export function makeServer(ctx: UserContext) {
     'update_seo',
   )
 
+
+  readTool(
+    'cache_diagnose',
+    'Diagnose one public WordPress page cache',
+    'Compare the normal page with a one-time cache-busted fetch, reporting safe cache headers and whether expected text appears. No arbitrary hosts.',
+    {
+      post_id: z.number().int().positive(),
+      expected_text: z.string().max(160).optional(),
+    },
+    'cache_diagnose',
+  )
+
+  writeTool(
+    'cache_purge_target',
+    'Purge one public WordPress page',
+    'Purge a specific LiteSpeed page URL or page post tag. Requires explicit confirmation and returns dispatch status, not an unsupported success claim.',
+    {
+      post_id: z.number().int().positive(),
+      mode: z.enum(['url', 'post']).default('url'),
+      confirm: z.literal(true),
+      dry_run: z.boolean().optional(),
+    },
+    'cache_purge_target',
+    false,
+    false,
+  )
+
   writeTool(
     'flush_cache',
     'Flush WordPress cache',
