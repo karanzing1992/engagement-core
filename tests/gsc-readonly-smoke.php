@@ -82,7 +82,7 @@ $sitemaps=GREC_GSC::sitemaps();
 check(!is_wp_error($sitemaps)&&count($sitemaps['sitemaps'])===1, 'Fetches sitemap inventory');
 GREC_GSC::daily_job();
 $summary=GREC_GSC::status();
-check($summary['last_snapshot']['clicks']===2 && $summary['last_snapshot']['impressions']===50, 'Daily job persists aggregates, not tokens');
+check((float) $summary['last_snapshot']['clicks']===2.0 && (int) $summary['last_snapshot']['impressions']===50, 'Daily job persists aggregates, not tokens');
 GREC_GSC::schedule();
 check($GLOBALS['gsc_schedule']===true, 'WP Cron daily job scheduled when connected');
 echo "ALL GSC READONLY TESTS PASSED\n";
