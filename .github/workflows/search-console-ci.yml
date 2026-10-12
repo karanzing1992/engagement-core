@@ -1,0 +1,38 @@
+name: Direct Search Console adapter QA
+on:
+  pull_request:
+    paths:
+      - 'src/class-grec-search-console.php'
+      - 'engagement-core.php'
+      - 'tests/search-console-safety-smoke.php'
+      - '.github/workflows/search-console-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/class-grec-search-console.php'
+      - 'engagement-core.php'
+      - 'tests/search-console-safety-smoke.php'
+      - '.github/workflows/search-console-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  php-gsc:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.2']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint isolated adapter and plugin entry
+        run: |
+          php -l src/class-grec-search-console.php
+          php -l engagement-core.php
+          php -l tests/search-console-safety-smoke.php
+      - name: Verify host allowlist and disconnected state
+        run: php tests/search-console-safety-smoke.php
