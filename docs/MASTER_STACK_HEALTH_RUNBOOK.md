@@ -79,6 +79,20 @@ GitHub `plugins/moksha-master-stack/skills/` is the canonical **Skill source**, 
 Avoid a second GitHub poller, duplicate ChatGPT task or needless paid GitHub Actions. The existing hourly task can recover platform-only events; dispatcher warnings and this runbook provide independent detection. Alert on repeated failures/age, not every no-change polling cycle. This runbook registers controls but doesn't prove them operational until observed in live provider telemetry.
 
 
+## Verified independent Apps Script executions and triggers — 13 October 2026
+
+**Direct owner-authenticated UI inspection (not an inference from Google Doc timestamps).** The existing authorized Mac Opera native messaging worker `Karans-MacBook-Air.local-opera` was used to navigate, read, and restore a previously inactive Google Analytics browser tab. Read-only navigation to `https://script.google.com/u/1/home/executions` and `https://script.google.com/u/1/home/triggers` succeeded with the owner's Google session. Source of audit: Supabase local browser automation job IDs `1093` (execution readback), `1094` (trigger page), `1097` (expanded failed execution). These are **observation job IDs**, not additional Google Apps Script schedules.
+
+**Trigger:** `Moksha Master Stack Worker` → `runMasterStackSync`, deployment `Head`, event `time-based`. The Apps Script My Triggers page showed the trigger's last run **12 Oct 2026 23:01:37 IST**, with an error-rate metric **2.78%** at that snapshot. No second Master trigger was created.
+
+**Execution evidence:** My Executions showed repeated consecutive hourly **time-driven** runs on 12 Oct, with 23:01:37 IST `Completed`. During the audit the subsequent **13 Oct 2026 00:01:37 IST** run also showed `Completed` (duration **8.534 s**). This establishes the installed independently scheduled Route A worker actually runs unattended. The prior "unattended trigger execution UNVERIFIED" statement is superseded.
+
+**Isolated failure:** 12 Oct 2026 **12:01:37 IST** `runMasterStackSync`, time-driven, **Failed** after 26.659 s. Expanded execution Cloud logs (12:02:03 IST) returned `We're sorry, a server error occurred. Please wait a bit and try again.` Root underlying Google-side/request cause could not be isolated from this generic log; do **not** call it a confirmed Google outage or a fix. The **13:01** and subsequent runs completed. No replay, cursor reset, duplicate scheduler, credential relaxation or production deploy was attempted.
+
+**Route B warning (separate):** owner ChatGPT automation `Master Inbox Sync` is enabled, but its recorded `last_run_time` remained **11 Oct 2026 06:30:29 UTC** in task metadata even after re-enablement, despite all 16 Supabase events being published and read back. On 13 Oct just after midnight IST, the task was changed from `condition_watch` to **`exact_schedule`** while preserving its existing `RRULE:FREQ=HOURLY` schedule; **an unattended post-change execution remains to be observed**, and must not be declared verified from this configuration alone. No second task created.
+
+**Security:** Agent browser inspection used allowlisted Google hosts, a previously inactive tab and restored its previous URL; no passwords/tokens were exported and no Google Apps Script source/triggers were changed.
+
 ## Closure audit — 12 October 2026
 
 **Result: all previously held reporting events reconciled with source evidence.** The four remaining Google events were independently corroborated against the authenticated, completed Opera agent *historical* browser jobs already stored in existing Supabase `public.automation_jobs`. This did not require new Google sign-in, credentials, or customer data.
