@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - build/wp-control-staycore-stage
+      - feature/wpcontrol-staging-basic-auth
   workflow_dispatch:
 jobs:
   package:
@@ -25,11 +26,11 @@ jobs:
           cp product/wordpress-control/src/class-wp-control-bridge.php dist/wp-control/src/class-wp-control-bridge.php
           cp product/wordpress-control/src/class-wp-control-native.php dist/wp-control/src/class-wp-control-native.php
           grep -Fq 'Plugin Name: WP Control' dist/wp-control/wp-control.php
-          grep -Fq 'Version: 0.2.0' dist/wp-control/wp-control.php
-          (cd dist && zip -qr wp-control-0.2.0-staycore-stage.zip wp-control)
-          unzip -t dist/wp-control-0.2.0-staycore-stage.zip
+          grep -Fq 'Version: 0.2.1' dist/wp-control/wp-control.php
+          (cd dist && zip -qr wp-control-0.2.1-staycore-stage.zip wp-control)
+          unzip -t dist/wp-control-0.2.1-staycore-stage.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: wp-control-0.2.0-staycore-stage
-          path: dist/wp-control-0.2.0-staycore-stage.zip
+          name: wp-control-0.2.1-staycore-stage
+          path: dist/wp-control-0.2.1-staycore-stage.zip
           if-no-files-found: error
