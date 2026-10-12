@@ -109,3 +109,15 @@ Each event received an accurately qualified, owner-readable source URL and one u
 **Apps Script runtime evidence (indirect only):** Google Drive native Master Registry revisions at `2026-10-12T09:31:49Z`, `10:31:46Z`, `11:31:48Z`, `12:32:01Z` include successive additions of unique `[MASTER-GITHUB-CHANGE:...]` entries, consistent with automatic hourly GitHub→Docs publishing. Independent Apps Script execution-list and configured trigger inspection **were not granted through these tools**, so a literal owner-visible Apps Script execution record is still UNVERIFIED. These observed publications nevertheless establish repeated functioning Route A output, not merely source-code configuration. Avoid marking individual trigger execution logs as inspected.
 
 **Remaining operational distinction:** This is a clean reporting/backlog state; it is **not** a fresh live OAuth/GA4/GTM functional end-to-end test. When a future task requires current authentication, a live provider API/status read must be performed through an authorized connection. Retain snapshots with timestamps and read-only provenance. Never reuse guest or cross-brand credentials.
+
+
+## Live Google and GTM readbacks — 13 October 2026
+
+The owner's already-authorized Opera native browser agent was used for **fresh read-only** inspection after the historical Google setup events were reconciled. The agent temporarily inspected an inactive Google Analytics browser tab and restored its original URL. No OAuth secret, cookies, customer records, Google settings or production site content were modified.
+
+- **Native Search Console OAuth:** WordPress Engagement Core administrator page `https://mokshagoa.com/wp-admin/admin.php?page=grec-search-console` showed the property `https://mokshagoa.com/` and `Connection: Connected (read only)`. Last daily snapshot `2026-10-12T14:59:31+00:00`. Direct UI audit job `1099`.
+- **Search Console property/report:** authenticated Google session opened the Performance report for the same property, showing 92 clicks, about 1.5k impressions, 6.1% CTR and average position 4.4 for the UI's displayed report period. These are observed snapshot figures, not durable up-to-date SEO metrics. Job `1099`.
+- **GA4:** direct authenticated Realtime overview loaded for Moksha Wellness Goa, GA4 property `554743264`. It displayed no data in the current recent-user cards; this is not a proof of broken GA4 tracking nor a test event. Job `1098`.
+- **GTM:** authenticated Tag Manager admin displayed Moksha's container `GTM-KSH8GTGG` and `Google tag gateway: Not started`. A created container is **not** proof that it is installed on production, published, permission-shared to Site Kit, or tracking conversions. The master registry records that distinction. Job `1098`.
+
+The registry contains the dedicated unique record `[MASTER-HEALTH:GOOGLE-CONNECTION-LIVE-20261013]`. This **closes the read-only current access/identity verification**, while future GTM activation and end-to-end conversion testing are separate, explicitly authorized business decisions. Do not deploy GTM or add duplicate GA4 tags solely to clear an audit status.
