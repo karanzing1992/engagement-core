@@ -158,6 +158,8 @@ final class WPControl_Bridge {
 		return $user;
 	}
 
+	private static function native_actions(): array { return ['site_overview','list_plugins','staycore_diagnostics','staycore_inventory_check','staycore_availability_check']; }
+
 	private static function actions(): array {
 		return array(
 			'site_overview' => 'cowboy-mcp/wp-site-info',
@@ -188,12 +190,8 @@ final class WPControl_Bridge {
 		}
 		$action = sanitize_key( (string) ( $body['action'] ?? '' ) );
 		$map = self::actions();
-		if ( ! isset( $map[ $action ] ) ) {
+		if ( ! isset( $map[ $action ] ) && ! in_array( $action, self::native_actions(), true ) ) {
 			return new WP_Error( 'wp_control_action_not_allowed', 'Gateway action is not allowed.', array( 'status' => 400 ) );
-		}
-		$ability = function_exists( 'wp_get_ability' ) ? wp_get_ability( $map[ $action ] ) : null;
-		if ( ! $ability ) {
-			return new WP_Error( 'wp_control_capability_unavailable', 'Requested capability is unavailable.', array( 'status' => 501 ) );
 		}
 		$local_user_id = absint( get_option( 'wp_control_local_user_id', 0 ) );
 		$local_user = $local_user_id ? get_user_by( 'id', $local_user_id ) : false;
@@ -202,7 +200,13 @@ final class WPControl_Bridge {
 		}
 		$previous = get_current_user_id();
 		wp_set_current_user( $local_user_id );
-		$result = $ability->execute( isset( $body['input'] ) && is_array( $body['input'] ) ? $body['input'] : array() );
+		$input = isset( $body['input'] ) && is_array( $body['input'] ) ? $body['input'] : array();
+		if ( in_array( $action, self::native_actions(), true ) ) {
+			$result = WPControl_Native::run( $action, $input );
+		} else {
+			$ability = function_exists( 'wp_get_ability' ) ? wp_get_ability( $map[ $action ] ) : null;
+			$result = $ability ? $ability->execute( $input ) : new WP_Error( 'wp_control_capability_unavailable', 'Optional capability not installed.', array( 'status' => 501 ) );
+		}
 		wp_set_current_user( $previous );
 		return is_wp_error( $result ) ? $result : rest_ensure_response( array( 'ok' => true, 'action' => $action, 'result' => $result ) );
 	}
