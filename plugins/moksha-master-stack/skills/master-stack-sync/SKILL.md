@@ -9,6 +9,10 @@ Use the canonical protocol at https://github.com/karanzing1992/engagement-core/b
 
 The independent Google Apps Script worker **already exists** and has passed live GitHub-to-Google-Doc canary tests. Do **not** rebuild it, create a second GitHub poller, or bypass its GitHub credentials. Never assume the hourly trigger is healthy without a corresponding Apps Script execution record.
 
+## Preferred Moksha WordPress route: private WP Manager (verified 12 October 2026)
+
+Read the canonical [private WP Manager access and 403/signed updater runbook](../../../../docs/PRIVATE_WP_MANAGER_ACCESS.md) before WordPress control, plugin upgrade, or Search Console adapter tasks. Prefer the **existing private WP Manager / Engagement Core MCP** route when currently connected, not an unverified third-party plugin or arbitrary REST/SQL fallback. Run `list_sites` first; `engine_status` → `engine_check` (signature) → `engine_update(dry_run:true)` → user-authorized native update → health and rollback verification. Never assume ChatGPT connector access transfers to another project/account or that a source change equals a deployment. The 12 Oct 2026 0.9.14→0.9.15 signed upgrade completed, with rollback to 0.9.14 ready, but preceding intermittent HTTP 403 was not conclusively attributed to any particular security layer. Keep owner-scoped authorization, pairing and WAF protections intact. The separate Google Search Console read-only OAuth remained pending after the plugin and gateway deployment; Site Kit access does not satisfy that grant.
+
 ## When to invoke
 
 - After implementing a **material, verified** integration, source-level capability, architectural change, security fix, dependency or runtime upgrade.
