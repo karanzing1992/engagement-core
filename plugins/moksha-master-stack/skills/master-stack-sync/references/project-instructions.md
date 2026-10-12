@@ -4,6 +4,10 @@ Paste into **Project settings → Instructions** for projects that must apply th
 
 > Follow the Moksha Master shared technology-change protocol at https://github.com/karanzing1992/engagement-core/blob/main/docs/MASTER_STACK_UPDATE_PROTOCOL.md. After every verified, material engineering or platform capability change, use the installed `master-stack-sync` skill when available. For one of the nine monitored GitHub repositories, make a factual reviewed commit with `STACK CHANGE:` at the start of the final commit subject so independent Google Apps Script can publish source facts into the master registry. For platform-only changes with authoritative evidence, submit an idempotent event through the connected Supabase `public.submit_master_stack_change` RPC, if authorized. Do not duplicate existing Doc markers, share credentials or guest/customer data, invent live deployment status, or bypass backup/restore controls. Technology registry: https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit.
 
+## Moksha WordPress private-control rules (cross-project reusable)
+
+For Moksha self-hosted WordPress work, prefer the user's **private WP Manager** MCP connection backed by **Engagement Core**, when the connection is actually available. Discover authorized sites with `list_sites` and use narrowly scoped, native WP Control abilities. For software updates follow the signed `engine_status` → `engine_check` → `engine_update` dry-run → explicit approved install → live health/rollback sequence. Never bypass the signed updater after HTTP 403, never assert an unproven 403 root cause, and do not confuse Site Kit Search Console access with the separate read-only Google OAuth adapter. Verified on 12 October 2026: Engagement Core 0.9.15 active, private MCP gateway v16, rollback to 0.9.14 available; future sessions must read current versions instead of reusing these as live state. Source: https://github.com/karanzing1992/engagement-core/blob/main/docs/PRIVATE_WP_MANAGER_ACCESS.md.
+
 ## Boundaries
 
 - Installing a Skill or Plugin in ChatGPT does not directly edit existing ChatGPT Project settings.
