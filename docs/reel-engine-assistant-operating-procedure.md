@@ -29,6 +29,20 @@ For the morning informational series: no quiz, question prompt, CTA or product p
 
 **QC evidence per episode:** record the selected visual mode (`animation_only` or `real_people_live_action`), original logo SHA, derived PNG alpha inspection, caption script path, minimum cue dwell and safe-area check, scene text screenshots, audio source and license, asset originality, technical ffprobe, and publishing-rights state. If source rights, logo authenticity, or full-style consistency cannot be demonstrated, retain PRIVATE REVIEW status and disclose gaps. No publishing/scheduling without explicit authorization. This is editorial/source-operating guidance only; automatically enforced visual-mode classification or automated caption-QC is not implied by the document.
 
+## Master reusable asset storage and render archive — 12 October 2026
+
+**Verified personal Library location, created and read back:** `/Moksha Master/Reel Production Assets/`. Use this persistent Master Library folder as the practical authorized source for newly prepared reusable media assets; this is not a claim the archive was copied to Google Drive or automatically distributed to other GPT Projects. Retrieve by exact filename/Library file ID; do not infer a sandbox path.
+
+- `MOKSHA_OFFICIAL_gold_TRANSPARENT_FINAL.png` — **reusable real-brand transparent PNG**, source official Drive JPEG file ID `1XwmlYRfjfkcnbEOlJLNJc8bGHm9uxkyv` source hash `76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c`; derived file SHA-256 `ad352e5ce132a125799f0ae9786a906ec1320f2f019f9e2ece80c73f236d4854`; Master Library ID `libfile_17e8eb28a09c8191984910dc2906251c`.
+- `MOKSHA_Caption_Style_Template.ass` — **reusable libass 1080x1920 caption styling template**, SHA-256 `9308511e666097bfe609b7e95f24e182487311afc46a30d8a0dbe3d508fbcb0a`; Master Library ID `libfile_e4f4a2c6ecd48191865c987f36bec6d3`.
+- `MOKSHA_Master_Reusable_Reel_Assets_v1.zip` — **reusable production kit** containing transparent logo, separate contrast medallion, ASS template, sample FFmpeg assembly runner, README and checksum manifest; SHA-256 `9826d1bb2a52964a2ced32accef9281ae3cc47d69a2acf81030d4ccfc85e6fdc`; Master Library ID `libfile_74cf11663524819196a36d8e13ae2c4d`.
+
+**Episode archive (non-reusable creative material):** `/Moksha Master/Reel Episode Archive/Morning_Light_Ritual_2026-10-12_v4_Master_Approval_Kit.zip`, Library ID `libfile_c47eeda35de0819186eb6c46041c4439`, SHA-256 `920baa4a4487f0afd645444f429841e75612c55079b228fc7ce917a6f2f80e19`. It includes the v4 30-second master (SHA-256 `35cd6626b94fde46f4f46c57655b314e31dd163dab1649b8e29d75538a096527`), mobile copy, QC frames, episode-only synthesized audio, timed captions and source. Do not reuse the audio, video or finished scene composition for tomorrow's episode.
+
+Today's v4 changes compared with the v3 approval draft: from the **uncaptioned vector animation base** (not previous exported/captioned MP4) use one headline + one support line per scene, font sizes 82/48 on the 1080x1920 canvas, 110px safe margin, timecoded ASS, verified true-alpha original logo and independent teal closing medallion; fresh music composed for the same episode. Technical QC verified exactly 30 seconds, 1080x1920, 30fps, AAC stereo, no >=0.75s silence at -45dB threshold, five representative scenes and genuine alpha PNG. **Private approval, not published**.
+
+This is verified persisted **Library assets + SOP source**, **NOT** a new WordPress runtime deployment, automatic media duplicate detector, GitHub-hosted binary asset or public distribution. Refer to the canonical Master Google Doc for inventory.
+
 ## Default: finish the user's video before extending infrastructure
 
 When the user attaches videos in ChatGPT and asks for a final cut, **use the attached original bytes directly in the available container runtime**, rather than redirecting the user to Canva, Descript, GitHub Actions or Drive. The 231 MB source of 11 October was already automatically mountable in `/mnt/data`; the failure was caused by choosing a Python runner that returned `ClientError` and then trying connector egress that returned `BLOCKED_FILE_REFERENCE`.
