@@ -18,6 +18,17 @@ The existing nine GitHub repositories are already trained through their `.github
 
 **ChatGPT installation:** using supported Plugin Creator/Skills interfaces requires a user's explicit installation action and may depend on plan/workspace. Uploading this source to GitHub does **not** install or enable it in existing ChatGPT Projects. Available plugin Skills can be reused across chats, but existing Project Instructions are not automatically edited; for always-on instructions use the `references/project-instructions.md` text packaged with the main Skill. Connected GitHub, Supabase and Google Drive authorization is still checked per tool and project.
 
+## Private first-party WP Manager — verified Moksha operations (12 October 2026)
+
+**Canonical operating runbook:** [PRIVATE_WP_MANAGER_ACCESS.md](PRIVATE_WP_MANAGER_ACCESS.md).
+
+- **Preferred control lane:** the owner's private **WP Manager** ChatGPT plugin uses `wpcontrol-mcp` → authenticated, paired `/wp-json/wp-control/v1/bridge` → Engagement Core. Discover `list_sites` and verify the live connection each session. The plugin is not automatically usable in every Project/account/device; this Master documentation does not confer access.
+- **Signed upgrades:** `engine_status` → `engine_check` (Ed25519 and version) → `engine_update(dry_run:true)` → approved `engine_update` → read-back version, guest-page health and rollback. Never bypass security, force old versions, or assume a passing dry run guarantees the file swap.
+- **Verified live:** Moksha Engagement Core 0.9.15 active on WordPress 7.1.2 / PHP 8.2.34; native updater verified signed 0.9.15, restored rollback availability for 0.9.14; Site Kit 1.187.0 and Telegram stayed active. Private MCP Edge v16, signed release Edge v8 (observed 12 Oct, not permanent guarantees).
+- **403 learning:** transient installation HTTP 403 despite passing status/check/dry run; exact layer not established. Retain identity, pairing, permissions, WAF and signatures. Instrument only safe HTTP/status/response-class diagnostics and re-read plugin version and audit after failure. A successful retry is not a proven root-cause fix.
+- **Search Console:** the new independent read-only adapter was deployed with 0.9.15, but Google OAuth remains **pending**. Do not reuse existing Site Kit tokens, confuse existing GSC access with new adapter consent, or claim an automated indexing-request API.
+- **Routing and reporting:** code changes use GitHub Route A; independently verified runtime changes use restricted Supabase Route B with no duplicate registry markers. Never copy credentials/customer data across tenant boundaries.
+
 ## Ashwakaal — support channels
 
 **Registered workstream:** `ashwakaal-support-channels`. Include its support, community, incoming messages, publishing integrations and channel-related technology changes in the **same master technology inventory**, while keeping accounts, audiences, permissions and records **completely separate** from Moksha, Andaz and other brands.
