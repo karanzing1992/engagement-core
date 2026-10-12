@@ -273,9 +273,8 @@ final class GREC_Search_Console {
                 'impressions' => array_sum( array_column( $daily['rows'], 'impressions' ) ),
                 'last_error' => null,
             );
-            // Inspect one important page per day to stay far below Google quota.
-            $slug = gmdate( 'z' ) % 2 ? 'mud-bath-goa' : '';
-            $page = $slug ? get_page_by_path( $slug ) : get_page_by_path( 'mud-bath-goa' );
+            // Inspect only Moksha's canonical Mud Bath page once per daily sync.
+            $page = get_page_by_path( 'mud-bath-goa' );
             if ( $page && 'publish' === $page->post_status ) {
                 $snapshot['mud_bath_inspection'] = self::inspect( (int) $page->ID );
             }
