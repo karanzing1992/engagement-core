@@ -291,6 +291,43 @@ export function makeServer(ctx: UserContext) {
     false,
   )
 
+  // Native Google Search Console integration. Credentials remain encrypted on WordPress.
+  // Every call crosses the existing authenticated site/owner bridge.
+  readTool(
+    'gsc_status',
+    'Google Search Console direct connection',
+    'Read read-only OAuth status, property and most recent daily snapshot (no credentials).',
+    {},
+    'gsc_status',
+  )
+  readTool(
+    'gsc_search',
+    'Google Search Console search performance',
+    'Read settled Google Search Console metrics; optional same-site page filter.',
+    {
+      start_date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional(),
+      end_date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional(),
+      dimensions: z.array(z.enum(['date','query','page','device','country'])).max(3).optional(),
+      page_url: z.string().url().optional(),
+      limit: z.number().int().min(1).max(250).optional(),
+    },
+    'gsc_search',
+  )
+  readTool(
+    'gsc_inspect',
+    'Google Search Console URL inspection',
+    'Inspect indexing and canonical status of a same-site HTTPS URL. Read only; cannot request indexing.',
+    { url: z.string().url() },
+    'gsc_inspect',
+  )
+  readTool(
+    'gsc_sitemaps',
+    'Google Search Console submitted sitemaps',
+    'Read sitemap submissions, downloaded dates and Google reported warnings/errors.',
+    {},
+    'gsc_sitemaps',
+  )
+
   readTool(
     'seo_audit',
     'Audit WordPress SEO metadata',

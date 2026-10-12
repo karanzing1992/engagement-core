@@ -1,0 +1,54 @@
+name: GSC native read-only connector QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/class-grec-gsc.php'
+      - 'src/class-grec-wp-control.php'
+      - 'engagement-core.php'
+      - 'tests/gsc-readonly-smoke.php'
+      - 'product/gateway/supabase/functions/wpcontrol-mcp/lib/server.ts'
+      - '.github/workflows/gsc-readonly-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/class-grec-gsc.php'
+      - 'src/class-grec-wp-control.php'
+      - 'engagement-core.php'
+      - 'tests/gsc-readonly-smoke.php'
+      - 'product/gateway/supabase/functions/wpcontrol-mcp/lib/server.ts'
+      - '.github/workflows/gsc-readonly-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php-security-and-compatibility:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          extensions: openssl
+      - name: PHP syntax checks
+        run: |
+          php -l engagement-core.php
+          php -l src/class-grec-gsc.php
+          php -l src/class-grec-wp-control.php
+          php -l src/class-grec-secrets.php
+          php -l tests/gsc-readonly-smoke.php
+      - name: Security and read-only Google API smoke tests
+        run: php tests/gsc-readonly-smoke.php
+      - name: Assert gateway exposes only typed GSC read functions
+        run: |
+          grep -Fq "'gsc_status'" product/gateway/supabase/functions/wpcontrol-mcp/lib/server.ts
+          grep -Fq "'gsc_inspect'" product/gateway/supabase/functions/wpcontrol-mcp/lib/server.ts
+          grep -Fq "case 'gsc_inspect'" src/class-grec-wp-control.php
