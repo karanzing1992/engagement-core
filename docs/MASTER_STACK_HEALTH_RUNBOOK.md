@@ -77,3 +77,21 @@ GitHub `plugins/moksha-master-stack/skills/` is the canonical **Skill source**, 
 ## Keep scope proportional
 
 Avoid a second GitHub poller, duplicate ChatGPT task or needless paid GitHub Actions. The existing hourly task can recover platform-only events; dispatcher warnings and this runbook provide independent detection. Alert on repeated failures/age, not every no-change polling cycle. This runbook registers controls but doesn't prove them operational until observed in live provider telemetry.
+
+
+## Closure audit — 12 October 2026
+
+**Result: all previously held reporting events reconciled with source evidence.** The four remaining Google events were independently corroborated against the authenticated, completed Opera agent *historical* browser jobs already stored in existing Supabase `public.automation_jobs`. This did not require new Google sign-in, credentials, or customer data.
+
+- Event **#13**: API/client/scope screenshots/snapshots from jobs `976`, `978`, `981`, `983`, `985`, `989`. Supports Google Web Application OAuth client and read-only scope on 12 October; does not expose client secrets or claim current future grant status.
+- Event **#14**: job `1021`, dated **2026-10-12 14:26 UTC**, showed WordPress admin “Search Console connected with read-only permission” and “Connected (read only)”. Confirmed as historical, not perpetual OAuth health.
+- Event **#15**: jobs `1009` and `1011`, dated **2026-10-12 14:15 UTC**, showed accessible `https://mokshagoa.com/` Google Search Console property and a historical performance report. Metrics are dated to that snapshot, never automatically current.
+- Event **#16**: Site Kit jobs `1033`–`1036` showed Advanced data breakdowns UI and a save action, and GTM jobs `1055`, `1059` showed the newly created container ID. This is **not** evidence that the Tag Manager container is deployed/published or that event tracking is live. The advanced toggle itself was not independently visible in the last post-save snapshot.
+
+Each event received an accurately qualified, owner-readable source URL and one unique canonical Google Doc marker. Following readback, events were transitioned `needs_info → verified → published`; the database was never advanced ahead of document verification. No previous duplicate publication marker was added.
+
+**Skill adoption:** Private owner plugin [moksha-master-stack-reinforced v1.1.0](https://chatgpt.com/plugins/plugins_6acd2050739081918cbd975f2e23409c) exists and `skills://plugins/moksha-master-stack-reinforced/master-stack-sync/skill.md` was successfully enumerated and loaded on 12 October 2026. Its source includes Ashwakaal tenant separation, multi-repo Automation mapping, Route A/Route B idempotency and health runbook controls. The legacy `skills://plugins/moksha-master-stack/master-stack-sync` URI is still available: Project-specific persistent Instructions are not centrally editable here, and should prefer the reinforced Skill if both appear. Do not mistake creating a new private plugin for overwriting the legacy one.
+
+**Apps Script runtime evidence (indirect only):** Google Drive native Master Registry revisions at `2026-10-12T09:31:49Z`, `10:31:46Z`, `11:31:48Z`, `12:32:01Z` include successive additions of unique `[MASTER-GITHUB-CHANGE:...]` entries, consistent with automatic hourly GitHub→Docs publishing. Independent Apps Script execution-list and configured trigger inspection **were not granted through these tools**, so a literal owner-visible Apps Script execution record is still UNVERIFIED. These observed publications nevertheless establish repeated functioning Route A output, not merely source-code configuration. Avoid marking individual trigger execution logs as inspected.
+
+**Remaining operational distinction:** This is a clean reporting/backlog state; it is **not** a fresh live OAuth/GA4/GTM functional end-to-end test. When a future task requires current authentication, a live provider API/status read must be performed through an authorized connection. Retain snapshots with timestamps and read-only provenance. Never reuse guest or cross-brand credentials.
