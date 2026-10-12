@@ -273,18 +273,23 @@ export async function callWordPress(
       body: JSON.stringify({ site_id: siteId, action, input }),
       redirect: 'manual',
     })
+    // WordPress REST application errors return structured JSON codes. Hosting
+    // firewall/ModSecurity blocks generally return HTML or an empty 403. Only
+    // report the class of response, NEVER its body, headers or credential data.
+    const responseType = (response.headers.get('content-type') || '').toLowerCase()
+    const looksJson = /(?:application\\/(?:[a-z0-9.+-]*\\+)?json|\\+json)/.test(responseType)
     const body = await response.json().catch(() => ({}))
 
     if (!response.ok || body?.code || body?.ok === false) {
-      // Avoid losing the actionable error code when WP returns an empty/error-only
-      // JSON body. Never include response headers, URLs or tokens in errors.
-      const safeCode = typeof body?.code === 'string' && /^[a-z0-9_-]{1,72}$/i.test(body.code)
-        ? body.code : 'wordpress_error'
-      const message = typeof body?.message === 'string' && body.message.length
+      const nativeCode = typeof body?.code === 'string' && /^[a-z0-9_-]{1,72}$/i.test(body.code)
+        ? body.code : ''
+      const upstreamBlocked = response.status === 403 && !nativeCode
+      const safeCode = nativeCode || (upstreamBlocked ? 'upstream_denied_without_wp_error' : 'wordpress_error')
+      const message = nativeCode && typeof body?.message === 'string' && body.message.length
         ? body.message : 'WordPress action failed.'
-      throw Object.assign(new Error(message + ' (code=' + safeCode + ', http=' + response.status + ')'), {
-        code: safeCode,
-      })
+      const responseClass = looksJson ? 'json' : responseType.includes('html') ? 'html' : responseType ? 'non_json' : 'no_content_type'
+      throw Object.assign(new Error(message + ' (code=' + safeCode + ', http=' + response.status +
+        ', response_class=' + responseClass + ')'), { code: safeCode })
     }
 
     let result = body?.result ?? body
