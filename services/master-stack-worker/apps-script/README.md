@@ -1,5 +1,13 @@
 # Moksha Master Stack Worker — External Google scheduler
 
+## Live owner-account verification — 13 October 2026
+
+**PASS for unattended Route A.** On the owner's authorized Opera session, the real `script.google.com/u/1/home/triggers` page showed `Moksha Master Stack Worker` with `runMasterStackSync` **time-based** trigger. The matching owner `My Executions` dashboard showed successful **hourly Time-driven** executions across 12 October and the **13 October 00:01:37 IST** run `Completed` in 8.534 seconds. This is direct live evidence; the historical 11 October statement below about "not yet independently verified" is now superseded.
+
+**Historical failure and recovery:** The 12 October 12:01:37 IST time-driven execution failed in 26.659 seconds. Expanded Cloud logs gave only the generic message "We're sorry, a server error occurred. Please wait a bit and try again." Later executions, including 13:01 IST and 13 October 00:01 IST, succeeded without manual replay. The exact underlying cause is unknown. Do not claim Google server root cause or modify worker source/tokens on this evidence alone.
+
+**Scope:** This PASS is for the independent Google Apps Script `Route A` GitHub→Docs worker only. ChatGPT `Route B` Master Inbox Sync is a separate hourly task and must be checked on its own telemetry. Its schedule has been set to `exact_schedule` after observing stale last-run metadata, but a later successful task execution is not yet verified. Don't create a duplicate scheduler or GitHub poller.
+
 ## Status — 11 October 2026
 - **Independent Apps Script has been installed and manually executed in the document owner's Google account.** A live GitHub → Google Docs synchronization was confirmed by readback from the master registry for three different source repositories: `gpt-pine-engineer`, `mokshasitemap`, and `synergistica-website`. Each canary was published once; no production code was deployed.
 - **Apps Script trigger:** `installMasterSyncTrigger` was previously run by the owner, but an **unattended time-triggered execution has not yet been independently verified** through the Google Apps Script Executions log. Manual sync is verified, not an hourly SLA.
