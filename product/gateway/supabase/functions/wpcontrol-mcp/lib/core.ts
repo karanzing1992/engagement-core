@@ -276,8 +276,14 @@ export async function callWordPress(
     const body = await response.json().catch(() => ({}))
 
     if (!response.ok || body?.code || body?.ok === false) {
-      throw Object.assign(new Error(body?.message || 'WordPress action failed.'), {
-        code: body?.code || 'wordpress_error',
+      // Avoid losing the actionable error code when WP returns an empty/error-only
+      // JSON body. Never include response headers, URLs or tokens in errors.
+      const safeCode = typeof body?.code === 'string' && /^[a-z0-9_-]{1,72}$/i.test(body.code)
+        ? body.code : 'wordpress_error'
+      const message = typeof body?.message === 'string' && body.message.length
+        ? body.message : 'WordPress action failed.'
+      throw Object.assign(new Error(message + ' (code=' + safeCode + ', http=' + response.status + ')'), {
+        code: safeCode,
       })
     }
 
