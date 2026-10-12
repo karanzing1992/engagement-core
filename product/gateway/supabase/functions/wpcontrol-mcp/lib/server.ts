@@ -146,6 +146,18 @@ export function makeServer(ctx: UserContext) {
     )
   }
 
+  // WP Control native staging diagnostics (read-only, enforced by the WordPress allowlist).
+  readTool('staycore_diagnostics', 'Inspect StayCore health',
+    'Read-only StayCore table counts, REST routes and version; does not expose guest records.',
+    {}, 'staycore_diagnostics')
+  readTool('staycore_inventory_check', 'Inspect StayCore inventory',
+    'Read-only rooms and beds inventory, type, status, housekeeping and base rate.',
+    {}, 'staycore_inventory_check')
+  readTool('staycore_availability_check', 'Check StayCore unit availability',
+    'Read-only overlap assessment for exclusive departure range; booking engine remains authoritative.',
+    { from: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/), to: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/) },
+    'staycore_availability_check')
+
   readTool(
     'site_overview',
     'Get WordPress site overview',
