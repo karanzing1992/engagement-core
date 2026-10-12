@@ -136,7 +136,9 @@ final class WPControl_Bridge {
 
 	private static function token( WP_REST_Request $request ): string {
 		$h = trim( (string) $request->get_header( 'authorization' ) );
-		return preg_match( '/^Bearer\s+(.+)$/i', $h, $m ) ? trim( $m[1] ) : '';
+		if ( preg_match( '/^Bearer\\s+(.+)$/i', $h, $m ) ) return trim( $m[1] );
+		$alternate = trim( (string) $request->get_header( 'x-wpcontrol-bearer' ) );
+		return preg_match( '/^Bearer\\s+(.+)$/i', $alternate, $m ) ? trim( $m[1] ) : '';
 	}
 
 	private static function validate_token( string $token ) {
