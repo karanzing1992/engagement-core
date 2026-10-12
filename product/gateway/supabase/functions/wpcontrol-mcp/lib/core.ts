@@ -277,7 +277,7 @@ export async function callWordPress(
     // firewall/ModSecurity blocks generally return HTML or an empty 403. Only
     // report the class of response, NEVER its body, headers or credential data.
     const responseType = (response.headers.get('content-type') || '').toLowerCase()
-    const looksJson = /(?:application\\/(?:[a-z0-9.+-]*\\+)?json|\\+json)/.test(responseType)
+    const looksJson = responseType.includes('json')
     const body = await response.json().catch(() => ({}))
 
     if (!response.ok || body?.code || body?.ok === false) {
