@@ -19,3 +19,16 @@ Use this skill when a user asks to inspect, edit, publish, operate, or troublesh
 8. If a site is not connected, use `connect_site`. The pairing code is generated inside WordPress and expires quickly.
 9. If a capability is unavailable, explain which WordPress plugin/provider is required rather than attempting raw SQL or arbitrary code execution.
 10. Power-mode operations such as unrestricted WP-CLI or arbitrary file writes are not part of the public plugin.
+
+## Moksha first-party WP Manager operational standard (verified 12 Oct 2026)
+
+This private WP Manager plugin is the **preferred existing Engagement Core control plane** for the paired Moksha site, where currently connected. For other websites, always discover the user's separately authorized connections. The private gateway verifies both the owner-scoped Supabase OAuth identity and the WordPress local administrator/site pairing. Do not assume another GPT session, device or Project inherits this authorization.
+
+For an Engagement Core version upgrade:
+- `list_sites` → `site_overview`/`list_plugins`/`engine_status`.
+- `engine_check` must verify the desired newer signed manifest (Ed25519, checksum, expected source).
+- `engine_update` with `dry_run:true` must pass before an explicit actual installation.
+- Install through `engine_update` only when authorized, then independently check active plugin version, health, guest pages and `rollback_ready`. Preserve customer/order data and other integrations.
+- For a 403: distinguish native REST code vs upstream non-JSON denial without logging credentials, body or headers. Reinspect version and audit; do not turn off security or bypass the signed updater. The historical intermittent 403 had no proven root cause; the signed 0.9.15 deployment ultimately succeeded via the same route.
+
+**GSC:** v0.9.15 includes first-party read-only Google Search Console operations, but Google OAuth authorization is separate and was still pending at the 12 Oct verification. Site Kit can remain active and must not be treated as permission to reuse its tokens. More detail: [private WP Manager runbook](../../../../docs/PRIVATE_WP_MANAGER_ACCESS.md).

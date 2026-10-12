@@ -1,6 +1,6 @@
 # Native Google Search Console — Engagement Core 0.9.15
 
-Status: feature implementation, **unconnected** until an administrator completes the separate Google OAuth step. This release is code only until a signed WordPress package AND updated Supabase GPT gateway have been deployed and verified independently.
+**Deployment readback (12 October 2026):** Engagement Core **0.9.15 installed and active** on Moksha WordPress through private WP Manager signed updater; Supabase private `wpcontrol-mcp` gateway **Edge v16** deployed with four GSC read-only tools; release service **Edge v8**; signature, health, paired bridge and rollback to **0.9.14** verified. **Google OAuth is still unconnected/pending** until an authorized administrator completes consent. Do not conflate installed code, typed tool availability, and an active Google grant. See [private WP Manager runbook](PRIVATE_WP_MANAGER_ACCESS.md).
 
 ## Why
 
