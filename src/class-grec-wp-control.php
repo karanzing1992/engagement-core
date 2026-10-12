@@ -679,41 +679,65 @@ final class GREC_WordPress_Control {
 		const PUBLIC_KEY=<?php echo $key_json; ?>;
 		const AUTH_RELAY=<?php echo $relay_json; ?>;
 		const initialParams=new URLSearchParams(location.search);
-		const authorizationId=initialParams.get("authorization_id")||sessionStorage.getItem("wpcontrol_authorization_id");
-		if(authorizationId) sessionStorage.setItem("wpcontrol_authorization_id",authorizationId);
+		const incomingId=initialParams.get("authorization_id");
+		const authorizationId=incomingId||sessionStorage.getItem("wpcontrol_authorization_id");
+		if(incomingId) sessionStorage.setItem("wpcontrol_authorization_id",incomingId);
 		const supabase=createClient(PROJECT_URL,PUBLIC_KEY,{auth:{detectSessionInUrl:true,persistSession:true,flowType:"pkce"}});
 		const login=document.querySelector("#login"),consent=document.querySelector("#consent"),status=document.querySelector("#status"),email=document.querySelector("#email"),send=document.querySelector("#send"),approve=document.querySelector("#approve"),deny=document.querySelector("#deny");
 		const say=(t)=>status.textContent=t||"";
+		let booting=null,redirecting=false,decisionPending=false,initialized=false;
+		const resetAuthorization=()=>sessionStorage.removeItem("wpcontrol_authorization_id");
+		function followRedirect(url){
+			if(redirecting)return;
+			const target=new URL(url);
+			if(target.protocol!=="https:")throw Error("OAuth redirect must use HTTPS.");
+			redirecting=true;
+			resetAuthorization();
+			location.replace(target.href);
+		}
 		async function boot(){
-			if(!authorizationId){say("Missing authorization request. Start the connection from ChatGPT.");return}
-			const s=await supabase.auth.getSession();
-			if(s.error){say(s.error.message);return}
-			if(!s.data.session){login.classList.remove("hidden");consent.classList.add("hidden");say("Sign in to continue.");return}
-			const r=await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
-			if(r.error){say(r.error.message||"Could not load the authorization request.");return}
-			if(r.data?.redirect_url&&!r.data?.authorization_id){location.href=r.data.redirect_url;return}
-			document.querySelector("#clientName").textContent=r.data?.client?.name||r.data?.client_name||"ChatGPT";
-			document.querySelector("#scopeText").textContent=r.data?.scope||"email";
-			consent.classList.remove("hidden");login.classList.add("hidden");say("Review the request, then approve or deny.");
+			if(redirecting||decisionPending)return;
+			if(booting)return booting;
+			booting=(async()=>{
+				if(!authorizationId){say("Missing authorization request. Start a new connection from ChatGPT.");return}
+				const s=await supabase.auth.getSession();
+				if(s.error){say(s.error.message);return}
+				if(!s.data.session){login.classList.remove("hidden");consent.classList.add("hidden");say("Sign in to continue.");return}
+				const r=await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
+				if(redirecting||decisionPending)return;
+				if(r.error){
+					if(/cannot be processed|invalid|expired/i.test(r.error.message||""))resetAuthorization();
+					say(r.error.message||"Authorization expired. Start a new connection from ChatGPT.");
+					return;
+				}
+				if(r.data?.redirect_url){followRedirect(r.data.redirect_url);return}
+				document.querySelector("#clientName").textContent=r.data?.client?.name||r.data?.client_name||"ChatGPT";
+				document.querySelector("#scopeText").textContent=r.data?.scope||"email";
+				consent.classList.remove("hidden");login.classList.add("hidden");say("Review the request, then approve or deny.");
+			})().catch(e=>say(e.message||"Authorization failed. Start a new connection from ChatGPT.")).finally(()=>{booting=null});
+			return booting;
 		}
 		send.addEventListener("click",async()=>{
 			const v=email.value.trim();if(!v){say("Enter your email address.");return}
+			if(!authorizationId){say("Start a new connection from ChatGPT.");return}
 			send.disabled=true;
 			const redirect=new URL(AUTH_RELAY);redirect.searchParams.set("authorization_id",authorizationId);
 			const r=await supabase.auth.signInWithOtp({email:v,options:{emailRedirectTo:redirect.toString()}});
 			send.disabled=false;say(r.error?r.error.message:"Check your email for the sign-in link.");
 		});
-		approve.addEventListener("click",async()=>{
-			approve.disabled=true;const r=await supabase.auth.oauth.approveAuthorization(authorizationId);
-			if(r.error){approve.disabled=false;say(r.error.message);return}
-			sessionStorage.removeItem("wpcontrol_authorization_id");location.href=r.data.redirect_url;
+		async function decide(allow){
+			if(decisionPending||redirecting)return;
+			decisionPending=true;approve.disabled=true;deny.disabled=true;
+			const r=allow?await supabase.auth.oauth.approveAuthorization(authorizationId):await supabase.auth.oauth.denyAuthorization(authorizationId);
+			if(r.error){decisionPending=false;approve.disabled=false;deny.disabled=false;say(r.error.message||"Authorization request failed.");return}
+			try{followRedirect(r.data.redirect_url)}catch(e){say(e.message||"Invalid callback URL.")}
+		}
+		approve.addEventListener("click",()=>decide(true));
+		deny.addEventListener("click",()=>decide(false));
+		supabase.auth.onAuthStateChange((event,session)=>{
+			if(!initialized){initialized=true;return}
+			if(session&&!redirecting&&!decisionPending)queueMicrotask(()=>boot());
 		});
-		deny.addEventListener("click",async()=>{
-			deny.disabled=true;const r=await supabase.auth.oauth.denyAuthorization(authorizationId);
-			if(r.error){deny.disabled=false;say(r.error.message);return}
-			sessionStorage.removeItem("wpcontrol_authorization_id");location.href=r.data.redirect_url;
-		});
-		supabase.auth.onAuthStateChange((_event,session)=>{if(session) boot()});
 		boot();
 	</script>
 </body>
