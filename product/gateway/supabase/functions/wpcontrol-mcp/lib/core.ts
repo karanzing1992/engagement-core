@@ -214,12 +214,13 @@ async function safeBase(raw: string) {
 export async function connectSite(ctx: NonNullable<UserContext>, rawUrl: string, code: string) {
   const base = await safeBase(rawUrl)
   const endpoint = new URL('/wp-json/wp-control/v1/pair', base)
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ code, owner_id: ctx.id }),
-    redirect: 'manual',
-  })
+  const opts = { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, owner_id: ctx.id }), redirect: 'manual' as const }
+  let response = await fetch(endpoint, opts)
+  if (response.status === 404) {
+    const fallback = new URL('/', base)
+    fallback.searchParams.set('rest_route','/wp-control/v1/pair')
+    response = await fetch(fallback, opts)
+  }
   const body = await response.json().catch(() => ({}))
 
   if (!response.ok || !body?.ok || !body?.site_id) {
@@ -264,7 +265,7 @@ export async function callWordPress(
     const base = await safeBase(site.base_url)
     const endpoint = new URL('/wp-json/wp-control/v1/bridge', base)
 
-    const response = await fetch(endpoint, {
+    let response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         authorization: 'Bearer ' + ctx.token,
@@ -273,6 +274,16 @@ export async function callWordPress(
       body: JSON.stringify({ site_id: siteId, action, input }),
       redirect: 'manual',
     })
+    if (response.status === 404) {
+      const fallback = new URL('/', base)
+      fallback.searchParams.set('rest_route','/wp-control/v1/bridge')
+      response = await fetch(fallback, {
+        method: 'POST',
+        headers: { authorization: 'Bearer ' + ctx.token, 'content-type': 'application/json' },
+        body: JSON.stringify({ site_id: siteId, action, input }),
+        redirect: 'manual',
+      })
+    }
     // WordPress REST application errors return structured JSON codes. Hosting
     // firewall/ModSecurity blocks generally return HTML or an empty 403. Only
     // report the class of response, NEVER its body, headers or credential data.
