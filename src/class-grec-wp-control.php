@@ -1399,6 +1399,10 @@ final class GREC_WordPress_Control {
 			case 'list_orders': return self::native_list_orders( $input );
 			case 'get_order': return self::native_get_order( $input );
 			case 'add_order_note': return self::native_add_order_note( $input );
+			case 'gsc_status': return GREC_GSC::status( $input );
+			case 'gsc_search': return GREC_GSC::search( $input );
+			case 'gsc_inspect': return GREC_GSC::inspect( $input );
+			case 'gsc_sitemaps': return GREC_GSC::sitemaps( $input );
 			case 'seo_audit': return self::native_seo_audit( $input );
 			case 'update_seo': return self::native_update_seo( $input );
 			case 'flush_cache': return self::native_flush_cache( $input );
