@@ -1,0 +1,27 @@
+name: StayCore bridge read-only smoke
+
+on:
+  pull_request:
+    paths:
+      - 'product/wordpress-control/src/class-wp-control-bridge.php'
+      - 'tests/staycore-readonly-bridge-smoke.php'
+      - '.github/workflows/staycore-readonly-bridge-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - name: PHP lint
+        run: php -l product/wordpress-control/src/class-wp-control-bridge.php && php -l tests/staycore-readonly-bridge-smoke.php
+      - name: Isolated synthetic read-only smoke
+        run: php tests/staycore-readonly-bridge-smoke.php
