@@ -1,0 +1,35 @@
+name: Engagement Core 0.9.15 signed-release package preflight
+
+on:
+  pull_request:
+    paths: ['.github/workflows/engagement-release-integrity.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-upstream-archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify canonical GitHub commit ZIP
+        env:
+          PACKAGE_COMMIT: 627c8d738d38cbadcffbb3590e9813f22babb8fb
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/karanzing1992/engagement-core/archive/${PACKAGE_COMMIT}.zip"
+          curl --retry 3 --fail --location --silent --show-error "$url" -o release.zip
+          test "$(stat -c %s release.zip)" -gt 2000
+          unzip -tq release.zip | tail -n 1
+          plugin_entry="$(unzip -Z1 release.zip | grep -E '/engagement-core.php$' | head -n 1)"
+          test -n "$plugin_entry"
+          unzip -p release.zip "$plugin_entry" | grep -Fq 'Version: 0.9.15'
+          unzip -p release.zip "$plugin_entry" | grep -Fq "require_once GREC_DIR . 'src/class-grec-gsc.php';"
+          unzip -Z1 release.zip | grep -Eq '/src/class-grec-gsc.php$'
+          unzip -Z1 release.zip | grep -Eq '/src/class-grec-wp-control.php$'
+          printf 'RELEASE_VERSION=0.9.15\nRELEASE_COMMIT=%s\n' "$PACKAGE_COMMIT"
+          printf 'RELEASE_SHA256='; sha256sum release.zip | cut -d' ' -f1
+          printf 'RELEASE_SIZE='; stat -c %s release.zip
+          echo 'RELEASE_PREFLIGHT=PASS'
