@@ -148,3 +148,40 @@ verified offline test snapshot and not byte-identical to this PR's
 latest versions. Review or replace them with the exact branch source
 before promoting the ZIP to production. Cloud Build, integration,
 memory sizing and actual footage rights remain release gates.
+
+## Cloud Billing preflight from Cloud Shell — 13 October 2026
+
+The operator executed the source ZIP's **read-only** `bash bootstrap-cloudrun-pilot.sh --check`
+in their authenticated Google Cloud Shell, and returned the exact CLI result:
+
+    Project: focused-premise-510518-g6 | Region: asia-south1 | Billing enabled: True
+    READ-ONLY PASS; Cloud Build, Artifact Registry and storage use trial credits or accrue charges.
+    No changes made; deploy mode never executes or publishes anything.
+
+This is **operator-supplied gcloud evidence** of billing enabled (not a
+separately retrieved Cloud Billing API response in this session). The Cloud
+trial banner was independently observed through Opera Agent 2 earlier.
+Billing enabled is permission to prepare a deployment, not proof that the
+relevant APIs, build service account permissions, image or job exist.
+
+**Critical source-parity requirement:** the earlier chat ZIP
+`reel-engine-cloudrun-cpu-pilot.zip` had locally reconstructed
+`geo_policy.py` and `multi_renderer.py`, and does NOT match this PR's
+current Git blobs. Do not deploy from that ZIP. Use a fresh checkout of this
+feature branch in Cloud Shell, and run the bootstrap script from
+`services/reel-engine/`. Before actual resource creation run Python unit
+tests and shell syntax checks. The script's `--deploy` action is not known
+to have been run, and no job has been verified created. On a Cloud Build
+permission failure, stop and diagnose the build identity; do not grant
+Owner/Editor, bypass IAM checks or use Agent 1 credentials.
+
+For the checked-out source, run read-only:
+
+    python3 -m unittest -v test_cloudrun_batch.py test_geo_policy.py
+    bash -n bootstrap-cloudrun-pilot.sh
+    bash bootstrap-cloudrun-pilot.sh --check
+
+Only a separately chosen explicit `--deploy` enters the creation path.
+It may consume Google trial credit and will activate APIs, create private
+buckets, an Artifact Registry repository, dedicated service account, build a
+CPU image, and register one manual job. It does not execute a render.
