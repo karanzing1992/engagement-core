@@ -24,6 +24,7 @@ require_once GREC_DIR . 'src/class-grec-youtube.php';
 require_once GREC_DIR . 'src/class-grec-scheduler.php';
 require_once GREC_DIR . 'src/class-grec-admin.php';
 require_once GREC_DIR . 'src/class-grec-telegram.php';
+require_once GREC_DIR . 'src/class-grec-booking-telegram.php';
 require_once GREC_DIR . 'src/class-grec-vk.php';
 require_once GREC_DIR . 'src/class-grec-ok.php';
 require_once GREC_DIR . 'src/class-grec-snapchat.php';
@@ -43,6 +44,7 @@ final class GREC_Plugin {
 		GREC_Scheduler::init();
 		GREC_Updater::init();
 		GREC_Admin::init();
+		GREC_Booking_Telegram::init();
 		GREC_Publisher_REST::init();
 		GREC_Snap_Public_API::init();
 		GREC_WordPress_Control::init();
