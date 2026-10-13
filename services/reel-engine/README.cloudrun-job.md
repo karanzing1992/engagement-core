@@ -118,3 +118,33 @@ deployment and on any paid service creation.
 The future Cloud Run 512-MiB memory size remains unbenchmarked under Cloud
 Run: local test process peak is not a substitute for whole-container peak
 memory or input-size stress testing.
+
+## Google Cloud trial and guarded bootstrap — 13 October 2026
+
+Agent 2 read back an authenticated Cloud Console free-trial banner on
+project `focused-premise-510518-g6` displaying ₹28,796.63 credit and
+90 days remaining at the observed time. This **does not** independently
+prove the Cloud Billing API's `billingEnabled: true`; a check in the
+bootstrap script is mandatory. Cloud Run Jobs page was readable but
+showed no jobs; its Create Job CTA said it would enable the Admin API.
+
+New source script: `bootstrap-cloudrun-pilot.sh` in this feature branch.
+Default `--check` only reads Cloud SDK account/billing. Explicit
+`--deploy` enables scoped APIs, creates separate nonpublic Mumbai
+source/output buckets, a dedicated service account and Artifact
+Registry, builds the CPU image, and registers **one manual-only**
+Cloud Run Job. It does NOT execute/render/publish or upgrade the
+trial to a paid account. The build and storage can consume trial
+credit; hard-spend limits are not implied by budget alerts or credits.
+Read the script before execution. No Cloud Shell commands have been
+executed yet; no cloud project resource change is verified.
+Use `bash -n bootstrap-cloudrun-pilot.sh` as a local syntax check;
+the standalone bootstrap syntax has been validated offline.
+
+**Artifact distinction:** A separate ~9KB convenience ZIP of the
+offline-tested batch source and bootstrap was assembled as a chat
+download. Its `geo_policy.py` and `multi_renderer.py` are from the
+verified offline test snapshot and not byte-identical to this PR's
+latest versions. Review or replace them with the exact branch source
+before promoting the ZIP to production. Cloud Build, integration,
+memory sizing and actual footage rights remain release gates.
