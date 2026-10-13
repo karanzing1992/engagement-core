@@ -7,8 +7,13 @@ REGION=asia-south1
 JOB=reel-engine-cpu-pilot
 REPO=reel-pilot-images
 SA="reel-pilot-worker@${PROJECT_ID}.iam.gserviceaccount.com"
-INPUT="reel-pilot-source-${PROJECT_ID}"
-OUTPUT="reel-pilot-drafts-${PROJECT_ID}"
+# Optional explicitly chosen new namespace for collision recovery; never silently reuses buckets.
+SUFFIX="${REEL_PILOT_SUFFIX:-}"
+if [[ -n "$SUFFIX" && ! "$SUFFIX" =~ ^[a-z0-9]{4,10}$ ]]; then
+  echo 'REEL_PILOT_SUFFIX must contain 4-10 lowercase letters/digits.' >&2; exit 2
+fi
+INPUT="reel-pilot-source-${PROJECT_ID}${SUFFIX:+-$SUFFIX}"
+OUTPUT="reel-pilot-drafts-${PROJECT_ID}${SUFFIX:+-$SUFFIX}"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/reel-engine-cpu-pilot:source-v1"
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 case "${1:---check}" in
@@ -18,7 +23,7 @@ case "${1:---check}" in
 esac
 [ "$#" -eq 0 ] || [ "$#" -eq 1 ] || { echo 'Too many arguments' >&2; exit 2; }
 command -v gcloud >/dev/null || { echo 'gcloud CLI is required' >&2; exit 3; }
-for file in cloudrun_batch.py geo_policy.py multi_renderer.py Dockerfile.cloudrun-job; do
+for file in cloudrun_batch.py geo_policy.py multi_renderer.py Dockerfile.cloudrun-job audit-cloudrun-pilot.py; do
   test -f "$ROOT/$file" || { echo "Missing source $file" >&2; exit 3; }
 done
 account="$(gcloud auth list --filter='status:ACTIVE' --format='value(account)' | head -n 1)"
@@ -30,8 +35,12 @@ printf 'Project: %s | Region: %s | Billing enabled: %s\n' "$PROJECT_ID" "$REGION
 if [[ "${billing,,}" != true ]]; then
   echo 'Billing not enabled. No cloud resources changed.' >&2; exit 4
 fi
+# The earlier --check checked billing only, but missed preexisting bucket names.
+# Check ownership/collision without altering any resources, in both modes.
+python3 "$ROOT/audit-cloudrun-pilot.py" "$PROJECT_ID" "$INPUT" "$OUTPUT"
 if [[ "$MODE" == check ]]; then
-  echo 'READ-ONLY PASS; Cloud Build, Artifact Registry and storage use trial credits or accrue charges.'
+  echo 'READ-ONLY PASS; billing and both requested bucket names verified.' 
+  echo 'Cloud Build, Artifact Registry and storage use trial credits or accrue charges.'
   printf 'Proposed resources: %s; gs://%s; gs://%s; %s\n' "$REPO" "$INPUT" "$OUTPUT" "$JOB"
   echo 'No changes made; deploy mode never executes or publishes anything.'
   exit 0
