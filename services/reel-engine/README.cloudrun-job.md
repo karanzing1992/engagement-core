@@ -185,3 +185,33 @@ Only a separately chosen explicit `--deploy` enters the creation path.
 It may consume Google trial credit and will activate APIs, create private
 buckets, an Artifact Registry repository, dedicated service account, build a
 CPU image, and register one manual job. It does not execute a render.
+
+## Deployment preflight block: existing bucket name (13 October 2026)
+
+Cloud Shell `bootstrap-cloudrun-pilot.sh --deploy` returned:
+`A private pilot bucket already exists; refusing overwrite/reuse.`
+Its collision guard executed **before** any API enabling, registry
+build, IAM write, bucket creation or job deployment. This failed invocation
+made no GCP configuration change.
+
+**Fix in draft PR:** the existing `--check` had tested billing but not
+bucket collisions. Added read-only `audit-cloudrun-pilot.py` (verifies
+project number, lists project-owned buckets, describes each requested name
+without exposing IAM identities) and reuses this audit for **both**
+`--check` and `--deploy`. A collision or unknown ownership fails closed.
+Optionally set `REEL_PILOT_SUFFIX` to a fresh 4–10-character lowercase
+alphanumeric namespace **only after reviewing the audit**; this creates new
+source/draft bucket names, not reuse/deletion of existing buckets. Any new
+buckets may consume trial credit or accrue storage charges.
+
+Read-only recovery from the existing feature-branch checkout:
+
+    git pull --ff-only
+    python3 -m py_compile audit-cloudrun-pilot.py
+    bash -n bootstrap-cloudrun-pilot.sh
+    bash bootstrap-cloudrun-pilot.sh --check
+
+**Do not** run `--deploy` until collision ownership is known and the
+new proposed names pass the audit. Never delete existing buckets or loosen
+permissions to bypass a safety check. No new deploy has occurred; source
+is still a draft PR, not a main-branch release.
