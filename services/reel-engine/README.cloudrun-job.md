@@ -1,6 +1,6 @@
 # CPU-only Cloud Run Job adapter — staging / review
 
-**PRIVATE PILOT DEPLOYED; FIRST MEDIA RENDER NOT YET EXECUTED.** The isolated Mumbai Cloud Run job `reel-engine-cpu-pilot` is registered and idle. Project billing/trial is enabled and Cloud Build succeeded. This draft PR is unmerged. Separate Google sample job execution #31 passed, but FFmpeg and genuine video intake are still unverified.
+**PRIVATE PILOT DEPLOYED; FIRST APPROVED MEDIA RENDER NOT YET EXECUTED.** The isolated Mumbai Cloud Run job `reel-engine-cpu-pilot` is registered and idle. Project billing/trial is enabled and Cloud Build succeeded. This draft PR is unmerged. Google sample runtime test #31 and five-second synthetic FFmpeg cloud encoding test #32 have both passed, but durable private GCS export and genuine reviewed footage intake have not been verified.
 
 ## Purpose / isolation
 
