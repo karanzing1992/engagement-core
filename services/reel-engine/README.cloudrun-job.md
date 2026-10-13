@@ -326,3 +326,16 @@ check and both read-only and --run paths **passed against a mock gcloud
 client**; real gcloud execution and actual MP4 generation are NOT verified.
 The script needs explicitly authorized Cloud Shell execution. Do not
 claim the cloud job succeeded until its task exit code and logs are read.
+
+## FFmpeg isolated Cloud Run smoke PASS — 13 October 2026
+
+Authenticated Cloud Shell operator ran the guarded private synthetic FFmpeg diagnostic on the **existing disposable smoke job** `reel-cpu-smoke-20261013`, not on `reel-engine-cpu-pilot`.
+
+- Exact Cloud Run execution: https://console.cloud.google.com/run/jobs/execution/asia-south1/reel-cpu-smoke-20261013-4scrk?project=focused-premise-510518-g6
+- Independent browser job #108 read the new execution `reel-cpu-smoke-20261013-4scrk` in Mumbai. Job #109 read **1 succeeded, 0 failed, exit code 0, retries 0** and actual 15:52:54–15:52:59 IST task timing.
+- Authenticated browser job #110 read actual FFmpeg logs: input `lavfi testsrc2=size=720x1280:rate=25`, encoder `libx264`, output 9:16 720×1280 H.264/yuv420p MP4 at **25 fps**, **125 frames / 5.00 seconds**, encoded file size approximately **3,870 KiB**, FFmpeg reported **6.44×** throughput, followed by container `exit(0)`.
+- The smoke file was saved **only to ephemeral `/tmp/reel-cpu-smoke.mp4` inside the job container** and is not a durable Google Cloud Storage object or an export available for publishing.
+- This verifies the container's real CPU/FFmpeg encoding path, **not** a 30-second real-footage render, geographic provenance, source-file ingestion, sustained workload or durable private GCS export.
+- Recorded as verified published Moksha Master Route B **Event #32**; exact canonical Google Doc event marker read back once.
+
+**Release gate still pending:** implement and verify least-privilege private GCS artifact export, then intake authenticated/approved original Goa/India footage with source checksums and location/usage evidence, run a single 30-second unbranded render, confirm ffprobe dimensions/duration/audio and video output integrity. Do not create scheduled or public posting until reviewed.
