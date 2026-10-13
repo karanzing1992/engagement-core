@@ -250,3 +250,48 @@ The existing feature branch/PR #50 is still draft and has not been merged
 to a monitored default branch. Runtime deployment is independently reported
 via Moksha Master **Route B event #28**. Do not register this same runtime
 change again as a Route A deployed result without deduplication.
+
+## Post-deployment authenticated browser audit — 13 October 2026
+
+Using the **isolated Opera Agent 2 read-only browser** with Google Cloud's
+owner session, the actual Cloud Run Job edit form was read **without saving**:
+
+- Job `reel-engine-cpu-pilot` in `asia-south1`, image
+  `asia-south1-docker.pkg.dev/focused-premise-510518-g6/reel-pilot-images/reel-engine-cpu-pilot:source-v1`
+- 1 vCPU, **512 MiB**, 1 task, parallelism **1**, 10-minute timeout,
+  **0 retries**, manual-only.
+- Job Security tab identified **Private reel pilot worker**.
+- Job Triggers tab explicitly displayed **This job has no triggers**.
+- Job History listed **No history for this job yet**; no execution proven.
+
+The actual Cloud Storage bucket inventory separately verified both
+`reel-pilot-source-focused-premise-510518-g6-pilot2` and
+`reel-pilot-drafts-focused-premise-510518-g6-pilot2`:
+- Region `asia-south1`, Standard class; public access **Not public**,
+  **Uniform** access control and Public Access Prevention.
+- Actual source Permissions list: **Private reel pilot worker** has
+  `Storage Object Viewer` (bucket-level), no extra cross-venture grants.
+- Actual output Permissions list: same worker has
+  `Storage Object Creator` (bucket-level).
+- Both **object inventories were empty** at the observed time.
+- Existing original unsuffixed buckets were preserved; no changes
+  were made during this audit. Broader project-inherited principals
+  remained in the IAM list and were not modified.
+
+Two *private user Library* video candidates were reviewed locally for
+technical suitability only:
+- `1000051316.mp4`: H.264 720×1280, 69.798s, 20,501,679 bytes,
+  SHA256 `398c1b5b16854266e26fcb9874f19589771292982174cb7b47e2cf499949052d`.
+- `1000042280.mp4`: H.264 1080×1920, 16.067s, 20,442,820 bytes,
+  SHA256 `346a1e32617dc23419be5e546728c2593f4ee85dd7de48dffa3a8b3eafef6047`.
+- Combined **40,944,499 bytes**, below current pilot's 48 MiB combined
+  input cap. Library copies are **not Google Cloud objects**.
+
+**BLOCKER:** User-uploaded media cannot be described as independently
+human-verified Goa/India footage simply because it was found in a
+brand library or visually resembles Goa. Exact HTTPS source/location
+evidence, rights confirmation, human reviewer, and private GCS intake
+are still outstanding. Do NOT create a fabricated provenance manifest,
+bypass `geo_policy.py`, upload sources publicly, execute the job against
+a missing manifest, or claim the first cloud render succeeded.
+The existing job remains registered and idle.
