@@ -339,3 +339,29 @@ Authenticated Cloud Shell operator ran the guarded private synthetic FFmpeg diag
 - Recorded as verified published Moksha Master Route B **Event #32**; exact canonical Google Doc event marker read back once.
 
 **Release gate still pending:** implement and verify least-privilege private GCS artifact export, then intake authenticated/approved original Goa/India footage with source checksums and location/usage evidence, run a single 30-second unbranded render, confirm ffprobe dimensions/duration/audio and video output integrity. Do not create scheduled or public posting until reviewed.
+
+## Private GCS artifact smoke — prepared, not yet run (13 October 2026)
+
+New review-only branch files:
+- `gcs_persist_smoke.py` — synthetic 5-second 720×1280/25 fps H.264 MP4, in-container ffprobe, SHA-256, then private GCS MP4+JSON report uploads using **create-only** `if_generation_match=0`. Never generates signed URLs or publishes; the actor has Storage Object Creator on the output bucket.
+- `run-private-gcs-smoke.sh` — **defaults to --check**. Requires authorized Cloud Shell. Verifies correct isolated job, pinned image, dedicated service account, single known prior execution `reel-cpu-smoke-20261013-4scrk`, Mumbai output bucket, raw IAM with Public Access Prevention and Uniform Access, absent target names and billing. `--run` only updates the disposable smoke job with exact Python inline payload, reads it back, runs once with 2-minute timeout/zero retries, then independently downloads MP4 and JSON into a temporary Cloud Shell workspace to verify checksum, size, format and duration.
+- `test_gcs_persist_smoke.py` — mock-GCS tests with genuine local FFmpeg/ffprobe and intentional no-overwrite failure.
+
+**Validation completed locally:** Python syntax PASS, Bash syntax PASS, 2 real-FFmpeg/mock-GCS unit tests PASS (5 seconds, 125 frames, H.264, 720×1280, ~3.96 MB, checksum checked). The Bash `--check` and `--run` paths both PASS with a mock gcloud client, including post-download SHA-256 and metadata verification. The two original program files were fetched from GitHub and verified byte-identical against the tested local copies before the small `--raw` bucket-metadata flag improvement. Actual **Google Cloud GCS upload has NOT been executed or verified.**
+
+Private output destinations are fixed to:
+- `gs://reel-pilot-drafts-focused-premise-510518-g6-pilot2/smoke/cpu-gcs-20261013-01.mp4`
+- `gs://reel-pilot-drafts-focused-premise-510518-g6-pilot2/smoke/cpu-gcs-20261013-01.json`
+
+In existing authenticated Cloud Shell (one-time action; `--run` may consume trial credit):
+
+```bash
+cd ~/reel-engine-cloud-source/services/reel-engine
+git pull --ff-only
+python3 -m unittest -v test_gcs_persist_smoke.py
+bash -n run-private-gcs-smoke.sh
+bash run-private-gcs-smoke.sh --check
+bash run-private-gcs-smoke.sh --run
+```
+
+**Stop after any failed check or partial execution; no blind retries.** Do not execute the production `reel-engine-cpu-pilot`, alter existing unsuffixed buckets or publish test files. A successful Cloud Shell script execution is not proof until real private GCS objects and download hashes are independently read back; verify in Cloud Run + GCS afterwards. Rollback remains isolated to the disposable smoke job and the two named synthetic objects only; never delete other customer data or original buckets. Reusable functionality remains separated from venture config for future productization.
