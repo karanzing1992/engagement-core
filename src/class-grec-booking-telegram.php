@@ -87,7 +87,7 @@ final class GREC_Booking_Telegram {
         if ( ! is_string( $proof ) || ! preg_match( '/^[0-9a-f]{36}$/D', $proof ) ) { self::back( 'expired' ); }
         try {
             // No offset means no consumption of updates; never change bot webhook.
-            $data = self::api( 'getUpdates', array( 'limit' => 100, 'timeout' => 0, 'allowed_updates' => wp_json_encode( array( 'message' ) ) ) );
+            $data = self::api( 'getUpdates', array( 'limit' => 100, 'timeout' => 0 ) );
             foreach ( array_reverse( (array) ( $data['result'] ?? array() ) ) as $update ) {
                 $message = (array) ( $update['message'] ?? array() );
                 $chat = (array) ( $message['chat'] ?? array() );
