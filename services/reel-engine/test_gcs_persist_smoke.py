@@ -1,9 +1,11 @@
 """Offline real-FFmpeg + mock-GCS safety tests; no cloud calls."""
 import importlib.util
 import json
+import shutil
 import sys
 import types
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 # The real Cloud Run image includes pinned google-cloud-storage; stub it locally.
@@ -46,6 +48,8 @@ class FakeClient:
         return FakeBucket(self.objects)
 
 class PersistentExportTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'),
+                         'FFmpeg/ffprobe not installed in Cloud Shell; live Cloud Run FFmpeg test already passed')
     def test_real_ffmpeg_and_mock_private_bucket(self):
         fake=FakeClient()
         report=module.render_and_upload(client=fake)
@@ -61,6 +65,37 @@ class PersistentExportTests(unittest.TestCase):
         self.assertEqual(metadata_report['sha256'], report['sha256'])
         with self.assertRaises(AssertionError):
             module.render_and_upload(client=fake)
+    def test_private_gcs_export_contract_without_local_ffmpeg(self):
+        # Cloud Shell need not have FFmpeg: the Cloud Run image contains it.
+        # This test still validates GCS create-only uploads, metadata and checksum.
+        fake=FakeClient()
+        def fake_encoder(argv):
+            self.assertEqual(argv[0], 'ffmpeg')
+            self.assertIn('testsrc2=size=720x1280:rate=25', argv)
+            Path(argv[-1]).write_bytes(b'fixture-only-not-a-real-video')
+            return ''
+        fake_probe={
+            'codec':'h264', 'width':720, 'height':1280,
+            'fps':25, 'frames':125, 'duration_seconds':5.0,
+            'bytes':len(b'fixture-only-not-a-real-video'),
+        }
+        with patch.object(module, 'verify_video', return_value=fake_probe) as probe:
+            report=module.render_and_upload(client=fake, command_runner=fake_encoder)
+            self.assertEqual(probe.call_count,1)
+        self.assertEqual(report['sha256'], __import__('hashlib').sha256(
+            b'fixture-only-not-a-real-video').hexdigest())
+        self.assertEqual(set(fake.objects), {module.VIDEO_KEY, module.REPORT_KEY})
+        video, metadata=fake.objects[module.VIDEO_KEY]
+        self.assertEqual(len(video), report['bytes'])
+        self.assertEqual(metadata['published'], 'false')
+        self.assertEqual(metadata['content-approval'], 'smoke-only')
+        self.assertFalse(report['published'])
+        self.assertFalse(report['public'])
+        self.assertTrue(report['no_real_footage'])
+        with patch.object(module, 'verify_video', return_value=fake_probe):
+            with self.assertRaises(AssertionError, msg='Existing objects must not be overwritten'):
+                module.render_and_upload(client=fake, command_runner=fake_encoder)
+
     def test_distinct_output_keys(self):
         self.assertNotEqual(module.VIDEO_KEY,module.REPORT_KEY)
         self.assertTrue(module.VIDEO_KEY.startswith('smoke/'))
