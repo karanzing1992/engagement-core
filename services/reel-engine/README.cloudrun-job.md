@@ -1,6 +1,6 @@
 # CPU-only Cloud Run Job adapter — staging / review
 
-**NOT DEPLOYED.** No billing, paid service, Cloud API, build, GCS bucket, Cloud Run job or schedule was activated.
+**PRIVATE PILOT DEPLOYED; FIRST MEDIA RENDER NOT YET EXECUTED.** The isolated Mumbai Cloud Run job `reel-engine-cpu-pilot` is registered and idle. Project billing/trial is enabled and Cloud Build succeeded. This draft PR is unmerged. Separate Google sample job execution #31 passed, but FFmpeg and genuine video intake are still unverified.
 
 ## Purpose / isolation
 
@@ -295,3 +295,34 @@ are still outstanding. Do NOT create a fabricated provenance manifest,
 bypass `geo_policy.py`, upload sources publicly, execute the job against
 a missing manifest, or claim the first cloud render succeeded.
 The existing job remains registered and idle.
+
+## Cloud Run runtime checkpoint (13 October 2026)
+
+Verified one-shot Google-provided sample job `reel-runtime-sample-20261013`
+execution `reel-runtime-sample-20261013-v9dwq`:
+- Google Cloud Run in Mumbai `asia-south1`, 1 vCPU, 512 MiB,
+  1 task, 120-second timeout, zero retries, dedicated Reel worker.
+- Authenticated Console Tasks pane: 1 succeeded, 0 failed, 0 running.
+  Task index 0 exited with code 0, actual start 15:21:12 IST and end
+  15:21:16 IST. Logs confirm Completed Task #0 and `exit(0)`.
+- Exact execution:
+  https://console.cloud.google.com/run/jobs/execution/asia-south1/reel-runtime-sample-20261013-v9dwq?project=focused-premise-510518-g6
+- Independently registered in the private Supabase Master event inbox
+  as published event #31. NOT a verified FFmpeg video render.
+
+A separate isolated `reel-cpu-smoke-20261013` diagnostic job was created
+but has never been executed. The Cloud Console custom edit form did not
+persist `/usr/bin/ffmpeg` command/argument overrides; readback confirmed
+missing values, so execution was deliberately blocked. The isolated Agent 2
+Mac worker rejected native keyboard/paste actions with
+`Disallowed Agent 2 step`. Do not bypass this permission boundary.
+
+An offline tested fail-closed `run-ffmpeg-smoke.sh` diagnostic has been
+prepared in the conversation artifact set. It targets ONLY the isolated
+diagnostic job, uses gcloud's official `--command` and `--args`
+overrides, validates exact job/image/service account and no prior
+execution, and does not touch the production Reel Engine. Its bash syntax
+check and both read-only and --run paths **passed against a mock gcloud
+client**; real gcloud execution and actual MP4 generation are NOT verified.
+The script needs explicitly authorized Cloud Shell execution. Do not
+claim the cloud job succeeded until its task exit code and logs are read.
