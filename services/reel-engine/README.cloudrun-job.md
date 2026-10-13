@@ -369,3 +369,38 @@ bash run-private-gcs-smoke.sh --run
 
 **Cloud Shell test failure / recovery (13 October 2026):**
 The operator's first run reported `Ran 2 tests in 0.005s — FAILED (errors=1)`. The precise Python traceback was not supplied, so the exact cause is unverified; a missing local `ffmpeg`/`ffprobe` binary is consistent with immediate failure in the original unconditional real-encoder test. The unit test file was patched to maintain meaningful GCS create-only/checksum/metadata coverage without FFmpeg while **explicitly skipping** the real-encoder test when its local binaries are unavailable. Both binary-present and deliberately binary-absent environments passed locally after the patch. No production job, Cloud Run execution, output object or publishing change resulted from this source-only fix. Rerun `git pull --ff-only && python3 -m unittest -v test_gcs_persist_smoke.py`, then `bash run-private-gcs-smoke.sh --check`; only advance to `--run` if both succeed.
+
+## Durable GCS synthetic MP4 export verified — 13 October 2026
+
+Operator-confirmed successful invocation of `run-private-gcs-smoke.sh --check`
+and `--run` in the authenticated Cloud Shell, backed by **independent
+authenticated browser readback**:
+
+- Google Cloud Run execution: `reel-cpu-smoke-20261013-znzkn` in Mumbai.
+  https://console.cloud.google.com/run/jobs/execution/asia-south1/reel-cpu-smoke-20261013-znzkn?project=focused-premise-510518-g6
+- **1 succeeded, 0 failed, exit code 0, 0 retries**; task
+  16:58:42–16:58:49 IST. Agent2 #114–#116.
+- Container logged `GCS_PRIVATE_SMOKE` for a synthetic 5-second,
+  720×1280, 25fps, 125-frame H.264 MP4: **3,963,299 bytes**,
+  SHA-256 `b60b203673518380857ede39b9e23d916869517735269d0a708a8ff93434f01a`.
+- Private GCS `gs://reel-pilot-drafts-focused-premise-510518-g6-pilot2/smoke/`
+  contains `cpu-gcs-20261013-01.mp4` (`video/mp4`, approx. 4 MB)
+  and `cpu-gcs-20261013-01.json` (`application/json`, 491 bytes),
+  independently inspected at 16:58:47 IST through Cloud Storage UI.
+  Both individual objects show **Not public**. Agent2 #121–#123.
+- Guarded Cloud Shell script checks the downloaded video SHA-256, size,
+  codec and duration against sidecar; operator reported both commands
+  worked. The exact operator-side checksum readback lines were not
+  provided, so independent **browser byte-level hash verification**
+  is not claimed.
+- **Moksha Master Route B event #33** was published and its exact
+  registry marker read back once. This is a runtime event, not a
+  source-branch default-branch release.
+
+The private persistent artifact path is now verified. **Do not rerun
+`--run` using the same output keys**: create-only preconditions will
+refuse existing files. This test is synthetic and unbranded; there is
+still **no validated genuine original-footage render**, provenance
+approval, production `reel-engine-cpu-pilot` execution, real publishing
+or autonomous schedule. Maintain the strict private-source and
+editorial-approval gates before any 30-second production trial.
