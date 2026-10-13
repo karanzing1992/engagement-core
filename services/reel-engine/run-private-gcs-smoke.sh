@@ -33,7 +33,7 @@ WORKSPACE="$(mktemp -d)"
 trap 'rm -rf -- "$WORKSPACE"' EXIT
 
 gcloud run jobs describe "$JOB" --project="$PROJECT" --region="$REGION" --format=json > "$WORKSPACE/job.json"
-gcloud storage buckets describe "gs://$BUCKET" --format=json > "$WORKSPACE/bucket.json"
+gcloud storage buckets describe "gs://$BUCKET" --raw --format=json > "$WORKSPACE/bucket.json"
 gcloud run jobs executions list --job="$JOB" --project="$PROJECT" --region="$REGION" --format=json > "$WORKSPACE/executions.json"
 python3 - "$WORKSPACE/job.json" "$WORKSPACE/bucket.json" "$WORKSPACE/executions.json" "$JOB" "$IMAGE" "$WORKER" "$BUCKET" "$BASELINE_EXEC" <<'PY'
 import json, sys
