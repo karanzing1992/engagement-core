@@ -215,3 +215,38 @@ Read-only recovery from the existing feature-branch checkout:
 new proposed names pass the audit. Never delete existing buckets or loosen
 permissions to bypass a safety check. No new deploy has occurred; source
 is still a draft PR, not a main-branch release.
+
+## First private Cloud Run job deployed — verified 13 October 2026
+
+User-provided authenticated Cloud Shell output confirms:
+- Google Cloud Build `9baf7f61-6c75-4929-94cc-31c8591f50cf`,
+  `STATUS: SUCCESS`, duration `2M1S`.
+- Built image `asia-south1-docker.pkg.dev/focused-premise-510518-g6/reel-pilot-images/reel-engine-cpu-pilot:source-v1`.
+- `gcloud run jobs deploy` completed successfully for
+  `reel-engine-cpu-pilot` in `asia-south1`.
+- `gcloud run jobs describe ... --format=value(metadata.name)`
+  returned the exact job name.
+
+Independently, authenticated Opera Agent 2 browser readback in Google Cloud
+Console confirmed `reel-engine-cpu-pilot` appeared in the Cloud Run Jobs
+list with **No executions**, and the job History tab read
+**No history for this job yet** (agent jobs #12 and #13).
+YAML details (service account, CPU, RAM, environment) were not readable
+through the browser and remain **configured by source, not independently
+inspected post-deployment**. The Cloud Shell script was executed with
+`REEL_PILOT_SUFFIX=pilot2` after both suffixed private bucket names
+passed a read-only absence audit. Original existing buckets were preserved.
+
+**Runtime status:** job REGISTERED/DEPLOYED; **not executed**, not
+media-tested in Google Cloud and not a public or live social publishing
+service. Deployment may consume Google trial credit. Before any first
+execution, independently inspect the job's IAM/environment and private GCS
+storage, upload human-reviewed genuinely owned/licensed India/Goa video,
+SHA-256 checksums and approved evidence, then review the job execution
+budget. The unbranded `generic` pilot is mandatory until the actual official
+transparent Moksha logo is approved and integrated.
+
+The existing feature branch/PR #50 is still draft and has not been merged
+to a monitored default branch. Runtime deployment is independently reported
+via Moksha Master **Route B event #28**. Do not register this same runtime
+change again as a Route A deployed result without deduplication.
