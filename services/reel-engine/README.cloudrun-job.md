@@ -85,3 +85,36 @@ test and output-quality review. For rollback discard this feature branch
 before deployment; after deployment delete only the approved pilot job,
 image, private pilot objects and scoped permissions. Agent 1, Agent 2,
 other customer data and existing Reel Engine API remain untouched.
+
+## Offline validation — 13 October 2026
+
+The checked-in cloudrun_batch.py was reproduced locally and its Git blob
+SHA-1 was confirmed byte-for-byte against GitHub:
+fd22ce0568ba04084e46f9a7e14caa223e8332e3.
+
+Eight local unit tests passed (private URI/path guards, valid pilot manifest,
+unbranded restriction, wrong bucket, synthetic foreign-location rejection,
+geographic override blocking and target geometry). The test fixture and
+geo_policy / multi_renderer helpers were locally reconstructed for the offline
+environment rather than obtained as a full exact checkout, so this is
+**not** a claim that GitHub Actions, the full repository test suite or a
+container build passed.
+
+A full end-to-end offline adapter smoke test with simulated private GCS
+Client/Bucket/Blob and **real FFmpeg** also passed using two generated 15-second
+synthetic clips. It created a private 720x1280, 25-fps, 750-frame MP4 with
+audio, duration 30.043984 seconds and size 6,657,321 bytes, plus a private
+JSON result. The test emitted no public URL and performed no real Google
+Cloud API requests. Synthetic provenance strings were used **only in the
+mock test**, not as proof of eligible real Goa footage.
+
+No cloud billing, API enablement, Google Cloud IAM, Cloud Run, Artifact
+Registry, Cloud Build, GCS bucket, production video or brand assets were
+modified. Agent 2's Google Cloud Billing page was checked through an
+authenticated read-only browser task but displayed a navigation shell only;
+billing account linkage is still **UNVERIFIED**. This is a hard block on
+deployment and on any paid service creation.
+
+The future Cloud Run 512-MiB memory size remains unbenchmarked under Cloud
+Run: local test process peak is not a substitute for whole-container peak
+memory or input-size stress testing.
