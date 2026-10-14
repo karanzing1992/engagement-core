@@ -5,6 +5,20 @@
 **Working independent Google Apps Script:** [Code.gs](../services/master-stack-worker/apps-script/Code.gs) | [Setup, health checks and recovery](../services/master-stack-worker/apps-script/README.md)  
 **Internal Supabase:** project `saczglesalubroyaucqe`, private table `public.master_stack_change_events`
 
+## GOLDEN RULE 0 — RESEARCH FIRST. REUSE FIRST. NEVER BUILD FROM SCRATCH. (MANDATORY, 14 October 2026)
+
+**Scope:** EVERY Moksha Master participating/linked project and every implementation-oriented action, including planning, coding, plugins, mobile apps, integrations, device automation, infrastructure, UI/UX, websites, media toolchains, workflows and operational engineering. This is a binding default, not an optional suggestion.
+
+1. **Look internally first:** inspect the canonical Master Registry and existing approved code, libraries, designs, assets, plugins, workflows and integration owners. Reuse the installed/working module before inventing a duplicate.
+2. **Research publicly available foundations before implementation:** search and evaluate maintained public open-source Git repositories, upstream frameworks, libraries, APIs, ready-made platforms, templates, component/design systems, primary vendor documentation, open standards and other legally reusable resources. Use credible evidence and direct upstream URLs, not just generated proposals or guesses. Research effort can be proportionate for a trivial/low-risk task but the source/reuse check is NEVER skipped.
+3. **Evaluate and select:** compare functional coverage, real upstream releases/versions, maintainer activity, known security issues, dependency quality, license and attribution, data/privacy constraints, accessibility, compatibility, performance, operational costs, sustainability and upgrade/rollback. Public Git availability does not mean the license permits copying; no untrusted code execution before review.
+4. **Build on proven work:** prefer configuration, adoption, extension, forking, integration, existing templates or narrowly scoped adapters. Reuse the strongest technically and legally suitable solution rather than building a new competing implementation.
+5. **Document evidence BEFORE custom work:** for each nontrivial task add a *Reference / Reuse Decision* to the ticket, design, PR or handoff with researched URLs, alternatives and comparison, selected upstream, source version/license, reused components, narrowly scoped additions, verification/tests and rollback. Never present speculative research as a deployed capability.
+6. **Exception gate:** creating an original net-new system from scratch is **prohibited** unless no credible reusable candidate is viable for a documented security, legal, compatibility or functionality reason **AND the user expressly authorizes that exception**. Only write custom code for genuinely absent functionality or essential glue/adapters. Do not use a scratch build merely because it is easier to generate code.
+7. **Security and permissions remain binding:** do not copy proprietary/incompatible-license code, mix tenant/customer data or credentials, weaken authenticated access, bypass safety gates, or deploy/uninstall/replace active services without existing change-control, backups and operator approval.
+
+**Propagation:** embed or reference this rule in each linked Project instruction, the portable `master-stack-sync` Skill and repository `.github/copilot-instructions.md`. The canonical Doc is policy authority; neither a Doc edit nor a GitHub commit mechanically updates existing ChatGPT Project settings or grants connector access. For independently connected code agents, include the rule in their always-on instructions. Any future Master Stack code/architecture review must explicitly confirm adherence to Golden Rule 0.
+
 ## Reusable GPT Skill and Plugin — 11 October 2026
 
 The existing nine GitHub repositories are already trained through their `.github/copilot-instructions.md` files. A **skills-only portable Plugin** also packages this procedure for use in supported ChatGPT chats:
