@@ -27,3 +27,15 @@ This is an explicit source governance mapping, not proof that this ChatGPT Proje
 **Source evidence:** [Automation & Systems consolidated technical audit](https://docs.google.com/document/d/1ybmMCLX_9gy2SUAL9_h-8HpTWBVWt_ksbTShHn1FF5w/edit), 11 October 2026.
 **Canonical reporting policy:** https://github.com/karanzing1992/engagement-core/blob/main/docs/MASTER_STACK_UPDATE_PROTOCOL.md
 **Master registry:** https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit
+
+## Current Linux Opera Bridge multi-agent authority — 14 October 2026
+[OPERA-BRIDGE-MULTIAGENT-SOURCE-OF-TRUTH:20261014]
+
+**Authoritative maintained source:** [Opera Bridge current contract](https://github.com/karanzing1992/moksha_wordpress/blob/main/docs/OPERA_BRIDGE_CURRENT.md). Ownership remains `moksha_wordpress` (Linux Opera, browser controller v0.6.1, Node-RED supervisor and release guard); `engagement-core` owns cross-project governance and future integrations; `android_gpt_bridge` is a distinct mobile bridge. **Do not resurrect the old Mac Opera one-agent/moksha-ops-queue route for this Linux installation.**
+
+Live evidence: v0.6.1 controller `AGENT_READY`, browser running, Node-RED active and legacy Linux remote service disabled (owner's Oct 14 readback). A former v0.6.0 two-agent local tab-isolation regression passed. Supabase Edge `opera-bridge-queue` v1 is **single agent, read-only**: three `inspect` jobs completed; it does **not** provide remote navigation or two concurrently provisioned cloud agents.
+
+Supabase migration `20261014121200_opera_bridge_version_authority_and_multi_agent_registry_v2_staged` is deployed and separately read back. It introduces a monotonic minimum `0.6.1` metadata authority, immutable v1 worker/client tenant-agent enrollment, a capability-scoped future agent registry and a reservation/intents table. **Its multi-agent remote routing is STAGED only.** New agent provisioning, browser tab attestations, authorized chat/project context binding, MCP, and v2 navigation require separate approved work and live QA. The source release guard also needs explicit host installation before claiming local anti-downgrade enforcement.
+
+The Master GitHub-to-Doc watcher monitors the above **default-branch** canonical document and migration. Older v0.6.0 ZIPs and unmerged PR #114/#115 READMEs are historical sources, not release candidates. Do not create a new master worker, include secrets or commingle Ashwakaal and Andaz customer data.
+
