@@ -125,3 +125,15 @@ The [Master Stack Health Runbook](./MASTER_STACK_HEALTH_RUNBOOK.md) defines veri
 **Architecture:** material GitHub commit → independent Apps Script → Google Doc; external project event → restricted Supabase inbox → connected verified inbox publisher → same Google Doc. Google Calendar reminders and Supabase Cron health checks are separate from these publishing paths.
 
 **Security background:** https://docs.google.com/document/d/1ybmMCLX_9gy2SUAL9_h-8HpTWBVWt_ksbTShHn1FF5w/edit
+
+## Opera Bridge release authority, multi-agent isolation and legacy supersession — 14 October 2026
+[OPERA-BRIDGE-AUTHORITY-RULE:20261014]
+
+All linked Projects, GitHub agents, release pipelines and operator runbooks MUST consult [the current v0.6.1+ Opera Bridge contract](https://github.com/karanzing1992/moksha_wordpress/blob/main/docs/OPERA_BRIDGE_CURRENT.md) before describing or modifying the Linux Opera automation stack. The verified local controller supports independent agent IDs and exclusive tab locks; its connected Supabase v1 queue is **one enrolled agent/read-only**. These are different capabilities and may not be conflated. Do not infer cloud navigation, concurrent remote provisioning or chat-native dispatch from local two-agent tests.
+
+**Never silently downgrade or overwrite.** No legacy v0.6.0 archive, Mac `moksha-ops-queue`/Agent2 historical source, or older feature-branch README authorizes replacing a current Linux v0.6.1+ build, overwriting credential scope, turning on the old scheduler or reusing a tab assigned to another agent. Enforce source version floors, installer preflight, verified rollback, one scheduler per host, reviewable monotonic version policy and owner/tenant isolation. The new PostgreSQL authority and enrollment triggers are **live**; the separate Linux pre-start/release guard is **not yet installed and must not be represented as active**.
+
+**Multi-agent cross-chat future contract:** each request must be authenticated by its future approved connector and independently bound to a tenant, project, owner and opaque chat-context key; task-aware capability matching, lease ownership, dedicated tab and limits apply per agent. The Supabase v2-ready agent registry and reservation schema are deployed **without turning on** remote multi-agent routing, browser navigation or MCP. Implement the validated adapter / local provisioner by reusing Node-RED, v0.6.1 controller and PostgreSQL controls; do not create a competing engine. The credential/ChatGPT-MCP integration will be separately approved later. Browser landing-page canaries (Facebook and Google login screens without signing in) remain unexecuted on two remote Linux agents as of this update.
+
+This is primarily architecture and safeguard reporting. Stage rollout as source-only → DB staged → installed host guard → authenticated v2 worker+gateway → verified cross-tenant two-agent parallel canary → connector approval. Update Google Docs with source evidence and a single unique marker; avoid duplicating existing Supabase events #38–#41 or treating this document edit as proof of a new runtime deployment.
+
