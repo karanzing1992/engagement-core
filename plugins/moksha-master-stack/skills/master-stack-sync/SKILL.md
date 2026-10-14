@@ -7,6 +7,10 @@ description: Share and verify new capabilities, technology changes, integrations
 
 Use the canonical protocol at https://github.com/karanzing1992/engagement-core/blob/main/docs/MASTER_STACK_UPDATE_PROTOCOL.md as the policy source. The master technology registry is https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit.
 
+## GOLDEN RULE 0 — Research first; reuse first; never build from scratch (14 October 2026)
+
+This is mandatory for **every participating project** and every design, software, integration, automation, device, infrastructure, media toolchain or operational implementation action. First inspect the Master registry, approved internal assets and implementations. Research established public open-source Git repositories and other lawful reusable solutions and compare their capabilities, maintenance, security, licenses/attribution, compatibility, privacy, accessibility, costs and extensions. Adapt/fork/configure/integrate an appropriate foundation instead of writing a new system. For each nontrivial task record upstream URLs, version/license, alternatives, decision, gaps, QA and rollback before implementation. Custom code is limited to necessary adapters and proven gaps; net-new scratch builds require documented absence/inappropriateness of viable options **and explicit user approval**. Low-risk routine tasks require a proportionate reuse check. Never execute untrusted code without review, violate licenses, expose secrets or bypass required approvals. See the canonical protocol's Golden Rule 0 section. The installed Skill and Docs alone do not automatically alter each existing ChatGPT Project's instructions.
+
 The independent Google Apps Script worker **already exists** and has passed live GitHub-to-Google-Doc canary tests. Do **not** rebuild it, create a second GitHub poller, or bypass its GitHub credentials. Never assume the hourly trigger is healthy without a corresponding Apps Script execution record.
 
 ## Preferred Moksha WordPress route: private WP Manager (verified 12 October 2026)
