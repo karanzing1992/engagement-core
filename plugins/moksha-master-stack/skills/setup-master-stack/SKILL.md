@@ -5,6 +5,10 @@ description: Onboard a ChatGPT project to the existing Moksha Master capability-
 
 # Moksha Master setup
 
+## Mandatory Golden Rule 0 — research and reuse before every action
+
+For every linked project, look first in the Master Registry/approved code and research maintained public open-source Git repositories and other lawful reusable foundations before design, development, automation, integrations, tools or technical changes. Evaluate license, security, maturity, feature fit, compatibility, cost and QA; adapt rather than recreate. Document candidate sources, reuse choice, version/license, tests and rollback for nontrivial work. Never approve a from-scratch build without documented absence of suitable options AND the user's explicit exception approval. Include this rule in the project's actual instructions; updating central Docs alone does not edit those settings. Canonical policy: https://github.com/karanzing1992/engagement-core/blob/main/docs/MASTER_STACK_UPDATE_PROTOCOL.md .
+
 Confirm the project identity and whether it is one of the nine allowlisted GitHub repositories. Check the existing user-authorized GitHub, Supabase and Google Drive connections before claiming direct write ability. Read the live protocol at https://github.com/karanzing1992/engagement-core/blob/main/docs/MASTER_STACK_UPDATE_PROTOCOL.md and the working registry at https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit when those tools are accessible.
 
 Explain the two routes: GitHub source commit → independent Apps Script → master Doc; verified service-only event → private Supabase inbox → separate inbox publisher → master Doc. Never install duplicate schedulers or request private tokens in chat.
