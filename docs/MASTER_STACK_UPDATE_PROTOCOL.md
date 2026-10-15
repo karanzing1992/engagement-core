@@ -137,3 +137,7 @@ All linked Projects, GitHub agents, release pipelines and operator runbooks MUST
 
 This is primarily architecture and safeguard reporting. Stage rollout as source-only → DB staged → installed host guard → authenticated v2 worker+gateway → verified cross-tenant two-agent parallel canary → connector approval. Update Google Docs with source evidence and a single unique marker; avoid duplicating existing Supabase events #38–#41 or treating this document edit as proof of a new runtime deployment.
 
+
+## Shared Claude Dev — explicitly invoked development (15 October 2026)
+
+When the owner says **“Use Claude Dev”** in any participating ChatGPT Project, follow [the shared Claude Dev contract](./CLAUDE_DEV_ON_DEMAND.md) and the installed `claude-dev-on-demand` Master Skill where available. This is **on-demand**, not a background schedule. Reuse the existing PC Claude CLI and licensed upstream code; prefer verified subscription-available Opus without paid API credit activation. Only the Shaadi game has a verified repo-specific GitHub→local CLI development bridge at this checkpoint, and its explicit Opus setting is in draft PR #32. Other repos must independently verify approved author/runner/credential/path/test gates before dispatch. Do not silently share private credentials across KaranZi and karanzing1992, or conflate the nine reporting-allowlisted repos with Claude execution permission. Source-only policy and Skill updates do NOT prove new live remote multi-repository execution.
