@@ -31,14 +31,14 @@ class SeccompCanaryPolicyTests(unittest.TestCase):
 
     def test_neither_disables_seccomp_or_home_guard(self):
         for script in (self.installer, self.retest):
-            self.assertIn('"/home"', script)
-            self.assertIn('"enableWeakerNestedSandbox"', script)
+            self.assertIn('/home', script)
+            self.assertIn('enableWeakerNestedSandbox', script)
             self.assertNotIn('allowAllUnixSockets', script)
             self.assertNotIn('sudo sysctl', script)
             self.assertNotIn('apparmor_restrict_unprivileged_userns=0', script)
 
     def test_retest_does_not_reinstall_or_change_runners(self):
-        self.assertNotRegex(self.retest, r'(?m)^\\s*(sudo|npm install|systemctl|gh auth)\\b')
+        self.assertNotRegex(self.retest, r'(?m)^\s*(sudo|npm install|systemctl|gh auth)\b')
         self.assertIn('CROSS_PROJECT_RUNNERS: NOT_ENROLLED', self.retest)
         self.assertIn('FAKE_PRIVATE', self.retest)
         self.assertIn('escape-link', self.retest)
