@@ -1,0 +1,39 @@
+# COPY ONLY into a specifically approved, PRIVATE execution repository.
+# Exact owner ID and repository below are SHAADI references, not a blanket permit.
+# SECURITY: do not copy this to a public repo, do not use shared persistent runner.
+name: Claude Dev scoped task (private template)
+on:
+  issues:
+    types: [opened]
+permissions:
+  contents: read
+  issues: read
+concurrency:
+  group: claude-dev-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: >-
+      ${{ github.repository == 'KaranZi/shaadi-aunty-dodge' &&
+          github.event.issue.user.id == 11679700 &&
+          github.event.issue.title != '' &&
+          startsWith(github.event.issue.title, '[CLAUDE-DEV]') &&
+          vars.CLAUDE_DEV_ENABLED == 'true' }}
+    # Example only; the matching dedicated isolated runner has not been enrolled.
+    runs-on: [self-hosted, Linux, X64, claude-dev-PRIVATE-repo-ONLY]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fail-closed authorization preflight (no command from issue body)
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 tools/claude-dev-router/router.py \
+            --policy ./tools/claude-dev-router/repo-policy.json \
+            --event "$GITHUB_EVENT_PATH" --actor "$GITHUB_ACTOR" \
+            --repository "$GITHUB_REPOSITORY"
+          # Deliberately validation-only. Execution is a separate, proven gate.
