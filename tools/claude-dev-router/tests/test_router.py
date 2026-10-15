@@ -44,8 +44,11 @@ class RouterTests(unittest.TestCase):
             with self.assertRaises(Rejected): verify_paths(root,['godot/escape'],POLICY['allowed_paths'])
     def test_sandbox_read_scope(self):
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td); (root/'repo').mkdir();(root/'auth').mkdir()
-            c=sandbox_config(root/'repo',root/'auth')
+            root=Path(td); (root/'repo').mkdir();(root/'auth').mkdir();(root/'seccomp').mkdir()
+            (root/'seccomp'/'apply-seccomp').write_text('fake test helper only')
+            c=sandbox_config(root/'repo',root/'auth',root/'seccomp')
+            self.assertIn(str(root/'seccomp'), c['filesystem']['allowRead'])
+            self.assertIn(str(root/'seccomp'), c['filesystem']['denyWrite'])
             self.assertIn('/home',c['filesystem']['denyRead'])
             self.assertNotIn('github.com',c['network']['allowedDomains'])
             self.assertEqual(c['network']['allowUnixSockets'],[])

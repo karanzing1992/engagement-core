@@ -103,10 +103,31 @@ def verify_paths(workspace: Path, changed: list[str], allowed: list[str]) -> Non
         require(target.is_relative_to(ws), "changed path escaped workspace")
 
 
-def sandbox_config(workspace: Path, auth_home: Path) -> dict:
+def locate_seccomp_helper_dir() -> Path:
+    """Require the genuine upstream seccomp binary; never bypass the filter."""
+    import platform
+    arch = {'x86_64': 'x64', 'aarch64': 'arm64'}.get(platform.machine())
+    require(arch is not None, "no tested seccomp architecture")
+    exe = shutil.which('srt')
+    require(exe is not None, "srt not installed")
+    package_root = Path(exe).resolve(strict=True).parent.parent
+    helper_dir = package_root / 'vendor' / 'seccomp' / arch
+    helper = helper_dir / 'apply-seccomp'
+    require(helper_dir.is_dir() and not helper_dir.is_symlink(),
+            "seccomp helper directory missing or symlinked")
+    require(helper.is_file() and os.access(helper, os.X_OK) and not helper.is_symlink(),
+            "native seccomp helper missing or not executable")
+    return helper_dir.resolve(strict=True)
+
+
+def sandbox_config(workspace: Path, auth_home: Path, seccomp_dir: Path) -> dict:
     ws = workspace.resolve(strict=True)
     ah = auth_home.resolve(strict=True)
+    sc = seccomp_dir.resolve(strict=True)
     require(ah.is_dir() and ws != ah and not ah.is_relative_to(ws), "auth home must be separate")
+    require(sc.is_dir() and not sc.is_relative_to(ws) and not sc.is_relative_to(ah),
+            "seccomp helper outside workspace/auth required")
+    require((sc / 'apply-seccomp').is_file(), "native seccomp helper required")
     # Anthropic's existing Sandbox Runtime uses bubblewrap on Linux.
     # Only an explicitly provisioned dedicated auth home is re-allowed;
     # that auth account must contain NO other-project credentials.
@@ -114,9 +135,9 @@ def sandbox_config(workspace: Path, auth_home: Path) -> dict:
         "network": {"allowedDomains": ["api.anthropic.com", "*.anthropic.com", "claude.ai", "*.claude.ai"],
                     "deniedDomains": [], "allowUnixSockets": [], "allowLocalBinding": False},
         "filesystem": {"denyRead": ["/home", "/root", "/mnt", "/media", "/run/user"],
-                       "allowRead": [str(ws), str(ah)],
+                       "allowRead": [str(ws), str(ah), str(sc)],
                        "allowWrite": [str(ws), str(ah / '.claude' / 'debug'), '/tmp/claude'],
-                       "denyWrite": [str(ws / '.git'), str(ws / '.env'), str(ws / '.mcp.json')]},
+                       "denyWrite": [str(ws / '.git'), str(ws / '.env'), str(ws / '.mcp.json'), str(sc)]},
         "enableWeakerNestedSandbox": False,
     }
 
@@ -135,12 +156,13 @@ def preflight(workspace: Path, auth_home: Path) -> None:
     require(os.environ.get('CLAUDE_DEV_NEGATIVE_CANARIES_PASS') == 'yes',
             "host negative isolation canaries not verified")
     resolve_workspace(workspace)
+    return locate_seccomp_helper_dir()
 
 
 def execute(task: dict, workspace: Path, auth_home: Path) -> None:
     require(os.environ.get('CLAUDE_DEV_EXECUTION_ALLOWED') == 'true',
             "execution disabled by default")
-    preflight(workspace, auth_home)
+    seccomp_dir = preflight(workspace, auth_home)
     # Authentication is tested through Claude's own subscription CLI on this
     # separate host identity; never pass API-key env vars into model process.
     env = dict(os.environ)
@@ -159,7 +181,7 @@ def execute(task: dict, workspace: Path, auth_home: Path) -> None:
               task['title'] + '\n' + task['task'])
     with tempfile.TemporaryDirectory(prefix='claude-dev-settings-') as td:
         conf = Path(td) / 'srt.json'
-        conf.write_text(json.dumps(sandbox_config(workspace, auth_home)))
+        conf.write_text(json.dumps(sandbox_config(workspace, auth_home, seccomp_dir)))
         proc = subprocess.run(
             ['srt', '--settings', str(conf), 'claude', '-p', prompt, '--model', 'opus',
              '--permission-mode', 'acceptEdits', '--tools', 'Read,Write,Edit,Glob,Grep',

@@ -23,3 +23,4 @@ jobs:
           python3 -m unittest discover -s tools/claude-dev-router/tests -v
           python3 -m py_compile tools/claude-dev-router/router.py
           bash -n tools/claude-dev-router/install-srt-and-canary.sh
+          bash -n tools/claude-dev-router/retest-srt-helper-visibility.sh

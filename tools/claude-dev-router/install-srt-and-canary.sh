@@ -8,6 +8,7 @@ SRT_VERSION="0.0.79"
 PREFIX="${HOME}/.local/share/claude-dev-srt"
 BIN_DIR="${HOME}/.local/bin"
 SRT="${PREFIX}/node_modules/.bin/srt"
+HELPER_DIR="$PREFIX/node_modules/@anthropic-ai/sandbox-runtime/vendor/seccomp/x64"
 
 need() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -29,6 +30,10 @@ fi
 printf 'INSTALL: upstream @anthropic-ai/sandbox-runtime@%s into a private user prefix\n' "$SRT_VERSION"
 mkdir -p "$PREFIX" "$BIN_DIR"
 npm install --prefix "$PREFIX" --save-exact --ignore-scripts --no-audit --no-fund "@anthropic-ai/sandbox-runtime@${SRT_VERSION}"
+if [ ! -f "$HELPER_DIR/apply-seccomp" ] || [ ! -x "$HELPER_DIR/apply-seccomp" ]; then
+  echo 'BLOCKED: SRT native seccomp helper missing before sandbox; no insecure fallback' >&2
+  exit 29
+fi
 if [ ! -x "$SRT" ]; then
   echo 'BLOCKED: srt CLI was not installed at the expected location' >&2
   exit 22
@@ -51,15 +56,15 @@ mkdir -p "$WORKSPACE" "$PRIVATE_DIR"
 printf 'WORKSPACE_OK\n' > "$WORKSPACE/allowed.txt"
 printf 'FAKE_SECRET_DO_NOT_DISCLOSE\n' > "$PRIVATE_DIR/secret.txt"
 ln -s "$PRIVATE_DIR/secret.txt" "$WORKSPACE/escape-link"
-python3 - "$TMP_ROOT/srt.json" "$WORKSPACE" "$PRIVATE_DIR" <<'PY'
+python3 - "$TMP_ROOT/srt.json" "$WORKSPACE" "$PRIVATE_DIR" "$HELPER_DIR" <<'PY'
 import json,sys
 cfg = {
     'network': {'allowedDomains': [], 'deniedDomains': [], 'allowUnixSockets': [], 'allowLocalBinding': False},
     'filesystem': {
         'denyRead': ['/home', '/root', '/mnt', '/media', '/run/user', sys.argv[3]],
-        'allowRead': [sys.argv[2]],
+        'allowRead': [sys.argv[2], sys.argv[4]],
         'allowWrite': [sys.argv[2]],
-        'denyWrite': [sys.argv[3]],
+        'denyWrite': [sys.argv[3], sys.argv[4]],
     },
     'enableWeakerNestedSandbox': False,
 }
