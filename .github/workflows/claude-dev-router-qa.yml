@@ -1,0 +1,24 @@
+name: Claude Dev Router Source QA
+on:
+  pull_request:
+    paths:
+      - 'tools/claude-dev-router/**'
+      - '.github/workflows/claude-dev-router-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Router authorization and path unit tests (no Claude and no secrets)
+        run: |
+          python3 -m unittest discover -s tools/claude-dev-router/tests -v
+          python3 -m py_compile tools/claude-dev-router/router.py
