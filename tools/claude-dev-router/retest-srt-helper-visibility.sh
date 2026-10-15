@@ -66,11 +66,27 @@ if run /bin/cat "$WORKSPACE/escape-link" > "$ROOT/deny-symlink.log" 2>&1 ||
   echo 'FAIL: symlink escaped the sandbox' >&2; exit 22
 fi
 echo 'PASS: symlink escape refused'
-if run /usr/bin/touch "$FAKE_PRIVATE/forbidden.txt" > "$ROOT/deny-write.log" 2>&1 ||
-   [ -e "$FAKE_PRIVATE/forbidden.txt" ]; then
-  echo 'FAIL: fake private path was writable' >&2; exit 23
+# Linux SRT denyRead uses a tmpfs mount for directories. Writes there may
+# return success, but must NEVER create or modify files on the real host.
+if run /usr/bin/touch "$FAKE_PRIVATE/forbidden.txt" > "$ROOT/deny-write.log" 2>&1; then
+  echo 'INFO: sandbox wrote to disposable denyRead tmpfs (not necessarily the host)'
 fi
-echo 'PASS: fake private path not writable'
+if [ -e "$FAKE_PRIVATE/forbidden.txt" ] ||
+   ! grep -qx 'CANARY_FAKE_SECRET' "$FAKE_PRIVATE/secret.txt"; then
+  echo 'FAIL: a private file was created or modified on the host' >&2; exit 23
+fi
+echo 'PASS: denyRead tmpfs writes did not modify host private files'
+
+# A separate read-visible directory outside allowWrite must reject writes
+# outright. Unlike denyRead tmpfs, this path has no overlay.
+READABLE_ONLY="$ROOT/readable-only"
+mkdir -p "$READABLE_ONLY"
+if run /usr/bin/touch "$READABLE_ONLY/forbidden.txt" > "$ROOT/outside-write.log" 2>&1 ||
+   [ -e "$READABLE_ONLY/forbidden.txt" ]; then
+  echo 'FAIL: write outside allowWrite was not blocked' >&2
+  exit 25
+fi
+echo 'PASS: read-visible path outside allowWrite refused writes'
 if ! run /usr/bin/touch "$WORKSPACE/permitted.txt" > "$ROOT/allow-write.log" 2>&1 ||
    [ ! -f "$WORKSPACE/permitted.txt" ]; then
   echo 'FAIL: sandbox workspace not writable' >&2
@@ -78,6 +94,6 @@ if ! run /usr/bin/touch "$WORKSPACE/permitted.txt" > "$ROOT/allow-write.log" 2>&
   exit 24
 fi
 echo 'PASS: workspace write allowed'
-echo 'SRT_SYNTHETIC_FILESYSTEM_CANARY_PASS'
+echo 'SRT_HOST_FILESYSTEM_CANARY_PASS (synthetic paths; no real secrets tested)'
 echo 'HOST_IDENTITY, NETWORK, SOCKETS, CLAUDE_SUBSCRIPTION_IN_SANDBOX: NOT YET VERIFIED'
 echo 'CROSS_PROJECT_RUNNERS: NOT_ENROLLED'
