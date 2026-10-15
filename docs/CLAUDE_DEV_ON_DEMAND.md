@@ -39,3 +39,28 @@ Prefer a reviewed adaptation of Shaadi's existing bridge, **not a new general-pu
 - [Anthropic Claude Code CLI](https://code.claude.com/docs/en/cli-reference).
 
 This file is a **documented shared capability policy**, not a declaration of a multi-project runtime deployment. Per-project status must be verified before each actual dispatch.
+
+## Isolation and routing audit — 15 October 2026 (source inspection, not a host penetration test)
+
+**Audit scope:** SHAADI `main` workflow [shaadi-direct.yml](https://github.com/KaranZi/shaadi-aunty-dodge/blob/main/.github/workflows/shaadi-direct.yml), source bridge [shaadi_actions_bridge.py](https://github.com/KaranZi/shaadi-aunty-dodge/blob/main/scripts/shaadi_actions_bridge.py), owner personal plugin v1.2.0 and loaded skill. **Live runner heartbeat, `SHAADI_TASKS_ENABLED` value, host process isolation, per-project installations and remote execution not independently verified.**
+
+| Gate | Observed state | Verdict |
+|---|---|---|
+| Source repository and account separation | Private `KaranZi/shaadi-aunty-dodge` is distinct from public `karanzing1992/engagement-core`; correct GitHub connection must be chosen for each | PASS — source identities |
+| Trigger routing | `issues: opened`; workflow matches owner numeric user ID `11679700`, `[SHAADI-CODE]` title prefix, and `vars.SHAADI_TASKS_ENABLED == 'true'`; bridge independently checks issue, repo and owner ID | PASS — code gate; enabled status UNKNOWN |
+| Queuing/worker | `runs-on: [self-hosted, Linux, X64, shaadi-local]`; max 25 min; fixed concurrency group; no general cross-project dispatch entrypoint | PASS — declared route; online worker UNKNOWN |
+| Path restriction | Claude has `Read,Write,Edit,Glob,Grep` and `acceptEdits`; code checks `git status` AFTER Claude, permitting commits only from `godot/` and `docs/REUSE_LOG.md` | **FAIL for pre-execution filesystem containment:** post-hoc Git checks do not prevent unauthorized reads, writes, symlink escape or modifications to untracked non-Git paths |
+| Credentials and data | Code removes selected API and GitHub token environment variables before Claude and checks `claude.ai` login; same host runner/Unix user can have access to other local credentials and workspaces | PARTIAL; **OS/process isolation unverified**. Env filtering is not a sandbox |
+| Billing/model | CLI `--model opus` on owner machine previously reported Opus 5.5 with subscription; main bridge currently does not pass that flag; [draft PR #32](https://github.com/KaranZi/shaadi-aunty-dodge/pull/32) contains proposal | PARTIAL; do not assert main always selects highest included model |
+| Release rights | Bridge creates isolated branch and review PR; no automatic merge or deploy in inspected code | PASS — current code |
+| Cross-project availability | Personal private plugin source contains skill; in-session `skills__list` exposes it. Plugin Management separately reported app `plugins_6acd2050739081918cbd975f2e23409c` as `not_installed` | PARTIAL; account-wide installation/other Project access NOT VERIFIED |
+
+**Actionable hardening and enrollment requirement:**
+1. **Never use the current Shaadi process as a multi-project runner or promise full isolation.** For any other repository return `NOT ENROLLED` until verified scoped entrypoint exists. Do not route other repos' tasks through `[SHAADI-CODE]`.
+2. **Require preventive isolation before generalization**, not merely a prompt or post-hoc `git status`: a dedicated unprivileged execution identity/container/VM with only the target repo mounted, deny access to other home directories and Unix sockets, prevent symlink traversal, bound network/process permissions, per-job disposable workspace, no shared SSH/GitHub/cloud credentials, and no broad project filesystem bind mounts. Validate actual enforcement with negative tests before calling it secure. Prefer reviewed existing open-source sandboxing rather than inventing a custom jail.
+3. Keep owner-only repo-specific authorization, stable source checkout, narrow token scopes; separate account/tenant runner and credential stores. Safeguard other GitHub accounts. Underlying self-hosted runners are not automatically clean or isolated. See [GitHub self-hosted security](https://docs.github.com/en/actions/reference/security/secure-use) and [ephemeral runner reference](https://docs.github.com/en/actions/reference/runners/self-hosted-runners).
+4. Test **unauthorized user, wrong repo, disallowed path, symlink outside workspace, credentials access, repeated dispatch, dirty checkout, offline runner, unavailable subscription model and failure after validation**. Evidence must be observed in actual isolated runtime; source review does not prove these negative cases.
+5. Only then enroll an individual private repository via an owner-reviewed adapter, run a read-only canary and bounded change→test→PR canary. **No global rollout, broad Shell tool, auto-merge, auto-deploy or paid API key.**
+6. Plugin visibility and execution are separate: after private plugin updates, inspect installed skill catalog and plugin installation state. If the plugin is not installed for a Project/account, provide its private plugin URL and obtain the user's installation action; do not imply the skill or CLI has account-wide execution permissions.
+
+**Risk verdict:** The private Skill's **guidance** is safe to distribute as an on-demand policy. Shaadi's **configured repository gate** is narrow. Claude's **host-side filesystem containment** is *not verified and not enforced by the inspected source*. Shared autonomous PC coding for other projects remains **NOT ENROLLED**.
