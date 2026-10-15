@@ -165,12 +165,10 @@ def execute(task: dict, workspace: Path, auth_home: Path) -> None:
     seccomp_dir = preflight(workspace, auth_home)
     # Authentication is tested through Claude's own subscription CLI on this
     # separate host identity; never pass API-key env vars into model process.
-    env = dict(os.environ)
-    for key in list(env):
-        if key in ('GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN',
-                   'ANTHROPIC_BASE_URL', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY',
-                   'SUPABASE_SERVICE_ROLE_KEY', 'GIT_ASKPASS') or key.startswith(('GITHUB_', 'AWS_', 'SUPABASE_')):
-            env.pop(key, None)
+    # Whitelist only runtime variables. Removing a handful of known token names
+    # cannot protect custom service credentials or credentials named by vendors.
+    safe_keys = ('PATH', 'LANG', 'LC_ALL', 'TERM', 'TZ', 'TMPDIR')
+    env = {key: os.environ[key] for key in safe_keys if key in os.environ}
     env['HOME'] = str(auth_home.resolve(strict=True))
     env['CLAUDE_CODE_SUBAGENT_MODEL'] = 'inherit'
     prompt = ("Implement only this owner-authorized repository task. Follow CLAUDE.md and "
