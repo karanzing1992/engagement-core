@@ -25,7 +25,7 @@ for tool in python3 bwrap cat touch grep; do
   command -v "$tool" >/dev/null || { echo "BLOCKED: missing $tool" >&2; exit 14; }
 done
 # Parent /home remains inaccessible, except this exact, read-only SRT helper directory.
-ROOT="$(mktemp -d "\${TMPDIR:-/tmp}/claude-dev-srt-retest-XXXXXXXX")"
+ROOT="$(mktemp -d "${TMPDIR:-/tmp}/claude-dev-srt-retest-XXXXXXXX")"
 trap 'rm -rf -- "$ROOT"' EXIT
 WORKSPACE="$ROOT/workspace"
 FAKE_PRIVATE="$ROOT/fake-private"
