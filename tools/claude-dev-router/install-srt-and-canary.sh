@@ -89,10 +89,22 @@ if "$SRT" --settings "$TMP_ROOT/srt.json" /bin/cat "$WORKSPACE/escape-link" > "$
   echo 'CANARY_FAIL: symlink escaped workspace' >&2
   exit 26
 fi
-if "$SRT" --settings "$TMP_ROOT/srt.json" /usr/bin/touch "$PRIVATE_DIR/unexpected.txt" > "$TMP_ROOT/blocked-write.log" 2>&1 || \
-    [ -e "$PRIVATE_DIR/unexpected.txt" ]; then
-  echo 'CANARY_FAIL: private directory was writable' >&2
+# denyRead directories are hidden behind writable, disposable tmpfs on Linux.
+# The command may exit zero; verify the actual host files were not modified.
+if "$SRT" --settings "$TMP_ROOT/srt.json" /usr/bin/touch "$PRIVATE_DIR/unexpected.txt" > "$TMP_ROOT/blocked-write.log" 2>&1; then
+  echo 'INFO: sandbox accepted temporary denyRead-overlay write'
+fi
+if [ -e "$PRIVATE_DIR/unexpected.txt" ] ||
+    ! grep -qx 'FAKE_SECRET_DO_NOT_DISCLOSE' "$PRIVATE_DIR/secret.txt"; then
+  echo 'CANARY_FAIL: write reached private host filesystem' >&2
   exit 27
+fi
+READABLE_ONLY="$TMP_ROOT/readable-only"
+mkdir -p "$READABLE_ONLY"
+if "$SRT" --settings "$TMP_ROOT/srt.json" /usr/bin/touch "$READABLE_ONLY/forbidden.txt" > "$TMP_ROOT/outside-write.log" 2>&1 ||
+    [ -e "$READABLE_ONLY/forbidden.txt" ]; then
+  echo 'CANARY_FAIL: write outside explicit allowWrite succeeded' >&2
+  exit 30
 fi
 if ! "$SRT" --settings "$TMP_ROOT/srt.json" /usr/bin/touch "$WORKSPACE/allowed-write.txt" > "$TMP_ROOT/allowed-write.log" 2>&1 || \
     [ ! -f "$WORKSPACE/allowed-write.txt" ]; then
@@ -102,6 +114,6 @@ fi
 printf 'SRT_VERSION_PIN: %s\n' "$SRT_VERSION"
 printf 'SRT_BINARY: %s\n' "$SRT"
 printf 'CANARY_PASS: permitted workspace read/write\n'
-printf 'CANARY_PASS: blocked private read/write and symlink escape\n'
+printf 'CANARY_PASS: private host data unchanged, outside-allowWrite writes blocked, symlink escape denied\n'
 printf 'STATUS: BASIC_SANDBOX_CANARY_PASS; host identity, subscription-in-sandbox, sockets and network enforcement UNVERIFIED\n'
 printf 'CROSS_PROJECT_RUNNER: NOT_ENROLLED (no new GitHub runner or project tokens configured)\n'
