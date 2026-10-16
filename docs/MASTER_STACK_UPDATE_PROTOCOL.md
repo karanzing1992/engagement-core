@@ -28,6 +28,10 @@
 
 **Propagation:** embed or reference this rule in each linked Project instruction, the portable `master-stack-sync` Skill and repository `.github/copilot-instructions.md`. The canonical Doc is policy authority; neither a Doc edit nor a GitHub commit mechanically updates existing ChatGPT Project settings or grants connector access. For independently connected code agents, include the rule in their always-on instructions. Any future Master Stack code/architecture review must explicitly confirm adherence to Golden Rule 0.
 
+## FAST EXECUTION / COMPACT CONTEXT — 16 October 2026
+
+For large ChatGPT / AI-agent project work, apply the existing [Fast Execution Default](../plugins/moksha-master-stack/skills/master-stack-sync/references/project-instructions.md) as an **efficiency layer**, not a change to Golden Rules 0/0A, access boundaries, approvals or QA. Start with the active repo issue/PR/checkpoint, relevant source and the smallest needed section of this registry; do **not** ingest the entire registry or replay past chats by default. QUICK status asks get targeted read-only checks and concise verified outcomes. BUILD tasks keep the research/reuse gate, bounded work, tests, rollback and a compact checkpoint in the **existing** tracker. Batch independent work, but serialize shared credentials, browser/device control, files, production state and scarce shared model quota. Never start a duplicate scheduler/agent merely to accelerate responses. When opening a fresh short chat, resume from the issue/checkpoint URL rather than pasted history. Distinguish source-only, queued, tested and verified-live results. This protocol is source guidance; it does not remotely modify ChatGPT Project settings or establish ongoing agents.
+
 ## Reusable GPT Skill and Plugin — 11 October 2026
 
 The existing nine GitHub repositories are already trained through their `.github/copilot-instructions.md` files. A **skills-only portable Plugin** also packages this procedure for use in supported ChatGPT chats:
