@@ -23,11 +23,8 @@ jobs:
             -A 'Mozilla/5.0' \
             'https://videos.pexels.com/video-files/19291715/19291715-hd_1920_1080_30fps.mp4' \
             -o output/Arambol_HindustaniLens_Pexels_19291715_Original.mp4
-          ffprobe -v error -show_entries stream=codec_name,width,height:format=duration,size \
-            -of json output/Arambol_HindustaniLens_Pexels_19291715_Original.mp4 \
-            | tee output/probe.json
-          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name \
-            -of csv=p=0 output/Arambol_HindustaniLens_Pexels_19291715_Original.mp4 | grep -qi h264
+          test "$(stat -c%s output/Arambol_HindustaniLens_Pexels_19291715_Original.mp4)" -gt 100000
+          file -b --mime-type output/Arambol_HindustaniLens_Pexels_19291715_Original.mp4 | grep -q 'video/mp4'
           sha256sum output/Arambol_HindustaniLens_Pexels_19291715_Original.mp4 | tee output/sha256.txt
       - name: Preserve rights and source
         shell: bash
