@@ -3,6 +3,12 @@
 **Canonical protocol:** [MASTER_STACK_UPDATE_PROTOCOL.md](./MASTER_STACK_UPDATE_PROTOCOL.md)
 **Registry:** https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit
 
+## DEMAND-BASED CUTOVER HEALTH — 16 OCTOBER 2026
+
+Event-driven publishing is the TARGET. Signed GitHub Web App and sender remain SOURCE ONLY pending owner's Apps Script deployment, secret configuration and end-to-end test. Both legacy hourly publication paths remain in service until Route A and Route B are each independently verified. Do not interpret Supabase health cron success as actual publication.
+
+PASS: authorized source event; unique saved Doc marker and readback; same event replay deduplicated; invalid-signature/expired requests rejected; failed Doc write does not advance cursor; verified platform-only event published in the same approved operation; new owned Plugin release read back and fresh-chat availability verified; every in-scope consumer acknowledged. FAIL: retain event + existing publisher, report exact evidence and retry/rollback; only deactivate timers after every cutover check passes. See MASTER_STACK_UPDATE_PROTOCOL.md.
+
 ## Publishing architecture: exactly two independent routes
 
 1. **Route A — monitored GitHub default-branch commit:** installed owner-managed **Google Apps Script** enumerates exactly nine allowlisted repositories and appends unique `[MASTER-GITHUB-CHANGE:repo:SHA]` markers to the Google Doc. Its private per-repository cursors live in Google Apps Script Script Properties, **not** `public.master_stack_repo_cursors`. Repo changes do not automatically update installed Apps Script code. A fresh Google Doc entry proves publication for that source; it does not by itself prove the time-driven trigger is configured.
