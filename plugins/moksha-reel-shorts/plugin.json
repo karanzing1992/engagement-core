@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "moksha-reel-shorts",
-  "version": "1.0.0",
-  "description": "Reusable, evidence-gated short-form Reel and Shorts production with source verification, clean nature audio, readable captions, authentic brand assets and carefully verified cross-platform scheduling.",
+  "version": "1.1.0",
+  "description": "FFmpeg-first reusable in-house Reel/Shorts production, verifiable playable exports, licensed real music, real brand assets, geo/rights QA and consent-gated publishing without Descript.",
   "repository": "https://github.com/karanzing1992/engagement-core",
   "keywords": [
     "reels",
