@@ -3,7 +3,9 @@ name: reel-shorts-production
 description: Make, inspect, repair and safely distribute short-form Reels, Shorts, Stories and Spotlights using user-owned or properly licensed clips, clean continuous nature audio, an approved brand logo, safe-area typography, and authorized platform-specific publishing. Trigger for reel creation, editing, caption placement, audio repair, covers, distribution, or multi-channel publishing. Never claim a post is live from a pending schedule.
 ---
 
-# Reel & Shorts Production — production checklist v1.0.0
+# Reel & Shorts Production — FFmpeg-first production checklist v1.1.0
+
+**Editor policy (16 October 2026):** Descript has been disconnected at the owner's request. The first-party FFmpeg renderer, existing Reel Engine v0.5, local attachments, official brand assets and previously approved footage/edit timeline are the DEFAULT. Never direct a reel job to Descript or a generic editor out of habit, or treat an editor's description/storyboard as a finished cut. Do not install any replacement SaaS by default. Keep an approved timeline, change only required music/scene/closing layers, then prove the rendered result exists. For launch films, consult the approved retreat brief and verify all guest footage and licensed aerial/music inputs before using them. The dedicated Master skill is [ffmpeg-reel-studio](../../../moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md).
 
 **Goal:** deliver a real, playable, reviewed MP4—not a storyboard, placeholder download, unverified render, or a claim that a tool did something. This Skill is guidance, not direct access to a render host or social accounts. Reuse established tools and first-party source code.
 
