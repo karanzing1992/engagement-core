@@ -1,3 +1,11 @@
+## GPT MACHINE / GITHUB CLAUDE BRIDGE REGISTRY — 16 OCTOBER 2026
+
+Two separate routes exist for Shaadi Studio: (A) direct GPT→authenticated remote MCP CLI→Mac/Dell, NOT currently registered as callable ChatGPT host tools (issue KaranZi/shaadi-aunty-dodge#355); and (B) working asynchronous GPT→owner GitHub KaranZi/shaadi-aunty-dodge issue JSON→machine github_relay.py→allowlisted Claude worker→issue result comment→GPT. Repo .mcp.json is local Claude→Godot stdio only, not ChatGPT host connectivity. Mac: KARAN, shaadi-mac-bridge, visual/gameplay/qa; Dell: karan-Inspiron-5379, shaadi_dell_bridge, render/android/qa. An issue/ACK is not a running process; verify host/timestamp/PID/task/queue/checkpoint and terminal state. Never invent remote CLI access or bypass authentication.
+
+STOP ALL owner instruction remains binding (Mac #362–364, Dell #365–367, stop ACKs pending at issue creation). Single shared Claude lease policy was withdrawn, but runtime migration to safe independent host execution is pending issue #368; do not forcibly release held locks, resume production, start Claude sessions or bypass provider limits. Preserve worktrees and checkpoints.
+
+Portable skill source: https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/gpt-machine-claude-bridges/SKILL.md . Evidence: https://github.com/KaranZi/shaadi-aunty-dodge/blob/main/docs/production/DIRECT_MCP_CLI_BRIDGE_RECOVERY_20261016.md . This is source documentation; installed plugin release and consumer sync require separate verified action.
+
 # MOKSHA MASTER — Shared Stack Synchronization Protocol
 **Effective:** 11 October 2026 | **Applies to:** All nine monitored repositories and participating ChatGPT projects.
 
