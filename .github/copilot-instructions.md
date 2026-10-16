@@ -46,3 +46,15 @@ This repository participates in the shared MOKSHA MASTER technology registry. At
 **Master Doc:** https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit
 
 **ChatGPT Project distinction:** These repository instructions guide agents working in this codebase. They are not automatically installed into separate ChatGPT Projects. Add the reusable project-level paragraph in the canonical protocol to those Projects' persistent Instructions when you need chat-native compliance.
+
+## FAST EXECUTION DEFAULT — 16 October 2026
+
+Use the existing [shared compact-context execution instructions](https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/master-stack-sync/references/project-instructions.md); this optimizes workflow but never overrides Golden Rules 0/0A, tenant security, licenses, backup/rollback, QA or deployment approval.
+
+- **QUICK:** For statuses/diagnostics, read only the relevant live evidence and answer concisely. **BUILD:** Check existing solutions and lawful upstream reuse, do scoped work, verify tests/QA, and record a checkpoint.
+- **Small context:** Fetch the active issue/PR/checkpoint and affected source files first; consult only relevant Master sections. Do not reload the entire registry or replay chat history by default.
+- **Task packet:** Use the existing tracker/queue for a compact objective, owner/worker, latest verified SHA/artifact, required upstream/licenses, acceptance tests, blockers, rollback, and single next action. Explicitly label queued/source-only vs tested/deployed/live.
+- **Parallel safety:** Batch independent checks or artifacts, but serialize writes to the same files, shared browser/devices, production state, credentials and shared Claude quota. Do not create duplicate runners, subscriptions, or new polling systems just for chat speed.
+- **Recovery:** Use existing runbooks and idempotent bounded retries; checkpoint before chat rollover or quota interruption. Never claim a worker is running based only on documentation or a queued task.
+
+These are repository instructions, **not** automatic updates to ChatGPT Project settings, model latency, installed plugin versions, or unattended services.
