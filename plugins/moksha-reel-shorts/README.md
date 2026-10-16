@@ -1,9 +1,10 @@
 # Moksha Reel & Shorts Studio — reusable Skill source
 
-**Status:** Skills-only portable plugin source, v1.0.0 (2026-10-11). Source packaging **does not automatically install the plugin**, enable any ChatGPT Project instruction, deploy a worker, or authorize publishing.
+**Status:** Skills-only portable plugin source, v1.1.0 (2026-10-16). Source packaging **does not automatically install the plugin**, enable any ChatGPT Project instruction, deploy a worker, or authorize publishing.
 
 - Skill entrypoint: [skills/reel-shorts-production/SKILL.md](skills/reel-shorts-production/SKILL.md).
 - Specific engine and platform evidence: [references/provenance-and-operations.md](skills/reel-shorts-production/references/provenance-and-operations.md).
+- Descript is disconnected. First-party FFmpeg/Reel Engine is the mandatory first choice; don't substitute a video-editor app or produce descriptions in place of actual output.
 - Built on existing `engagement-core` Reel Engine v0.5 and WordPress Engagement Core; do not copy proprietary or customer/guest data between brands.
 - Invoke for making original Reels, YouTube Shorts, Snapchat Spotlights, nature-sound videos, and managing multilingual / multi-channel release controls.
 - Brand configured per job: Moksha / Andaz or another explicitly authorized brand. Moksha's official logo and Goa-first visual policy must not be silently generalized to unrelated tenants.
