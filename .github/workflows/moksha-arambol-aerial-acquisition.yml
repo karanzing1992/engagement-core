@@ -1,0 +1,49 @@
+# Adapted from .github/workflows/check-beach-walking-stock.yml
+# One-time isolated branch acquisition of owner-approved Pexels Arambol footage.
+name: Moksha Arambol Aerial Asset - Approved
+on:
+  push:
+    branches:
+      - media/moksha-arambol-aerial-20261016
+    paths:
+      - .github/workflows/moksha-arambol-aerial-acquisition.yml
+permissions:
+  contents: read
+jobs:
+  verified-aerial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download approved authentic Arambol aerial
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          curl -fLsS --retry 3 --retry-delay 3 --connect-timeout 20 --max-time 180 \
+            -A 'Mozilla/5.0' \
+            'https://videos.pexels.com/video-files/19291715/19291715-hd_1920_1080_30fps.mp4' \
+            -o output/Arambol_HindustaniLens_Pexels_19291715_Original.mp4
+          ffprobe -v error -show_entries stream=codec_name,width,height:format=duration,size \
+            -of json output/Arambol_HindustaniLens_Pexels_19291715_Original.mp4 \
+            | tee output/probe.json
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name \
+            -of csv=p=0 output/Arambol_HindustaniLens_Pexels_19291715_Original.mp4 | grep -qi h264
+          sha256sum output/Arambol_HindustaniLens_Pexels_19291715_Original.mp4 | tee output/sha256.txt
+      - name: Preserve rights and source
+        shell: bash
+        run: |
+          cat > output/SOURCE_AND_LICENSE.txt <<'EOF'
+          CREATOR: Hindustani Lens
+          TITLE: Aerial View of a Beach in India (Arambol Beach)
+          SOURCE: https://www.pexels.com/video/aerial-view-of-a-beach-in-india-19291715/
+          DOWNLOAD: https://videos.pexels.com/video-files/19291715/19291715-hd_1920_1080_30fps.mp4
+          LICENSE: Pexels license, free commercial use with restrictions.
+          PURPOSE: Moksha Reset retreat launch movie only; owner approved 16 Oct 2026.
+          ENDORSEMENT: No implication the stock creator endorses Moksha.
+          EOF
+      - name: Save reusable original
+        uses: actions/upload-artifact@v4
+        with:
+          name: moksha-approved-arambol-original
+          path: output/
+          retention-days: 3
