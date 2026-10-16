@@ -16,6 +16,11 @@ A plugin provides a **reusable workflow**, not organization-wide authorization. 
 
 Test in a fresh project chat with "Use the master-stack-sync skill to check which capabilities from this project must be reported". Confirm it uses *this project's* identity and existing connected apps, and accurately labels source-only changes. Do not generate canary commits to production or use real guest data. The external Google worker's independent source-to-Doc canaries have already passed.
 
+## First-party FFmpeg Reel Studio
+
+- `skills/ffmpeg-reel-studio/SKILL.md` registers the owned FFmpeg/Reel Engine v0.5 workflow, real-media-first ingestion, audio/caption/logo QA, platform output, and rights/approval gates. Descript is disconnected; do not route through it.
+- The in-depth canonical production checklist remains at `../moksha-reel-shorts/skills/reel-shorts-production/SKILL.md` and the live installed owner plugin `moksha-master-stack-reinforced` may have a later release than this portable source. Updating a GitHub skill does not automatically refresh that installed plugin.
+
 ## Structure
 
 - `plugin.json` — portable Agent Plugins manifest with onboarding skill.
