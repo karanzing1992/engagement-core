@@ -78,11 +78,21 @@ function writeEvent(document, seen, repo, commit, detail) {
   return true;
 }
 
+// Existing hourly/manual entry point is retained only for migration and recovery.
+// Demand-based updates use the signed Web App entry point below.
 function runMasterStackSync() {
+  return syncMasterRepos_(REPOS);
+}
+
+function runMasterStackSyncForRepo(repo) {
+  if (!REPOS.includes(repo)) throw new Error('Repository not allowlisted');
+  return syncMasterRepos_([repo]);
+}
+
+function syncMasterRepos_(selectedRepos) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) {
-    console.log('Skipped: an earlier sync is still running');
-    return;
+    throw new Error('Master sync busy: retry the same signed event after the active run');
   }
   try {
     const props = PropertiesService.getScriptProperties();
@@ -95,7 +105,7 @@ function runMasterStackSync() {
     // Otherwise a failed document write could permanently skip source commits.
     const cursorUpdates = {};
     const appendedMarkers = [];
-    for (const repo of REPOS) {
+    for (const repo of selectedRepos) {
       if (published >= MAX_DOCUMENT_EVENTS_PER_CYCLE) break;
       const cursorKey = 'master_sha_' + repo.replace(/[^a-z0-9]/gi, '_');
       const previous = props.getProperty(cursorKey);
@@ -146,6 +156,7 @@ function runMasterStackSync() {
     props.setProperty('master_last_success', new Date().toISOString());
     props.setProperty('master_last_count', String(published));
     console.log(JSON.stringify({scanned, published, issues}));
+    return {scanned, published, issues};
   } finally {
     lock.releaseLock();
   }
@@ -161,4 +172,67 @@ function masterStackStatus() {
     triggerInstalled: ScriptApp.getProjectTriggers().some(t =>
       t.getHandlerFunction() === 'runMasterStackSync')
   };
+}
+
+
+// Demand-based signed event entry point. This must be installed in the OWNER's
+// existing Apps Script Web App (execute-as-owner), not a duplicate publisher.
+// Save MASTER_EVENT_HMAC_SECRET only in Script Properties; never in source,
+// GitHub/Docs, URL query strings or runtime logs. Install as an authorized
+// Web App with explicit access review; do not remove old trigger until tested.
+function masterEventHex_(bytes) {
+  return bytes.map(b => ('0' + (b & 255).toString(16)).slice(-2)).join('');
+}
+function masterConstantTimeEqual_(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+function masterVerifyEvent_(event) {
+  const props = PropertiesService.getScriptProperties();
+  const secret = props.getProperty('MASTER_EVENT_HMAC_SECRET');
+  if (!secret || secret.length < 32) throw new Error('Demand sync is not provisioned');
+  if (!event || event.version !== 1 || event.kind !== 'github') throw new Error('Unsupported event');
+  if (!REPOS.includes(event.repo) || !/^[a-f0-9]{40}$/.test(String(event.sha || ''))) {
+    throw new Error('Unknown source');
+  }
+  const epoch = Number(event.timestamp);
+  if (!Number.isSafeInteger(epoch) || Math.abs(Math.floor(Date.now()/1000) - epoch) > 300) {
+    throw new Error('Expired event');
+  }
+  if (!/^[A-Za-z0-9_-]{12,80}$/.test(String(event.nonce || '')) ||
+      !/^[a-f0-9]{64}$/.test(String(event.signature || ''))) {
+    throw new Error('Invalid event signature');
+  }
+  const payload = [event.version,event.kind,event.repo,event.sha,event.timestamp,event.nonce].join('\n');
+  const expected = masterEventHex_(Utilities.computeHmacSha256Signature(payload, secret));
+  if (!masterConstantTimeEqual_(expected, event.signature)) throw new Error('Unauthenticated event');
+}
+function doPost(e) {
+  try {
+    // Do not log request bodies, signatures, tokens or private event metadata.
+    const raw = e && e.postData && e.postData.contents;
+    if (!raw || raw.length > 4096) throw new Error('Invalid request size');
+    const event = JSON.parse(raw);
+    masterVerifyEvent_(event);
+    const marker = '[MASTER-GITHUB-CHANGE:' + event.repo + ':' + event.sha + ']';
+    const before = DocumentApp.openById(MASTER_DOC_ID).getBody().getText();
+    if (before.includes(marker)) {
+      return ContentService.createTextOutput(JSON.stringify({ok:true,status:'already_published',marker}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const result = runMasterStackSyncForRepo(event.repo);
+    const verified = DocumentApp.openById(MASTER_DOC_ID).getBody().getText().includes(marker);
+    return ContentService.createTextOutput(JSON.stringify({
+      ok:verified, status:verified?'published':'not_published',
+      marker, scanned:result.scanned, published:result.published, issues:result.issues
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      ok:false, status:'rejected_or_retryable', error:shortText(error.message,100)
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 }
