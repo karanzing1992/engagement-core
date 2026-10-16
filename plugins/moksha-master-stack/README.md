@@ -12,6 +12,10 @@ The central verified protocol is https://github.com/karanzing1992/engagement-cor
 
 A plugin provides a **reusable workflow**, not organization-wide authorization. For always-on behavior in an existing ChatGPT Project, apply the short text in `skills/master-stack-sync/references/project-instructions.md` via Project settings. Underlying GitHub repository instructions already include the tested synchronization protocol.
 
+## On-demand sync target (16 Oct 2026)
+
+The canonical Master now prefers an explicit approved change event → verified Docs marker → owned Plugin release → subscriber acknowledgment. The existing source at `services/master-stack-worker/apps-script/Code.gs` adds a signed `doPost` entry point and `services/master-stack-worker/dispatch-on-change.py` signs per-change events; **neither is a verified deployed integration yet**. Do not disable the old timed publisher until both GitHub and platform-only event routes pass the cutover tests in `docs/MASTER_STACK_UPDATE_PROTOCOL.md`. A GitHub update alone never refreshes this installed plugin or an old chat.
+
 ## Validation
 
 Test in a fresh project chat with "Use the master-stack-sync skill to check which capabilities from this project must be reported". Confirm it uses *this project's* identity and existing connected apps, and accurately labels source-only changes. Do not generate canary commits to production or use real guest data. The external Google worker's independent source-to-Doc canaries have already passed.
