@@ -2,6 +2,12 @@ name: PHP checks
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/class-grec-wp-control.php'
+      - 'product/gateway/supabase/functions/wpcontrol-mcp/**'
+      - 'tests/native-package-sync-gateway-smoke.php'
+      - '.github/workflows/ci.yml'
 
 permissions:
   contents: read
@@ -10,6 +16,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         php: ['7.4', '8.1', '8.3']
     steps:
@@ -20,10 +27,19 @@ jobs:
           coverage: none
       - name: PHP syntax check
         run: |
-          find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          if [ "${{ matrix.php }}" = "7.4" ]; then
+            # Baseline repository includes PHP 8-only test harness fixtures.
+            # Validate the actual WordPress PHP 7.4 plugin/runtime files.
+            php -l engagement-core.php
+            php -l src/class-grec-wp-control.php
+            php -l tests/native-package-sync-gateway-smoke.php
+          else
+            find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          fi
       - name: Snapchat encryption smoke test
         run: php tests/snapchat-crypto-smoke.php
       - name: Publisher API permission-scope smoke test
         run: php tests/publisher-scopes-smoke.php
+          php tests/native-package-sync-gateway-smoke.php
       - name: Snapchat imported-video metadata smoke test
         run: php tests/snapchat-imported-video-metadata-smoke.php
