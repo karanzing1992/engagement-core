@@ -454,6 +454,32 @@ export function makeServer(ctx: UserContext) {
     'theme_list',
   )
 
+  // Reuse WordPress's registered Deployer for Git package abilities.
+  // Source-locked, administrator-paired and never an arbitrary URL/script executor.
+  readTool(
+    'list_git_packages',
+    'List configured Git packages',
+    'Read configured WordPress Git-managed themes/plugins, repository URLs and branches. No credentials are returned.',
+    {},
+    'package_list',
+  )
+
+  writeTool(
+    'sync_git_package',
+    'Sync an approved Git theme or plugin',
+    'Trigger only a previously configured Git package after owner-confirmed backup/rollback, live-theme and exact source/branch verification. Changes production immediately; inspect list_git_packages first.',
+    {
+      type: z.enum(['theme', 'plugin']),
+      package: z.string().regex(/^[a-z0-9_-]+$/),
+      expected_repo_url: z.string().url(),
+      expected_branch: z.string().min(1).max(128),
+      confirm: z.literal(true),
+    },
+    'package_sync',
+    true,
+    false,
+  )
+
   readTool(
     'get_site_options',
     'Read safe WordPress settings',
