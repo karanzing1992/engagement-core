@@ -1,11 +1,36 @@
 ---
 name: gpt-usage-optimizer
-description: Route tasks to the appropriate GPT reasoning effort, control chat/context bloat, and create reliable source-linked handoffs for long project workflows. Use for large projects, sluggish chats, expensive/repetitive agent work, model-choice questions, and new-chat resumes; do not claim to change the ChatGPT model, selected thinking level, or context window automatically.
+description: Route tasks to the appropriate GPT reasoning effort, control chat/context bloat, and create reliable source-linked handoffs for long project workflows. Default guidance for relevant tasks in Master-linked projects; use for any substantial workflow, large projects, sluggish chats, expensive/repetitive agent work, model-choice questions, and new-chat resumes; do not claim to change the ChatGPT model, selected thinking level, or context window automatically.
 ---
 
 # GPT Usage Optimizer — model guidance and chat lifecycle
 
 **Scope:** Shared *guidance* for projects using the Moksha Master Stack. Project ownership and instructions take precedence; Golden Rules 0/0A, free-first, source reuse, approvals, privacy, branch/security controls, QA and rollback remain mandatory. This skill does **not** install an autonomous router, alter ChatGPT settings, run in the background, or extend tool permissions.
+
+
+## 0. Default-on behavior and explicit overrides — 17 October 2026
+
+**Default mode: AUTO/ON, silently.** Whenever this Skill is invoked by ChatGPT's skill selection or called through project/global instructions, optimize context loading, tool use, reasoning-effort *recommendation*, concise status, checkpointing and recovery throughout the task without requiring the user to type a trigger. Avoid commentary about the optimizer on routine requests. This is a working-policy default, NOT proof that the platform will load this skill on *every* turn: installed plugins are selected automatically when relevant, while global Custom Instructions or per-Project Instructions are needed to request consistently default-on behavior. The user must enable or edit those ChatGPT settings manually; plugins cannot silently edit them.
+
+**Override precedence:** system/platform safety > explicit user command in current chat/task > project-specific constraints and instructions > account Custom Instructions > this Skill's defaults. When instructions conflict, follow higher-priority instructions without weakening Golden Rules 0/0A, security/privacy, verified deployment gates or mandatory approvals. A one-task override ends when the task ends; 'for this chat' persists through the current chat; 'for this project' requires the user to edit Project Instructions for dependable future-chat persistence; account-wide changes require updating Custom Instructions.
+
+Recognize natural-language equivalents of these commands, without requiring strict command syntax:
+
+- `Optimizer OFF` — suspend **optional** routing hints, context compaction and checkpoint reminders in this chat until restored. Still follow essential accuracy/safety and user requests; never claim to disable model safety or platform limits.
+- `Optimizer ON` / `Optimizer AUTO` — resume silent normal defaults.
+- `Optimizer for this task OFF` — pause only for the current task, then revert to chat default.
+- `Use Instant|Medium|High|Extra High for this task` — honor the preference for recommendations/work style; explain briefly if unreasonable or not available, but DO NOT claim to change the actual ChatGPT model/effort selector.
+- `Full context` — retrieve additional relevant sources when permitted; still avoid irrelevant entire registries, excessive repeats and secret disclosures.
+- `No handoff` — suppress discretionary fresh-chat suggestions for this chat, preserve work and state; unavoidable platform context limits remain.
+- `Concise` / `Detailed` — tailor response length independently from reasoning/verification depth.
+
+**Default routing:** QUICK uses bounded relevant context and no model chatter; STANDARD uses targeted sources; BUILD/CRITICAL uses proportionate evidence and context with QA preserved. Override just the dimension named (effort, context, handoff, response size, or optimization), retaining other defaults. Never invent exact token usage or quota levels. Reassess only at natural task boundaries or when evidence shows a failure; no hidden scheduler/observer.
+
+**Global default instruction to paste in Settings → Personalization → Custom Instructions:**
+
+> Default to the Moksha Master `gpt-usage-optimizer` whenever relevant: use minimum sufficient context, target the right reasoning effort, preserve evidence/QA, avoid repeated retrieval, and checkpoint long project chats into the existing tracker. Keep it silent unless a change is useful. My explicit per-task/chat commands override the optimizer: `Optimizer OFF/ON`, `Use High reasoning`, `Full context`, `No handoff`, `Concise/Detailed`. Never claim you changed the ChatGPT model selector, automatically opened a new chat, or weakened existing security/approval rules.
+
+In a ChatGPT Project, add equivalent text to that project's Project Instructions if needed, because Project Instructions override global Custom Instructions. Do not claim settings or model choice were altered by publishing this Skill.
 
 ## 1. Model-effort decision at task entry
 
