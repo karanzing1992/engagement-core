@@ -33,3 +33,7 @@ Test in a fresh project chat with "Use the master-stack-sync skill to check whic
 - `skills/setup-master-stack/SKILL.md` — first-use connectivity and enrollment checklist.
 
 This skills-only plugin does not bundle MCP servers; it uses previously authorized connected apps when present. Nothing in this repository grants those external permissions.
+
+## GPT reasoning / chat length optimizer (17 October 2026)
+
+The `skills/gpt-usage-optimizer/SKILL.md` file provides proportionate GPT reasoning-level recommendations and evidence-backed, short-chat handoffs for large projects. ChatGPT model switching and token measurements are not exposed to a Plugin Skill; the user controls the model picker. Existing authorized API workers may implement separate model choice per request only with verified available models, free-first and cost/privacy controls. A verified owner-controlled installation `moksha-master-stack-reinforced` v1.4.0 contains the new Skill; this portable source package has a separate plugin identity and version. Project instructions still need their own owner-controlled installation.
