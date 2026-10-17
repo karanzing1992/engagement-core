@@ -15,7 +15,7 @@ const siteId = z.string().uuid()
 
 export function makeServer(ctx: UserContext) {
   const server = new McpServer(
-    { name: 'wordpress-control', version: '0.2.2' },
+    { name: 'wordpress-control', version: '0.2.3' },
     {
       instructions:
         'Manage only WordPress sites paired by the current user. ' +
