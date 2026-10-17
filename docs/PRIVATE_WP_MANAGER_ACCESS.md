@@ -57,3 +57,14 @@ Verified in a connected session: `list_sites` resolved **Moksha Wellness Goa**, 
 - Public health: https://mokshagoa.com/wp-json/engagement-core/v1/health
 - Live pairing status (not a login grant): https://mokshagoa.com/wp-json/wp-control/v1/status
 - Master Registry: https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit
+
+
+## Git theme-package sync: native capability exposure (source proposal, 17 Oct 2026)
+
+**STATUS: SOURCE BRANCH ONLY; NOT DEPLOYED OR RELEASED.** WP Control already registers `wp-control/package-list` and `wp-control/package-sync` as private WordPress abilities. The owner's private MCP connection initially omitted these tools, and WordPress's paired `/wp-control/v1/bridge` action switch omitted their routes, so exposing only the MCP tool would fail with `wp_control_action_not_allowed`.
+
+The scoped code reuses the existing WordPress admin/site pairing and Deployer for Git allowlist. The gateway exposes `list_git_packages(site_id)` (read-only repo/branch/slug discovery) and `sync_git_package(site_id,type,package,expected_repo_url,expected_branch,confirm:true)`. The WordPress bridge independently validates exact configuration, requires an actual boolean confirmation, and refuses to sync a different theme from the active stylesheet. No arbitrary URL, credentials, API secret, PHP file write, plugin installation or unconfigured package is accepted.
+
+**Never issue sync merely because the tool becomes callable.** First verify a fresh, independently restorable theme backup, compare the configured `repo_url` and `branch` with the approved default-branch Git commit, review the code change and obtain live release approval. The legacy WPVibe draft is not the live Git theme. Run existing CI across PHP 7.4/8.1/8.3 and validate the remote type/schema. WordPress source must be installed through the existing cryptographically signed Engagement Core updater (new immutable manifest, checksum, dry-run, health/rollback). The Supabase WP Manager gateway requires a separate reviewed rollout and OAuth MCP client tool refresh before invoking new tool names. Until both sides are independently live, record `SOURCE_ONLY`. Do not call `package-sync` through raw unauthenticated REST or direct Deployer API secret. A successful WordPress package-sync response requires real public HTML/theme readback before marking the SEO theme `VERIFIED_LIVE`.
+
+Rollback strategy: for the **gateway**, redeploy the previous exact Edge Function version with existing files/settings; for **Engagement Core**, use the signed updater's stored previous version only if health-verified, not a fabricated local backup. For **Moksha theme**, restore a separate verified theme snapshot or re-sync previous approved default-branch content; the old committed SHA by itself is not an immediate filesystem restoration.
