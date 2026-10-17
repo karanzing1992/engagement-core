@@ -1,0 +1,55 @@
+name: Native WP sync 0.9.16 immutable release preflight
+
+on:
+  push:
+    branches: [release/engagement-core-0.9.16-native-sync]
+    paths: ['.github/workflows/native-sync-0-9-16-release-preflight.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  immutable-archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify minimal delta against last installed immutable release
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=627c8d738d38cbadcffbb3590e9813f22babb8fb
+          target=842199dbc524c17b7e867befb3c3cc7bec355bbc
+          actual="$(git diff --name-only "$base" "$target" | LC_ALL=C sort)"
+          expected="$(printf '%s\n' engagement-core.php src/class-grec-wp-control.php | LC_ALL=C sort)"
+          test "$actual" = "$expected" || { echo "Unexpected source scope:"; echo "$actual"; exit 1; }
+          git show "$target:engagement-core.php" | grep -Fq 'Version: 0.9.16'
+          git show "$target:engagement-core.php" | grep -Fq "define( 'GREC_VERSION', '0.9.16' );"
+          echo 'IMMUTABLE_DELTA=PASS'
+      - name: PHP syntax and existing native source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l engagement-core.php
+          php -l src/class-grec-wp-control.php
+          php tests/snapchat-crypto-smoke.php
+          echo 'PHP_PREFLIGHT=PASS'
+      - name: Hash immutable release ZIP from canonical public GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          target=842199dbc524c17b7e867befb3c3cc7bec355bbc
+          curl --retry 3 --fail --location --silent --show-error \
+            "https://github.com/karanzing1992/engagement-core/archive/${target}.zip" -o release.zip
+          test "$(stat -c %s release.zip)" -gt 2000
+          unzip -tq release.zip
+          entry="$(unzip -Z1 release.zip | grep -E '/engagement-core.php$' | head -1)"
+          test -n "$entry"
+          unzip -p release.zip "$entry" | grep -Fq 'Version: 0.9.16'
+          printf 'NATIVE_SYNC_0916_SHA256='
+          sha256sum release.zip | cut -d' ' -f1
+          printf 'NATIVE_SYNC_0916_COMMIT=%s\n' "$target"
+          echo 'PACKAGE_PREFLIGHT=PASS'
