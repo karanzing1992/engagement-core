@@ -1413,6 +1413,34 @@ final class GREC_WordPress_Control {
 			case 'plugin_list': return self::plugin_list();
 			case 'plugin_toggle': return self::plugin_toggle( $input );
 			case 'theme_list': return self::theme_list();
+			case 'package_list': return self::package_list();
+			case 'package_sync':
+				if ( true !== ( $input['confirm'] ?? false ) ) {
+					return new WP_Error( 'wp_control_sync_confirmation_required', 'Explicit deployment confirmation is required.', array( 'status' => 409 ) );
+				}
+				$type    = sanitize_key( $input['type'] ?? '' );
+				$package = sanitize_key( $input['package'] ?? '' );
+				$branch  = sanitize_text_field( $input['expected_branch'] ?? '' );
+				$repo    = esc_url_raw( $input['expected_repo_url'] ?? '' );
+				if ( ! in_array( $type, array( 'theme', 'plugin' ), true ) || ! $package || ! $branch || ! $repo ) {
+					return new WP_Error( 'wp_control_sync_preflight_required', 'Package, repository and exact branch must be verified first.', array( 'status' => 409 ) );
+				}
+				if ( 'theme' === $type && $package !== get_stylesheet() ) {
+					return new WP_Error( 'wp_control_sync_theme_mismatch', 'Refusing to replace a theme other than the active theme.', array( 'status' => 409 ) );
+				}
+				$packages = self::package_list();
+				$bucket   = 'theme' === $type ? 'themes' : 'plugins';
+				$matched  = false;
+				foreach ( $packages[ $bucket ] as $row ) {
+					if ( $package === $row['slug'] && $branch === $row['branch'] && $repo === $row['repo_url'] ) {
+						$matched = true;
+						break;
+					}
+				}
+				if ( ! $matched ) {
+					return new WP_Error( 'wp_control_sync_source_mismatch', 'Configured source does not match the owner-verified repo and branch.', array( 'status' => 409 ) );
+				}
+				return self::package_sync( $input );
 			case 'options_get': return self::options_get( $input );
 			case 'options_update': return self::options_update( $input );
 			case 'cron_list': return self::cron_list( $input );
