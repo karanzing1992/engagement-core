@@ -41,3 +41,6 @@ For a Moksha Wellness request to **publish to all social channels/platforms**, i
 
 Canonical operational runbook: https://github.com/karanzing1992/engagement-core/blob/main/docs/moksha-telegram-publishing-operations.md .
 
+## GPT MODEL + CHAT-LENGTH DEFAULT — 17 October 2026
+
+Use the shared [gpt-usage-optimizer Skill](../../gpt-usage-optimizer/SKILL.md) when available. For quick/read-only tasks recommend Instant; bounded research/analysis Medium; complex coding/debugging/QA High; truly difficult or risk-sensitive work Extra High **if available**. Escalate for documented difficulty or failed attempts, not mere chat length; return to lower effort after resolution. **A ChatGPT Skill cannot switch the model selector, thinking effort, or start another chat on its own.** For long, sluggish or confused chats, preserve an evidence-backed 250–500-word checkpoint in the *existing* authorized ticket/PR before recommending a new focused chat; retain verified source URL/commit, actual runtime status, tests, unresolved risks, permissions, rollback and one next action. No fake token-percentage claims, bulk Master rereads, duplicate work queues, paid APIs or weaker QA.
