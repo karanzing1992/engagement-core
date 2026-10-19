@@ -1,0 +1,24 @@
+name: Generic Linux Automator (isolated source checks)
+on:
+  push:
+    branches:
+      - feature/linux-generic-automator-20261019
+    paths:
+      - tools/linux-automator/**
+      - .github/workflows/linux-generic-automator-ci.yml
+  pull_request:
+    paths:
+      - tools/linux-automator/**
+      - .github/workflows/linux-generic-automator-ci.yml
+permissions:
+  contents: read
+jobs:
+  python-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Parse Python without dependencies
+        run: python3 -m compileall -q tools/linux-automator
+      - name: Run fail-closed worker tests
+        run: python3 -m unittest discover -s tools/linux-automator/tests -v
