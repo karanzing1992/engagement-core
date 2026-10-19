@@ -1,0 +1,10 @@
+{
+  "host_id": "dell-linux",
+  "gateway": "https://YOUR_SUPABASE_PROJECT.supabase.co/functions/v1/generic-linux-automator",
+  "ssh_user": "generic-auto-exec",
+  "ssh_key": "/var/lib/generic-linux-automator/id_ed25519",
+  "known_hosts": "/var/lib/generic-linux-automator/known_hosts",
+  "token_file": "/var/lib/generic-linux-automator/worker.token",
+  "journal": "/var/lib/generic-linux-automator/journal.sqlite3",
+  "shell_enabled": false
+}
