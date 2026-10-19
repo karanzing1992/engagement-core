@@ -18,6 +18,7 @@ class WorkerPolicyTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         for name in ("key", "known_hosts"):
             (self.root / name).write_text("test", encoding="utf8")
+            (self.root / name).chmod(0o600)
         self.config = {
             "host_id": "dell-linux",
             "gateway": "https://example.supabase.co/functions/v1/generic-linux-automator",
