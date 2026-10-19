@@ -629,6 +629,10 @@ final class GREC_WordPress_Control {
 			return;
 		}
 
+		// OAuth requests must never serve an old, cached authorization form.
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+			define( 'DONOTCACHEPAGE', true );
+		}
 		$nonce        = wp_generate_password( 24, false, false );
 		$supabase_url = self::gateway_supabase_url();
 		$public_key   = self::gateway_publishable_key();
@@ -640,6 +644,7 @@ final class GREC_WordPress_Control {
 		header( "Content-Security-Policy: default-src 'self'; script-src 'nonce-" . $nonce . "' https://cdn.jsdelivr.net; connect-src 'self' https://*.supabase.co; style-src 'nonce-" . $nonce . "'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'" );
 		header( 'Referrer-Policy: no-referrer' );
 		header( 'X-Content-Type-Options: nosniff' );
+		header( 'X-Robots-Tag: noindex, nofollow, noarchive' );
 
 		$project_json = wp_json_encode( $supabase_url, JSON_UNESCAPED_SLASHES );
 		$key_json     = wp_json_encode( $public_key, JSON_UNESCAPED_SLASHES );
@@ -660,11 +665,15 @@ final class GREC_WordPress_Control {
 	<main class="card">
 		<div class="brand">WP Control</div>
 		<h1>Connect ChatGPT</h1>
-		<p class="muted">Authorize ChatGPT to use only WordPress sites you explicitly pair. WP Control never asks for or stores your WordPress administrator password.</p>
+		<p class="muted">Sign in with your existing Supabase account to authorize ChatGPT. These are Supabase credentials, not your WordPress administrator password. Your password is sent directly to Supabase Auth.</p>
 		<section id="login" class="hidden">
-			<label for="email">Email</label>
-			<input id="email" type="email" autocomplete="email" placeholder="you@example.com">
-			<div class="row" style="margin-top:12px"><button id="send">Email me a sign-in link</button></div>
+			<label for="email">Email (account username)</label>
+			<input id="email" type="email" autocomplete="username" maxlength="254" placeholder="you@example.com">
+			<label for="password">Supabase password</label>
+			<input id="password" type="password" autocomplete="current-password" maxlength="512">
+			<div class="row" style="margin-top:12px"><button id="passwordLogin" type="button">Sign in with password</button></div>
+			<p class="muted">Alternatively, use an email sign-in link:</p>
+			<div class="row"><button id="send" type="button" class="secondary">Email me a sign-in link</button></div>
 		</section>
 		<section id="consent" class="hidden">
 			<p><strong id="clientName">ChatGPT</strong> wants to connect to your WP Control account.</p>
@@ -679,41 +688,85 @@ final class GREC_WordPress_Control {
 		const PUBLIC_KEY=<?php echo $key_json; ?>;
 		const AUTH_RELAY=<?php echo $relay_json; ?>;
 		const initialParams=new URLSearchParams(location.search);
-		const authorizationId=initialParams.get("authorization_id")||sessionStorage.getItem("wpcontrol_authorization_id");
-		if(authorizationId) sessionStorage.setItem("wpcontrol_authorization_id",authorizationId);
+		const incomingId=initialParams.get("authorization_id");
+		const authorizationId=incomingId||sessionStorage.getItem("wpcontrol_authorization_id");
+		if(incomingId) sessionStorage.setItem("wpcontrol_authorization_id",incomingId);
 		const supabase=createClient(PROJECT_URL,PUBLIC_KEY,{auth:{detectSessionInUrl:true,persistSession:true,flowType:"pkce"}});
-		const login=document.querySelector("#login"),consent=document.querySelector("#consent"),status=document.querySelector("#status"),email=document.querySelector("#email"),send=document.querySelector("#send"),approve=document.querySelector("#approve"),deny=document.querySelector("#deny");
+		const login=document.querySelector("#login"),consent=document.querySelector("#consent"),status=document.querySelector("#status"),email=document.querySelector("#email"),password=document.querySelector("#password"),passwordLogin=document.querySelector("#passwordLogin"),send=document.querySelector("#send"),approve=document.querySelector("#approve"),deny=document.querySelector("#deny");
 		const say=(t)=>status.textContent=t||"";
-		async function boot(){
-			if(!authorizationId){say("Missing authorization request. Start the connection from ChatGPT.");return}
-			const s=await supabase.auth.getSession();
-			if(s.error){say(s.error.message);return}
-			if(!s.data.session){login.classList.remove("hidden");consent.classList.add("hidden");say("Sign in to continue.");return}
-			const r=await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
-			if(r.error){say(r.error.message||"Could not load the authorization request.");return}
-			if(r.data?.redirect_url&&!r.data?.authorization_id){location.href=r.data.redirect_url;return}
-			document.querySelector("#clientName").textContent=r.data?.client?.name||r.data?.client_name||"ChatGPT";
-			document.querySelector("#scopeText").textContent=r.data?.scope||"email";
-			consent.classList.remove("hidden");login.classList.add("hidden");say("Review the request, then approve or deny.");
+		let booting=null,redirecting=false,decisionPending=false,initialized=false;
+		const resetAuthorization=()=>sessionStorage.removeItem("wpcontrol_authorization_id");
+		function followRedirect(url){
+			if(redirecting)return;
+			const target=new URL(url);
+			if(target.protocol!=="https:")throw Error("OAuth redirect must use HTTPS.");
+			redirecting=true;
+			resetAuthorization();
+			location.replace(target.href);
 		}
+		async function boot(){
+			if(redirecting||decisionPending)return;
+			if(booting)return booting;
+			booting=(async()=>{
+				if(!authorizationId){say("Missing authorization request. Start a new connection from ChatGPT.");return}
+				const s=await supabase.auth.getSession();
+				if(s.error){say(s.error.message);return}
+				if(!s.data.session){login.classList.remove("hidden");consent.classList.add("hidden");say("Sign in to continue.");return}
+				const r=await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
+				if(redirecting||decisionPending)return;
+				if(r.error){
+					if(/cannot be processed|invalid|expired/i.test(r.error.message||""))resetAuthorization();
+					say(r.error.message||"Authorization expired. Start a new connection from ChatGPT.");
+					return;
+				}
+				if(r.data?.redirect_url){followRedirect(r.data.redirect_url);return}
+				document.querySelector("#clientName").textContent=r.data?.client?.name||r.data?.client_name||"ChatGPT";
+				document.querySelector("#scopeText").textContent=r.data?.scope||"email";
+				consent.classList.remove("hidden");login.classList.add("hidden");say("Review the request, then approve or deny.");
+			})().catch(e=>say(e.message||"Authorization failed. Start a new connection from ChatGPT.")).finally(()=>{booting=null});
+			return booting;
+		}
+		passwordLogin.addEventListener("click",async()=>{
+			const v=email.value.trim(),pw=password.value;
+			if(!authorizationId){say("Start a new connection from ChatGPT.");return}
+			if(!v||!pw){say("Enter your Supabase account email and password.");return}
+			passwordLogin.disabled=true;
+			send.disabled=true;
+			try{
+				const r=await supabase.auth.signInWithPassword({email:v,password:pw});
+				password.value="";
+				if(r.error){say("Sign-in failed. Verify your account credentials.");return}
+				await boot();
+			}catch(_error){
+				password.value="";
+				say("Could not sign in. Check the connection and try again.");
+			}finally{
+				passwordLogin.disabled=false;
+				send.disabled=false;
+			}
+		});
+		password.addEventListener("keydown",event=>{if(event.key==="Enter")passwordLogin.click()});
 		send.addEventListener("click",async()=>{
 			const v=email.value.trim();if(!v){say("Enter your email address.");return}
+			if(!authorizationId){say("Start a new connection from ChatGPT.");return}
 			send.disabled=true;
 			const redirect=new URL(AUTH_RELAY);redirect.searchParams.set("authorization_id",authorizationId);
 			const r=await supabase.auth.signInWithOtp({email:v,options:{emailRedirectTo:redirect.toString()}});
 			send.disabled=false;say(r.error?r.error.message:"Check your email for the sign-in link.");
 		});
-		approve.addEventListener("click",async()=>{
-			approve.disabled=true;const r=await supabase.auth.oauth.approveAuthorization(authorizationId);
-			if(r.error){approve.disabled=false;say(r.error.message);return}
-			sessionStorage.removeItem("wpcontrol_authorization_id");location.href=r.data.redirect_url;
+		async function decide(allow){
+			if(decisionPending||redirecting)return;
+			decisionPending=true;approve.disabled=true;deny.disabled=true;
+			const r=allow?await supabase.auth.oauth.approveAuthorization(authorizationId):await supabase.auth.oauth.denyAuthorization(authorizationId);
+			if(r.error){decisionPending=false;approve.disabled=false;deny.disabled=false;say(r.error.message||"Authorization request failed.");return}
+			try{followRedirect(r.data.redirect_url)}catch(e){say(e.message||"Invalid callback URL.")}
+		}
+		approve.addEventListener("click",()=>decide(true));
+		deny.addEventListener("click",()=>decide(false));
+		supabase.auth.onAuthStateChange((event,session)=>{
+			if(!initialized){initialized=true;return}
+			if(session&&!redirecting&&!decisionPending)queueMicrotask(()=>boot());
 		});
-		deny.addEventListener("click",async()=>{
-			deny.disabled=true;const r=await supabase.auth.oauth.denyAuthorization(authorizationId);
-			if(r.error){deny.disabled=false;say(r.error.message);return}
-			sessionStorage.removeItem("wpcontrol_authorization_id");location.href=r.data.redirect_url;
-		});
-		supabase.auth.onAuthStateChange((_event,session)=>{if(session) boot()});
 		boot();
 	</script>
 </body>
