@@ -155,7 +155,7 @@ def exec_ssh(cfg: dict, command: str, limit: int) -> dict:
         "-o", "GlobalKnownHostsFile=/dev/null",
         "-o", "ClearAllForwardings=yes", "-o", "ConnectTimeout=5",
         "-l", cfg["ssh_user"], "127.0.0.1",
-        "--", "/bin/sh", "-c", shlex.quote(command),
+        "/bin/sh", "-c", shlex.quote(command),
     ]
     try:
         run = subprocess.run(
