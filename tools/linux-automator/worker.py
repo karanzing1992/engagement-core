@@ -55,10 +55,17 @@ def load_config(path: str) -> dict:
             or uri.query or uri.fragment
             or not uri.path.rstrip("/").endswith("/functions/v1/generic-linux-automator")):
         raise Blocked("HTTPS gateway must match the dedicated function path")
-    if not isinstance(obj["ssh_user"], str) or not obj["ssh_user"].replace("-", "").replace("_", "").isalnum():
-        raise Blocked("Invalid dedicated SSH login")
+    if (not isinstance(obj["ssh_user"], str) or obj["ssh_user"] in ("root", "admin", "sudo")
+            or not obj["ssh_user"].replace("-", "").replace("_", "").isalnum()):
+        raise Blocked("Invalid or privileged SSH login")
     obj["ssh_key"] = str(secure_path(obj["ssh_key"]))
     obj["known_hosts"] = str(secure_path(obj["known_hosts"]))
+    key = Path(obj["ssh_key"]).stat()
+    hosts = Path(obj["known_hosts"]).stat()
+    if key.st_uid != os.geteuid() or key.st_mode & 0o077:
+        raise Blocked("SSH identity key must belong to worker and have mode 0600")
+    if hosts.st_uid != os.geteuid() or hosts.st_mode & 0o022:
+        raise Blocked("Pinned SSH host fingerprint file must be owner-controlled")
     obj["token_file"] = str(secure_path(obj["token_file"], must_exist=False))
     obj["journal"] = str(secure_path(obj["journal"], must_exist=False))
     obj["shell_enabled"] = obj.get("shell_enabled") is True
@@ -76,8 +83,8 @@ def write_private_new(path: str, text: str) -> None:
 
 def token(cfg: dict) -> str:
     p = secure_path(cfg["token_file"])
-    if p.stat().st_mode & 0o077:
-        raise Blocked("Worker secret mode must be 0600")
+    if p.stat().st_mode & 0o077 or p.stat().st_uid != os.geteuid():
+        raise Blocked("Worker secret must be worker-owned and mode 0600")
     value = p.read_text("ascii").strip()
     if not (40 <= len(value) <= 256):
         raise Blocked("Worker token missing or invalid")
@@ -133,6 +140,14 @@ def pair(cfg: dict) -> None:
 def database(cfg: dict) -> sqlite3.Connection:
     dbpath = Path(cfg["journal"])
     dbpath.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if (dbpath.parent.stat().st_uid != os.geteuid()
+            or dbpath.parent.stat().st_mode & 0o077):
+        raise Blocked("Journal directory must be private and worker-owned")
+    if dbpath.is_symlink():
+        raise Blocked("Journal symlink refused")
+    if dbpath.exists() and (dbpath.stat().st_uid != os.geteuid()
+                            or dbpath.stat().st_mode & 0o077):
+        raise Blocked("Journal must be private and worker-owned")
     conn = sqlite3.connect(str(dbpath), timeout=10)
     os.chmod(dbpath, 0o600)
     conn.execute("PRAGMA busy_timeout=10000")
@@ -147,13 +162,15 @@ def database(cfg: dict) -> sqlite3.Connection:
 def exec_ssh(cfg: dict, command: str, limit: int) -> dict:
     # ssh still verifies the pinned loopback host key. Never use StrictHostKeyChecking=no.
     argv = [
-        "/usr/bin/ssh", "-T", "-p", "22",
+        "/usr/bin/ssh", "-F", "/dev/null", "-T", "-p", "22",
         "-i", cfg["ssh_key"],
         "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
         "-o", "StrictHostKeyChecking=yes",
         "-o", "UserKnownHostsFile=" + cfg["known_hosts"],
         "-o", "GlobalKnownHostsFile=/dev/null",
         "-o", "ClearAllForwardings=yes", "-o", "ConnectTimeout=5",
+        "-o", "ProxyCommand=none", "-o", "ProxyJump=none",
+        "-o", "PermitLocalCommand=no", "-o", "CanonicalizeHostname=no",
         "-l", cfg["ssh_user"], "127.0.0.1",
         "/bin/sh", "-c", shlex.quote(command),
     ]
@@ -230,6 +247,8 @@ def main() -> int:
     ap.add_argument("action", choices=("pair", "once", "run"))
     args = ap.parse_args()
     try:
+        if os.geteuid() == 0:
+            raise Blocked("Refusing to run as root: use the dedicated nonroot system user")
         cfg = load_config(args.config)
         if args.action == "pair":
             pair(cfg)
