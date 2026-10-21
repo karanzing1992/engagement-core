@@ -1,0 +1,69 @@
+name: India Finance & GST — indexed source review
+
+on:
+  push:
+    paths:
+      - 'legal/india-finance-gst/**'
+      - '.github/workflows/india-legal-watch.yml'
+  schedule:
+    - cron: '30 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: india-legal-watch-main
+  cancel-in-progress: false
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build offline legal index and validate recommendation safeguards
+        working-directory: legal/india-finance-gst
+        run: |
+          python3 legal_search.py build
+          python3 -m unittest discover -s tests -v
+
+  watch:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'push'
+    needs: qa
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Check selected official government source hubs
+        working-directory: legal/india-finance-gst
+        run: python3 monitor.py --state data/watch-state.json --write > /tmp/india-legal-changes.json
+      - name: Create a review issue for detected changes, never auto-apply law
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json
+          events=json.load(open('/tmp/india-legal-changes.json'))
+          changed=[x for x in events if x['event']=='changed']
+          if changed:
+              with open('/tmp/india-legal-issue.md','w') as f:
+                  f.write('## Official source page changed\n\nReview the primary legal instruments, Gazette notifications, implementation dates and Goa counterparts before editing live accounting rules. **This is a source-content alert, not a determination that the law has changed.**\n\n')
+                  for x in changed:
+                      f.write('- '+x['name']+': '+x['url']+'\n')
+              open('/tmp/india-legal-notify','w').write('yes')
+          PY
+          if test -f /tmp/india-legal-notify; then
+            gh issue create --title "Review official India finance/GST source updates" --body-file /tmp/india-legal-issue.md
+          fi
+      - name: Persist observed fingerprints only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add legal/india-finance-gst/data/watch-state.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(legal): update official-source fingerprints [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
