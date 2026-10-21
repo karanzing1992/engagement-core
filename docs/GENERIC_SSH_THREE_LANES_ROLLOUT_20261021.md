@@ -49,3 +49,7 @@
 ## 21 Oct supplementary validation
 
 Read-only download/syntax validation of the pinned branch source succeeded separately on Dell and Mac. Worker SHA-256 `fa87f35fccfe2b3c7f66baae3d5d3d0ad3e075b0115e7fa4d57fd92ed278df9b`, installer `9b4a872883a40e9b658c0f5a8837d53342e7248affb87314d3787c92a3384eda`, and service template `c98ca73da5a659c1591af6a70ca2e2654b9a7b971753f942d8df3be11ae67a05` matched on both hosts. Live gateway health independently returned `1.1.0`. Existing original worker checksum remained unchanged and both services active, sudo identity 0. No additional lanes activated. Supabase Master inbox event #130 is pending review, not published.
+
+## Inactive host staging checkpoint
+
+Verified on **both Dell and Mac**: the three reviewed artifacts from pinned commit `118968fbd18e682d71a944fa425684cc09a84225` were installed **inertly** under `/opt/generic-linux-automator/releases/three-lanes-20261021/` (worker, installer, hardened systemd template). Each staged artifact matches the SHA-256 values in the supplementary validation section. Original operations unit remained ACTIVE; no additional systemd instances were running (count 0) on either host. Original live worker files were not overwritten and existing root/sudo authority was not modified. These staged files are NOT an activated three-lane bridge. Gate remains Edge 1.2.0 owner-authorized deployment followed by on-host installer preflight, activation and concurrency tests. No extra polling service may be enabled until gateway version is verified.
