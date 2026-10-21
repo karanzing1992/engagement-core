@@ -141,9 +141,9 @@ def db_open(filename: str):
 
 def redact(text: str) -> str:
     # Defense in depth: never store obvious credentials in receipts/journal.
-    text = re.sub(r"(?i)(Bearer[ \\t]+)[^\\s]+", r"\\1[REDACTED]", text)
-    return re.sub(r"(?im)\\b((?:api[_-]?key|password|passwd|access[_-]?token|refresh[_-]?token|secret)[ \\t]*[:=][ \\t]*)[^\\s]+",
-                  r"\\1[REDACTED]", text)
+    text = re.sub(r"(?i)(Bearer[ \t]+)[^\s]+", r"\1[REDACTED]", text)
+    return re.sub(r"(?im)\b((?:api[_-]?key|password|passwd|access[_-]?token|refresh[_-]?token|secret)[ \t]*[:=][ \t]*)[^\s]+",
+                  r"\1[REDACTED]", text)
 
 def capture_limit():
     # The SSH child cannot write more than 256 KiB to each redirected output file.
@@ -166,8 +166,8 @@ def ssh(cfg: dict, command: str, limit: int) -> dict:
                 check=False, timeout=limit+8, env={"PATH":"/usr/bin:/bin","LC_ALL":"C"},
                 preexec_fn=capture_limit, start_new_session=True)
             out_file.seek(0); err_file.seek(0)
-            out = redact(out_file.read(20000).decode("utf-8", "replace").replace("\\x00","\\ufffd"))
-            err = redact(err_file.read(20000).decode("utf-8", "replace").replace("\\x00","\\ufffd"))
+            out = redact(out_file.read(20000).decode("utf-8", "replace").replace("\x00","\ufffd"))
+            err = redact(err_file.read(20000).decode("utf-8", "replace").replace("\x00","\ufffd"))
             rc = done.returncode
     except subprocess.TimeoutExpired:
         rc, out, err = None, "", "SSH timeout; remote outcome uncertain"
