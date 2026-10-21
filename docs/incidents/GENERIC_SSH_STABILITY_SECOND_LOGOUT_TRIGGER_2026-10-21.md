@@ -39,3 +39,19 @@ This is a second independently verified global-logout trigger. Supabase signOut 
 - https://github.com/supabase/auth/issues/2829
 
 **STACK CHANGE:** verified stability incident finding and smoke test evidence; source-only documentation, Vercel frontend production security fix BLOCKED by account permissions, no new deployment.
+
+## PRODUCTION REMEDIATION VERIFIED — 21 Oct 2026, 16:35 UTC
+
+- The authorized Vercel connection can operate in its default account scope on **the exact existing project** `prj_tVBQSoZ2c8LR9U4czF0BN07NMjEH`. Explicitly passing teamId produced 403 while omitting it returned the same project and production deployment, verified by immutable project ID. This was a connector scope-routing problem, not an inaccessible project.
+- Preserved baseline production deployment `dpl_JCYfdrLiESnskbdpVNBcz4shFoJc` for rollback; published `dpl_7wF7mrwcUFCa7wdP1YA6vw3iZhx3`, `READY`, `target=production`, original production domains assigned.
+- Original live source 13976 bytes, SHA1 `5e30b8db9c3e93ed7fad784e282208b278ab3ab1`, SHA256 `9c29f04701a2d8587f99e1ec60e9252d2fe4f43a2cee0c03b2e313cfdcb14e99`.
+- Source of new release: `integrations/dell-private-login-ui/src/index.html`, Git commit `439fbd707dd20763264865d421abebc7024bb33b`. ONE intentional replacement in trusted device registration:
+  - Before: `await sb.auth.signOut();init();`
+  - After: `const localSignOut=await sb.auth.signOut({scope:'local'});if(localSignOut.error)throw new Error('Local sign-out failed');init();`
+- Staged production-ready preview `dpl_4dy21yBoW7nXVWyWqSCjjkNE7res` passed READY and file tree verification. An earlier preview generated an incorrect nested `src/src/index.html` due to Vercel's existing root directory `src`; it was not published. Correct deployment file parameter is `index.html` and Vercel yields `src/index.html`.
+- Production file SHA1 `e2e17b0d446ac335a475662ddf3f5d29ca595e0a`, verified by Vercel deployment file UID and independently over HTTP 200 from **both** Dell and Mac via `https://dell-private-login-ui.vercel.app/`. No unscoped signOut remains on that page, no explicit global scope, page title/PIN onboarding retained. Node ESM syntax check passed (exit code 0). Supabase relay `dell-private-relay` remains v5 with its earlier local logout fix.
+- Postrelease end-to-end ChatGPT Linux SSH: Dell identity probe `a353478e-4414-41fc-a2b1-c9dd6c03d934` and shell receipt `d8670736-dc49-43ec-8e27-fb27f124b86c`; Mac identity probe `3502623f-3f47-4857-ad1d-ce3165e7d000` and shell receipt `cc6667ce-f92e-4384-b825-37a35c62a879`. **All four completed exit_code=0**, stderr empty, worker active and enabled.
+- No host root/sudo permissions, device pairing, worker credentials, other services, or customer data modified. No extra paid service or replacement bridge.
+- NOT YET VALIDATED: a live PIN enrollment flow with a separate concurrently active OAuth session and >24-hour uptime/refresh/reconnect behavior. Smoke tests and static source/readbacks cannot guarantee permanent zero outages. Continue only with explicit controlled tests and keep authorized owner permissions isolated.
+- Rollback: Vercel previously live production deployment `dpl_JCYfdrLiESnskbdpVNBcz4shFoJc`; **it contains the flawed unscoped logout and must not be restored without emergency and follow-up patch**. Preferred recovery is forward fix.
+- **STACK CHANGE: VERIFIED_LIVE** existing Vercel frontend production session isolation fix. 
