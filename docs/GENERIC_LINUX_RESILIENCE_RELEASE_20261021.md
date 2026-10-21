@@ -41,3 +41,26 @@
 Existing OSI-open-source Python standard library, systemd, SQLite, GitHub, Supabase tools, and owned worker/source were reused. No new paid service, external browser vendor, token store or extra hosting introduced. Supabase free-plan scheduling use must remain within resource limits.
 
 STACK CHANGE: Existing automation bridge with hardened worker, queue, cron and owner auth. Live machine deployment and repo source are separate until merge/consumer readback.
+
+## 21 October 2026 — subsequent root restoration and owner-approval lock
+
+**This section supersedes the earlier root-restriction status in this historical release record.** The restriction was originally deployed during resilience hardening and later reversed through an administrator-authorized restore. Subsequent live Generic Linux SSH receipts from BOTH `dell-linux` and `mac-linux` confirmed:
+- `generic-auto-exec` has `(root) NOPASSWD: ALL` on each machine.
+- A harmless read-only privilege test `sudo -n /usr/bin/id -u` completed with result `0` (root) on each machine.
+- Both bridge workers stayed active. The time and route by which Mac's root rule returned cannot be established from those receipts; do not invent attribution.
+- These observations verify **current live permissions**, not any additional new protective mechanism. No further permission changes are authorized by this note.
+
+### Mandatory owner rule — applies to BOTH Dell and Mac and all GPT/plugin/dev/automation agents
+
+**NEVER create, remove, restrict, restore, escalate, revoke, reset, alter, or otherwise change root access, sudo permissions, sudoers entries, root-capable users/groups, privileged execution policy, or equivalent privilege delegation for either host without fresh, explicit owner approval for THAT specific change and host.**
+
+- Approval must identify which host(s), exact privilege change, implications, and rollback. Do not infer it from generic security hardening, system optimization, repair, autonomous operation, old standing instructions, automation schedules, prior approvals, or a past conversation's four-digit passcode.
+- **Do not silently reduce root access again** as part of a security or reliability project. **Do not silently expand it** either. Present risks, obtain the owner's explicit affirmative instruction, then execute and verify.
+- Routine privileged tasks may run under existing owner-authorized bridge access, subject to normal task-specific approvals and privacy/security safeguards. This policy is about **changing root permissions**, not blanket authorization for every root operation.
+- Never expose, store, or log an administrator password, OTP, PIN, worker token, root key, or command output containing secrets in docs, chat, source, or audit records.
+- If explicit per-change approval cannot be verified, **leave permission settings unchanged**, report the block, and use read-only diagnosis or a proposed patch awaiting approval. Urgency or an outage does not nullify this boundary.
+- Read back the actual `sudo -l` and harmless `sudo -n /usr/bin/id -u` result (with authorization) before claiming a privilege deployment or rollback completed.
+
+**Source status:** VERIFIED_LIVE for root permissions on both hosts as of 2026-10-21; OWNER_APPROVAL_POLICY documented. This rule is procedural and does not itself install a password/PIN enforcement mechanism into sudo or the MCP gateway. Supabase Master inbox event #115 and canonical Master document must acknowledge the policy separately.
+
+STACK CHANGE: Preserve both Linux bridge root permissions unless the owner explicitly approves each permission change.
