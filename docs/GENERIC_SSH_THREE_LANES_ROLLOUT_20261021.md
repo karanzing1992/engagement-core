@@ -4,6 +4,16 @@
 **Owner lane:** Automation / shared `karanzing1992/engagement-core`; NOT Business House Matrix or Ashwakaal support data  
 **Governance:** Golden Rule 0, no root/network/auth changes, no unreviewed overwrite, no duplicated bridges.
 
+## LIVE RELEASE — owner approved 22 October 2026 IST
+
+**Status: VERIFIED_LIVE on both hosts; 6/6 concurrency smoke tests PASS.** Supabase Edge `generic-linux-automator` **v6** / service **1.2.0** is ACTIVE. Original operations worker remains up; added `generic-linux-automator-lane@control` and `@development` ACTIVE + ENABLED on both Dell `dell-linux` and Mac `mac-linux`. Live installed worker SHA256 `fa87f35fccfe2b3c7f66baae3d5d3d0ad3e075b0115e7fa4d57fd92ed278df9b`, backup of old worker `45f4e1770d5a70ecc724808cf6d9fff3ec1f5584741037a18bd923ec20102b43` verified on each. Original operations service was not restarted during activation. User root/sudo and pairing preserved, no network/credential/thermal changes.
+
+**Six live job receipts:** Dell control `ebc49a8f-5fb5-4a26-a89f-da19b2808335`, operations `ecd48fc3-55ad-4d65-8cb1-145abd2bf75f`, development `07cdcf3d-f651-478f-90bf-676f84915b94`; Mac control `22404c1e-0861-48e7-96cd-3c3883636f72`, operations `e9f3dc64-f5e9-4542-9df5-a4280c4b02bc`, development `714a0374-c02c-4fab-b87c-c34e02d3a880`. All status completed, exit 0, returned expected lane identifier and sudo UID 0. On both hosts, control and operations STARTED and FINISHED while the 12-second development job was still running — proved independent concurrency. Persistent service `is-enabled` verified; **actual reboot / WAN outage acceptance remains untested** and should not be inferred.
+
+**Master Sync:** Canonical Google Doc `[MASTER-STACK-EVENT:132]` appended once and read back; Supabase event #132 `published`. Previous staged-only #130 marked `needs_info` (superseded). New MCP tool schemas `linux_control_run`, `linux_development_run`, and optional `lane` in `linux_ssh_run` are published in live Edge but this session's existing ChatGPT plugin tool cache still displays the former five-tool schema; verify fresh-session discovery separately. The data plane is live regardless. Original authentication owner gating, per-host shell gates, command receipts and idempotent claim rules retained. GitHub source promotion default branch is a separate release step.
+
+**Important:** The staged implementation notes and pending gates below are historical and superseded by this verified release section; retain them for audit and rollback.
+
 ## Change status and evidence
 
 - Existing live: Dell `dell-linux` and Mac `mac-linux`, each one active outbound systemd worker, paired, shell allowed. Source checksum on both prior to changes `45f4e1770d5a70ecc724808cf6d9fff3ec1f5584741037a18bd923ec20102b43`. `sudo -n /usr/bin/id -u` returned `0` for the existing execution account on each device. Preserve this; do not change sudo or owner policy.
