@@ -126,7 +126,7 @@ async function workerRoute(req:Request,path:string):Promise<Response> {
     const res=await db.from("generic_auto_jobs").update({
        status:b.status,stdout:out,stderr:err,exit_code:b.exit_code,finished_at:now})
        .eq("id",b.id).eq("claim",b.claim).eq("owner_id",worker.owner_id)
-       .eq("host_id",id).eq("status","running").select("id").maybeSingle();
+       .eq("host_id",id).in("status",["running","outcome_unknown"]).select("id").maybeSingle();
     if(res.error)return json({error:"receipt_write_failed"},500);
     if(res.data)return json({ok:true});
     const prev=await db.from("generic_auto_jobs").select("claim,status").eq("id",b.id)
@@ -136,23 +136,51 @@ async function workerRoute(req:Request,path:string):Promise<Response> {
   }
   return json({error:"not_found"},404);
 }
-async function enqueue(uid:string,id:Host,kind:"probe"|"shell",command:string,timeout:number) {
+async function enqueue(uid:string,id:Host,kind:"probe"|"shell",command:string,timeout:number,idempotency_key?:string) {
   const h=await ownerHost(uid,id),age=h?.last_seen_at?Date.now()-Date.parse(h.last_seen_at):Infinity;
   if(!h?.paired_at||!Number.isFinite(age)||age<0||age>=60000)
-     return toolError("Worker offline or unpaired; no job queued");
+    return toolError("Worker offline or unpaired; no job queued");
   if(kind==="shell"&&!h.allow_shell)return toolError("Per-host shell execution disabled");
+  // Stable caller-provided key guarantees at most one queue item for retried client requests.
+  if(idempotency_key) {
+    const prev=await db.from("generic_auto_jobs").select("id,status,created_at,expires_at,kind,command,timeout_seconds")
+      .eq("host_id",id).eq("owner_id",uid).eq("idempotency_key",idempotency_key).maybeSingle();
+    if(prev.error)return toolError("Queue deduplication lookup unavailable");
+    if(prev.data) {
+      if(prev.data.kind!==kind||prev.data.command!==command||prev.data.timeout_seconds!==timeout)
+        return toolError("Idempotency key already used for different command; request rejected");
+      return answer({id:prev.data.id,status:prev.data.status,created_at:prev.data.created_at,
+        expires_at:prev.data.expires_at,host_id:id,deduplicated:true,
+        note:"Existing job returned; do not re-execute"});
+    }
+  }
+  const active=await db.from("generic_auto_jobs").select("id",{count:"exact",head:true})
+    .eq("owner_id",uid).eq("host_id",id).in("status",["queued","running"])
+    .gt("expires_at",new Date().toISOString());
+  if(active.error)return toolError("Queue admission check unavailable");
+  if((active.count||0)>=12)return toolError("Host job queue busy; no new command queued");
   const row=await db.from("generic_auto_jobs").insert({
-      host_id:id,owner_id:uid,kind,command,timeout_seconds:timeout,status:"queued"})
+      host_id:id,owner_id:uid,kind,command,timeout_seconds:timeout,status:"queued",
+      idempotency_key:idempotency_key||null})
       .select("id,status,created_at,expires_at").single();
+  if(row.error&&idempotency_key) {
+    // A simultaneous request may have won the unique index race.
+    const prev=await db.from("generic_auto_jobs").select("id,status,created_at,expires_at,kind,command,timeout_seconds")
+      .eq("host_id",id).eq("owner_id",uid).eq("idempotency_key",idempotency_key).maybeSingle();
+    if(prev.data&&prev.data.kind===kind&&prev.data.command===command&&prev.data.timeout_seconds===timeout)
+      return answer({id:prev.data.id,status:prev.data.status,created_at:prev.data.created_at,
+        expires_at:prev.data.expires_at,host_id:id,deduplicated:true,
+        note:"Existing concurrent job returned; never resubmit"});
+  }
   return row.error||!row.data?toolError("Job queue insert failed"):
-      answer({...row.data,host_id:id,note:"Queued only; read linux_task_status for terminal result"});
+      answer({...row.data,host_id:id,deduplicated:false,note:"Queued only; read linux_task_status for terminal result"});
 }
 Deno.serve(async(req:Request)=>{
  try {
    const pathname=new URL(req.url).pathname;
    const path=pathname.replace(/^\/(?:functions\/v1\/)?generic-linux-automator/,"")||"/";
    if(req.method==="GET"&&path==="/health")
-     return json({ok:true,service:FN,version:"1.0.1",worker:"independent",shell_default:"disabled"});
+     return json({ok:true,service:FN,version:"1.1.0",worker:"independent",shell_default:"disabled"});
    if(req.method==="GET"&&["/.well-known/oauth-protected-resource",
        "/mcp/.well-known/oauth-protected-resource","/mcp/oauth-protected-resource"].includes(path))
      return json({resource:MCP_URL,authorization_servers:[BASE+"/auth/v1"],
@@ -165,7 +193,7 @@ Deno.serve(async(req:Request)=>{
      return challenge(owner.reason);
    }
    const uid=owner.uid;
-   const server=new McpServer({name:"Generic Linux SSH Automator",version:"1.0.1"});
+   const server=new McpServer({name:"Generic Linux SSH Automator",version:"1.1.0"});
    server.registerTool("linux_host_status",{title:"Linux worker heartbeat",
      description:"Read authenticated Dell/Mac worker heartbeat, no SSH execution",
      inputSchema:{host_id:hostInput},annotations:{readOnlyHint:true}
@@ -193,15 +221,17 @@ Deno.serve(async(req:Request)=>{
    });
    server.registerTool("linux_probe",{title:"Read-only Linux SSH probe",
      description:"Queue fixed local SSH identity and kernel probe; requires fresh worker",
-     inputSchema:{host_id:hostInput},annotations:{readOnlyHint:false}
-   },async({host_id})=>enqueue(uid,host_id,"probe","",20));
+     inputSchema:{host_id:hostInput,idempotency_key:z.string().regex(/^[A-Za-z0-9_.:-]{8,96}$/).optional()},
+     annotations:{readOnlyHint:false}
+   },async({host_id,idempotency_key})=>enqueue(uid,host_id,"probe","",20,idempotency_key));
    server.registerTool("linux_ssh_run",{title:"Run scoped Linux SSH command",
      description:"Remote nonroot shell command; only available if owner enables BOTH cloud and local shell gates",
      inputSchema:{host_id:hostInput,command:z.string().min(1).max(8192),
-       timeout_seconds:z.number().int().min(5).max(120).optional()},
+       timeout_seconds:z.number().int().min(5).max(120).optional(),
+       idempotency_key:z.string().regex(/^[A-Za-z0-9_.:-]{8,96}$/).optional()},
      annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:false}
-   },async({host_id,command,timeout_seconds})=>
-        enqueue(uid,host_id,"shell",command,timeout_seconds??30));
+   },async({host_id,command,timeout_seconds,idempotency_key})=>
+        enqueue(uid,host_id,"shell",command,timeout_seconds??30,idempotency_key));
    server.registerTool("linux_task_status",{title:"Read Linux SSH task result",
      description:"Read owner-scoped host receipt: queue/running/result/exit code/output",
      inputSchema:{host_id:hostInput,id:z.string().uuid()},annotations:{readOnlyHint:true}
@@ -213,9 +243,10 @@ Deno.serve(async(req:Request)=>{
      const pastExpiry=Date.parse(res.data.expires_at)<Date.now();
      const state=res.data.status==="queued"&&pastExpiry?"expired":res.data.status;
      const stale_running=res.data.status==="running"&&pastExpiry;
+     const outcome_unknown=res.data.status==="outcome_unknown";
      // Read-only projection. Never auto-requeue an uncertain remote command.
-     return answer({...res.data,host_id,status:state,stale_running,
-       ...(stale_running?{recovery_hint:"Expired running receipt. Read machine state before any retry; do not replay mutations."}:{})});
+     return answer({...res.data,host_id,status:state,stale_running,outcome_unknown,
+       ...((stale_running||outcome_unknown)?{recovery_hint:"Remote outcome uncertain. Do not replay this command; await a matching worker receipt or owner audit."}:{})});
    });
    const transport=new WebStandardStreamableHTTPServerTransport({
      sessionIdGenerator:undefined,enableJsonResponse:true});
