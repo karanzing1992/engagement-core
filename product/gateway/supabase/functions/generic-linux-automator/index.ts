@@ -147,6 +147,11 @@ async function enqueue(uid:string,id:Host,kind:"probe"|"shell",command:string,ti
   const h=await ownerHost(uid,id),age=h?.last_seen_at?Date.now()-Date.parse(h.last_seen_at):Infinity;
   if(!h?.paired_at||!Number.isFinite(age)||age<0||age>=60000)
     return toolError("Worker offline or unpaired; no job queued");
+  const heartbeatField=lane==="control"?"control_seen_at":lane==="development"?"development_seen_at":"operations_seen_at";
+  const heartbeat=h[heartbeatField];
+  const laneAge=heartbeat?Date.now()-Date.parse(heartbeat):Infinity;
+  if(!Number.isFinite(laneAge)||laneAge<0||laneAge>=60000)
+    return toolError("Requested SSH lane offline; no job queued");
   if(kind==="shell"&&!h.allow_shell)return toolError("Per-host shell execution disabled");
   // Stable caller-provided key guarantees at most one queue item for retried client requests.
   if(idempotency_key) {
