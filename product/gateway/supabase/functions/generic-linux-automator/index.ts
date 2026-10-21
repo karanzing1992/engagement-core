@@ -143,6 +143,22 @@ async function workerRoute(req:Request,path:string):Promise<Response> {
   }
   return json({error:"not_found"},404);
 }
+// Backward-compatible routing for clients with the pre-v1.2.0 frozen MCP tool schema.
+// Auth, per-host shell gates, fresh lane heartbeat checks and deduplication remain in enqueue.
+// A literal leading comment opts into a lane without requiring an optional MCP input field.
+function routeLegacyShellCommand(command:string,selectedLane?:Lane):
+  {command:string,lane:Lane}|{error:string} {
+  const prefix="# generic-ssh-lane:";
+  if(!command.startsWith(prefix))return {command,lane:selectedLane??"operations"};
+  const newline=command.indexOf("\n");
+  if(newline<0)return {error:"Legacy lane selector requires a newline and a command"};
+  const requested=command.slice(prefix.length,newline);
+  if(!isLane(requested))return {error:"Unsupported legacy lane selector"};
+  if(selectedLane&&selectedLane!==requested)return {error:"Conflicting lane selectors"};
+  const stripped=command.slice(newline+1);
+  if(!stripped.trim())return {error:"Legacy lane selector requires a nonempty command"};
+  return {command:stripped,lane:requested};
+}
 async function enqueue(uid:string,id:Host,kind:"probe"|"shell",command:string,timeout:number,idempotency_key?:string,lane:Lane="operations") {
   const h=await ownerHost(uid,id),age=h?.last_seen_at?Date.now()-Date.parse(h.last_seen_at):Infinity;
   if(!h?.paired_at||!Number.isFinite(age)||age<0||age>=60000)
@@ -192,7 +208,7 @@ Deno.serve(async(req:Request)=>{
    const pathname=new URL(req.url).pathname;
    const path=pathname.replace(/^\/(?:functions\/v1\/)?generic-linux-automator/,"")||"/";
    if(req.method==="GET"&&path==="/health")
-     return json({ok:true,service:FN,version:"1.2.0",worker:"independent",shell_default:"disabled"});
+     return json({ok:true,service:FN,version:"1.2.1",worker:"independent",shell_default:"disabled"});
    if(req.method==="GET"&&["/.well-known/oauth-protected-resource",
        "/mcp/.well-known/oauth-protected-resource","/mcp/oauth-protected-resource"].includes(path))
      return json({resource:MCP_URL,authorization_servers:[BASE+"/auth/v1"],
@@ -205,7 +221,7 @@ Deno.serve(async(req:Request)=>{
      return challenge(owner.reason);
    }
    const uid=owner.uid;
-   const server=new McpServer({name:"Generic Linux SSH Automator",version:"1.2.0"});
+   const server=new McpServer({name:"Generic Linux SSH Automator",version:"1.2.1"});
    server.registerTool("linux_host_status",{title:"Linux worker heartbeat",
      description:"Read authenticated Dell/Mac worker heartbeat, no SSH execution",
      inputSchema:{host_id:hostInput},annotations:{readOnlyHint:true}
@@ -238,14 +254,17 @@ Deno.serve(async(req:Request)=>{
      annotations:{readOnlyHint:false}
    },async({host_id,idempotency_key})=>enqueue(uid,host_id,"probe","",20,idempotency_key));
    server.registerTool("linux_ssh_run",{title:"Run scoped Linux SSH command",
-     description:"Remote nonroot shell command; only available if owner enables BOTH cloud and local shell gates",
+     description:"Owner-scoped nonroot shell command; supports lane input and legacy # generic-ssh-lane:<lane> newline prefix; both shell gates required",
      inputSchema:{host_id:hostInput,command:z.string().min(1).max(8192),
        lane:laneInput.optional(),
        timeout_seconds:z.number().int().min(5).max(120).optional(),
        idempotency_key:z.string().regex(/^[A-Za-z0-9_.:-]{8,96}$/).optional()},
      annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:false}
-   },async({host_id,command,timeout_seconds,idempotency_key,lane})=>
-        enqueue(uid,host_id,"shell",command,timeout_seconds??30,idempotency_key,lane??"operations"));
+   },async({host_id,command,timeout_seconds,idempotency_key,lane})=>{
+     const routed=routeLegacyShellCommand(command,lane);
+     if("error" in routed)return toolError(routed.error);
+     return enqueue(uid,host_id,"shell",routed.command,timeout_seconds??30,idempotency_key,routed.lane);
+   });
    for(const [name,lane] of [["linux_control_run","control"],["linux_development_run","development"]] as const) {
      server.registerTool(name,{title:lane==="control"?"Priority control SSH lane":"Development SSH lane",
        description:`Run owner-scoped nonroot command on the ${lane} lane; both shell gates required`,
