@@ -45,3 +45,7 @@
 - Never rotate host credentials, revoke sudo/root or change server pairing as a rollback shortcut. Never auto-requeue an uncertain remote operation.
 
 **Stack change classification:** `DB_VERIFIED / EDGE_PENDING / HOSTS_PENDING / USER_TOOLS_PENDING`. Do not claim FULLY_SYNCED or production three-lane coverage before all smoke tests and Master readback succeed.
+
+## 21 Oct supplementary validation
+
+Read-only download/syntax validation of the pinned branch source succeeded separately on Dell and Mac. Worker SHA-256 `fa87f35fccfe2b3c7f66baae3d5d3d0ad3e075b0115e7fa4d57fd92ed278df9b`, installer `9b4a872883a40e9b658c0f5a8837d53342e7248affb87314d3787c92a3384eda`, and service template `c98ca73da5a659c1591af6a70ca2e2654b9a7b971753f942d8df3be11ae67a05` matched on both hosts. Live gateway health independently returned `1.1.0`. Existing original worker checksum remained unchanged and both services active, sudo identity 0. No additional lanes activated. Supabase Master inbox event #130 is pending review, not published.
