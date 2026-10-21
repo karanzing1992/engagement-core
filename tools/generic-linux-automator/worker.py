@@ -38,6 +38,8 @@ def get_config(filename: str) -> dict:
     cfg = json.loads(cfgpath.read_text(encoding="utf-8"))
     if cfg["host_id"] not in HOSTS:
         raise Blocked("Invalid host lane")
+    if cfg.get("lane", "operations") not in ("control", "operations", "development"):
+        raise Blocked("Invalid execution lane")
     url = urlsplit(cfg["gateway"])
     if (url.scheme != "https" or url.hostname != "saczglesalubroyaucqe.supabase.co" or
         url.path.rstrip("/") != "/functions/v1/generic-linux-automator" or
@@ -190,7 +192,8 @@ def flush(cfg, db, token):
 
 def tick(cfg, db, token):
     flush(cfg,db,token)
-    b = rpc(cfg, "/worker/poll", {"host_id":cfg["host_id"]}, token)
+    b = rpc(cfg, "/worker/poll", {"host_id":cfg["host_id"],
+        "lane":cfg.get("lane", "operations")}, token)
     job = b.get("job")
     if job is None:
         return
