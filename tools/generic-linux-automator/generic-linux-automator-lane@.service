@@ -1,0 +1,31 @@
+[Unit]
+Description=Generic Linux Automator isolated %i SSH execution lane
+After=network-online.target generic-auto-loopback-sshd.service
+Wants=network-online.target
+Requires=generic-auto-loopback-sshd.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=300s
+User=generic-auto
+Group=generic-auto
+WorkingDirectory=/var/lib/generic-linux-automator
+ExecStart=/usr/bin/python3 /opt/generic-linux-automator/worker.py --config /etc/generic-linux-automator/%i.json run
+Restart=always
+RestartSec=10
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/generic-linux-automator
+
+[Install]
+WantedBy=multi-user.target

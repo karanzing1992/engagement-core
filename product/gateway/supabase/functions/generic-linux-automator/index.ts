@@ -15,6 +15,10 @@ const MCP_URL = ROOT + "/mcp";
 const HOSTS = ["dell-linux","mac-linux"] as const;
 type Host = typeof HOSTS[number];
 const hostInput = z.enum(HOSTS);
+const LANES = ["control","operations","development"] as const;
+type Lane = typeof LANES[number];
+const laneInput = z.enum(LANES);
+const isLane = (x:unknown):x is Lane => typeof x === "string" && (LANES as readonly string[]).includes(x);
 const isHost = (x:unknown):x is Host => typeof x === "string" && (HOSTS as readonly string[]).includes(x);
 const isUUID = (x:unknown):x is string =>
   typeof x === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x);
@@ -62,7 +66,7 @@ async function ownerUser(req:Request):Promise<OwnerStatus> {
 }
 async function ownerHost(uid:string,id:Host) {
   const {data,error}=await db.from("generic_auto_hosts")
-    .select("host_id,paired_at,last_seen_at,enabled,allow_shell,worker_version")
+    .select("host_id,paired_at,last_seen_at,enabled,allow_shell,worker_version,control_seen_at,operations_seen_at,development_seen_at")
     .eq("host_id",id).eq("owner_id",uid).eq("enabled",true).maybeSingle();
   return error?null:data;
 }
@@ -101,19 +105,22 @@ async function workerRoute(req:Request,path:string):Promise<Response> {
   if(!worker)return json({error:"worker_authorization_required"},401);
   const now=new Date().toISOString();
   if(path==="/worker/poll") {
-    const hb=await db.from("generic_auto_hosts").update({last_seen_at:now,worker_version:"linux-ssh-v1"})
+    const lane:Lane=b.lane===undefined?"operations":b.lane;
+    if(!isLane(lane))return json({error:"invalid_lane"},400);
+    const seenField = lane==="control"?"control_seen_at":lane==="development"?"development_seen_at":"operations_seen_at";
+    const hb=await db.from("generic_auto_hosts").update({last_seen_at:now,worker_version:"linux-ssh-v1",[seenField]:now})
       .eq("host_id",id).eq("owner_id",worker.owner_id);
     if(hb.error)return json({error:"heartbeat_failed"},500);
     const pending=await db.from("generic_auto_jobs")
       .select("id,kind,command,timeout_seconds,expires_at").eq("owner_id",worker.owner_id)
-      .eq("host_id",id).eq("status","queued").gt("expires_at",now)
+      .eq("host_id",id).eq("lane",lane).eq("status","queued").gt("expires_at",now)
       .order("created_at",{ascending:true}).limit(1);
     if(pending.error)return json({error:"queue_lookup_failed"},500);
     if(!pending.data?.length)return json({ok:true,job:null});
     const job=pending.data[0],claim=crypto.randomUUID();
     const update=await db.from("generic_auto_jobs").update({status:"running",claim,started_at:now})
       .eq("id",job.id).eq("owner_id",worker.owner_id).eq("host_id",id)
-      .eq("status","queued").is("claim",null).select("id").maybeSingle();
+      .eq("status","queued").eq("lane",lane).is("claim",null).select("id").maybeSingle();
     if(update.error)return json({error:"job_claim_failed"},500);
     return json({ok:true,job:update.data?{...job,claim}:null});
   }
@@ -136,51 +143,56 @@ async function workerRoute(req:Request,path:string):Promise<Response> {
   }
   return json({error:"not_found"},404);
 }
-async function enqueue(uid:string,id:Host,kind:"probe"|"shell",command:string,timeout:number,idempotency_key?:string) {
+async function enqueue(uid:string,id:Host,kind:"probe"|"shell",command:string,timeout:number,idempotency_key?:string,lane:Lane="operations") {
   const h=await ownerHost(uid,id),age=h?.last_seen_at?Date.now()-Date.parse(h.last_seen_at):Infinity;
   if(!h?.paired_at||!Number.isFinite(age)||age<0||age>=60000)
     return toolError("Worker offline or unpaired; no job queued");
+  const heartbeatField=lane==="control"?"control_seen_at":lane==="development"?"development_seen_at":"operations_seen_at";
+  const heartbeat=h[heartbeatField];
+  const laneAge=heartbeat?Date.now()-Date.parse(heartbeat):Infinity;
+  if(!Number.isFinite(laneAge)||laneAge<0||laneAge>=60000)
+    return toolError("Requested SSH lane offline; no job queued");
   if(kind==="shell"&&!h.allow_shell)return toolError("Per-host shell execution disabled");
   // Stable caller-provided key guarantees at most one queue item for retried client requests.
   if(idempotency_key) {
-    const prev=await db.from("generic_auto_jobs").select("id,status,created_at,expires_at,kind,command,timeout_seconds")
+    const prev=await db.from("generic_auto_jobs").select("id,status,created_at,expires_at,kind,command,timeout_seconds,lane")
       .eq("host_id",id).eq("owner_id",uid).eq("idempotency_key",idempotency_key).maybeSingle();
     if(prev.error)return toolError("Queue deduplication lookup unavailable");
     if(prev.data) {
-      if(prev.data.kind!==kind||prev.data.command!==command||prev.data.timeout_seconds!==timeout)
+      if(prev.data.kind!==kind||prev.data.command!==command||prev.data.timeout_seconds!==timeout||prev.data.lane!==lane)
         return toolError("Idempotency key already used for different command; request rejected");
       return answer({id:prev.data.id,status:prev.data.status,created_at:prev.data.created_at,
         expires_at:prev.data.expires_at,host_id:id,deduplicated:true,
-        note:"Existing job returned; do not re-execute"});
+        lane,note:"Existing job returned; do not re-execute"});
     }
   }
   const active=await db.from("generic_auto_jobs").select("id",{count:"exact",head:true})
-    .eq("owner_id",uid).eq("host_id",id).in("status",["queued","running"])
+    .eq("owner_id",uid).eq("host_id",id).eq("lane",lane).in("status",["queued","running"])
     .gt("expires_at",new Date().toISOString());
   if(active.error)return toolError("Queue admission check unavailable");
   if((active.count||0)>=12)return toolError("Host job queue busy; no new command queued");
   const row=await db.from("generic_auto_jobs").insert({
-      host_id:id,owner_id:uid,kind,command,timeout_seconds:timeout,status:"queued",
+      host_id:id,owner_id:uid,kind,command,timeout_seconds:timeout,status:"queued",lane,
       idempotency_key:idempotency_key||null})
       .select("id,status,created_at,expires_at").single();
   if(row.error&&idempotency_key) {
     // A simultaneous request may have won the unique index race.
-    const prev=await db.from("generic_auto_jobs").select("id,status,created_at,expires_at,kind,command,timeout_seconds")
+    const prev=await db.from("generic_auto_jobs").select("id,status,created_at,expires_at,kind,command,timeout_seconds,lane")
       .eq("host_id",id).eq("owner_id",uid).eq("idempotency_key",idempotency_key).maybeSingle();
-    if(prev.data&&prev.data.kind===kind&&prev.data.command===command&&prev.data.timeout_seconds===timeout)
+    if(prev.data&&prev.data.kind===kind&&prev.data.command===command&&prev.data.timeout_seconds===timeout&&prev.data.lane===lane)
       return answer({id:prev.data.id,status:prev.data.status,created_at:prev.data.created_at,
         expires_at:prev.data.expires_at,host_id:id,deduplicated:true,
-        note:"Existing concurrent job returned; never resubmit"});
+        lane,note:"Existing concurrent job returned; never resubmit"});
   }
   return row.error||!row.data?toolError("Job queue insert failed"):
-      answer({...row.data,host_id:id,deduplicated:false,note:"Queued only; read linux_task_status for terminal result"});
+      answer({...row.data,host_id:id,lane,deduplicated:false,note:"Queued only; read linux_task_status for terminal result"});
 }
 Deno.serve(async(req:Request)=>{
  try {
    const pathname=new URL(req.url).pathname;
    const path=pathname.replace(/^\/(?:functions\/v1\/)?generic-linux-automator/,"")||"/";
    if(req.method==="GET"&&path==="/health")
-     return json({ok:true,service:FN,version:"1.1.0",worker:"independent",shell_default:"disabled"});
+     return json({ok:true,service:FN,version:"1.2.0",worker:"independent",shell_default:"disabled"});
    if(req.method==="GET"&&["/.well-known/oauth-protected-resource",
        "/mcp/.well-known/oauth-protected-resource","/mcp/oauth-protected-resource"].includes(path))
      return json({resource:MCP_URL,authorization_servers:[BASE+"/auth/v1"],
@@ -193,7 +205,7 @@ Deno.serve(async(req:Request)=>{
      return challenge(owner.reason);
    }
    const uid=owner.uid;
-   const server=new McpServer({name:"Generic Linux SSH Automator",version:"1.1.0"});
+   const server=new McpServer({name:"Generic Linux SSH Automator",version:"1.2.0"});
    server.registerTool("linux_host_status",{title:"Linux worker heartbeat",
      description:"Read authenticated Dell/Mac worker heartbeat, no SSH execution",
      inputSchema:{host_id:hostInput},annotations:{readOnlyHint:true}
@@ -203,7 +215,8 @@ Deno.serve(async(req:Request)=>{
      const age=h.last_seen_at?Math.floor((Date.now()-Date.parse(h.last_seen_at))/1000):null;
      return answer({host_id,paired:!!h.paired_at,online:typeof age==="number"&&age>=0&&age<60,
         age_seconds:age,worker_version:h.worker_version||null,allow_shell:h.allow_shell,
-        checked_at:new Date().toISOString(),source:"dedicated-generic-linux-heartbeat"});
+        checked_at:new Date().toISOString(),lanes:{control:h.control_seen_at,operations:h.operations_seen_at,development:h.development_seen_at},
+        source:"dedicated-generic-linux-heartbeat"});
    });
    server.registerTool("linux_pair_host",{title:"Pair Linux worker",description:"Generate single-use 15-minute code for separately authorized Dell or Mac worker",
      inputSchema:{host_id:hostInput},annotations:{readOnlyHint:false}
@@ -227,17 +240,28 @@ Deno.serve(async(req:Request)=>{
    server.registerTool("linux_ssh_run",{title:"Run scoped Linux SSH command",
      description:"Remote nonroot shell command; only available if owner enables BOTH cloud and local shell gates",
      inputSchema:{host_id:hostInput,command:z.string().min(1).max(8192),
+       lane:laneInput.optional(),
        timeout_seconds:z.number().int().min(5).max(120).optional(),
        idempotency_key:z.string().regex(/^[A-Za-z0-9_.:-]{8,96}$/).optional()},
      annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:false}
-   },async({host_id,command,timeout_seconds,idempotency_key})=>
-        enqueue(uid,host_id,"shell",command,timeout_seconds??30,idempotency_key));
+   },async({host_id,command,timeout_seconds,idempotency_key,lane})=>
+        enqueue(uid,host_id,"shell",command,timeout_seconds??30,idempotency_key,lane??"operations"));
+   for(const [name,lane] of [["linux_control_run","control"],["linux_development_run","development"]] as const) {
+     server.registerTool(name,{title:lane==="control"?"Priority control SSH lane":"Development SSH lane",
+       description:`Run owner-scoped nonroot command on the ${lane} lane; both shell gates required`,
+       inputSchema:{host_id:hostInput,command:z.string().min(1).max(8192),
+         timeout_seconds:z.number().int().min(5).max(120).optional(),
+         idempotency_key:z.string().regex(/^[A-Za-z0-9_.:-]{8,96}$/).optional()},
+       annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:false}
+     },async({host_id,command,timeout_seconds,idempotency_key})=>
+       enqueue(uid,host_id,"shell",command,timeout_seconds??30,idempotency_key,lane));
+   }
    server.registerTool("linux_task_status",{title:"Read Linux SSH task result",
      description:"Read owner-scoped host receipt: queue/running/result/exit code/output",
      inputSchema:{host_id:hostInput,id:z.string().uuid()},annotations:{readOnlyHint:true}
    },async({host_id,id})=>{
      const res=await db.from("generic_auto_jobs")
-       .select("id,kind,status,created_at,started_at,finished_at,expires_at,timeout_seconds,stdout,stderr,exit_code")
+       .select("id,kind,lane,status,created_at,started_at,finished_at,expires_at,timeout_seconds,stdout,stderr,exit_code")
        .eq("host_id",host_id).eq("owner_id",uid).eq("id",id).maybeSingle();
      if(res.error||!res.data)return toolError("Job not found");
      const pastExpiry=Date.parse(res.data.expires_at)<Date.now();
