@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Generic Linux SSH Automator v1.2.0 — MCP tool input reference",
+  "description": "Reference shapes grounded in Edge v6 source; not a replacement for live MCP discovery or OAuth. Optional arguments may be absent from cached clients.",
+  "service": "generic-linux-automator",
+  "edge_version": 6,
+  "host_ids": ["dell-linux", "mac-linux"],
+  "lanes": ["control", "operations", "development"],
+  "host": {"type":"string","enum":["dell-linux","mac-linux"]},
+  "idempotency_key": {"type":"string","minLength":8,"maxLength":96,"pattern":"^[A-Za-z0-9_.:-]{8,96}$"},
+  "timeout_seconds": {"type":"integer","minimum":5,"maximum":120,"default":30},
+  "tools": {
+    "linux_host_status": {"required":["host_id"],"properties":{"host_id":{"$ref":"#/host"}}},
+    "linux_pair_host": {"required":["host_id"],"properties":{"host_id":{"$ref":"#/host"}}},
+    "linux_probe": {"required":["host_id"],"properties":{"host_id":{"$ref":"#/host"},"idempotency_key":{"$ref":"#/idempotency_key"}},"lane":"operations"},
+    "linux_ssh_run": {"required":["host_id","command"],"properties":{"host_id":{"$ref":"#/host"},"command":{"type":"string","minLength":1,"maxLength":8192},"lane":{"type":"string","enum":["control","operations","development"],"default":"operations"},"timeout_seconds":{"$ref":"#/timeout_seconds"},"idempotency_key":{"$ref":"#/idempotency_key"}}},
+    "linux_control_run": {"required":["host_id","command"],"properties":{"host_id":{"$ref":"#/host"},"command":{"type":"string","minLength":1,"maxLength":8192},"timeout_seconds":{"$ref":"#/timeout_seconds"},"idempotency_key":{"$ref":"#/idempotency_key"}},"lane":"control"},
+    "linux_development_run": {"required":["host_id","command"],"properties":{"host_id":{"$ref":"#/host"},"command":{"type":"string","minLength":1,"maxLength":8192},"timeout_seconds":{"$ref":"#/timeout_seconds"},"idempotency_key":{"$ref":"#/idempotency_key"}},"lane":"development"},
+    "linux_task_status": {"required":["host_id","id"],"properties":{"host_id":{"$ref":"#/host"},"id":{"type":"string","format":"uuid"}}}
+  }
+}
