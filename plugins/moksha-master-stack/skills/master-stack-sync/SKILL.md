@@ -7,9 +7,9 @@ description: Share and verify new capabilities, technology changes, integrations
 
 Use the canonical protocol at https://github.com/karanzing1992/engagement-core/blob/main/docs/MASTER_STACK_UPDATE_PROTOCOL.md as the policy source. The master technology registry is https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit.
 
-## GOLDEN RULE AW-1 — automation GUI tag (owner mandatory 2026-10-22)
+## AW-1 — Manbir-only automation GUI identity tag (scope corrected 2026-10-22)
 
-Every automation-owned GUI window/tab/remote desktop/terminal must always show `AUTOMATION | PROJECT | WORKER | TASK-ID | MODE | STATE` before agent input; verify exact owner/lease and protect manual windows. A missing/mismatched tag stops GUI actions as `BLOCKED:UNLABELED_WINDOW`. This is a universal **default** for new automation implementation, but existing runtimes need separate reviewed deployment and screenshot/negative QA. Never confuse an overlay with permission or print PIN/credentials. [Canonical visual-window golden rule](https://github.com/karanzing1992/engagement-core/blob/main/docs/AUTOMATION_VISIBLE_WINDOW_TAG_GOLDEN_RULE_20261022.md). Project instruction reference includes ready-to-copy persistent rule; source changes do not hot reload the installed plugin.
+Require `AUTOMATION | PROJECT | MANBIR | TASK-ID | MODE | STATE` only for explicitly authorized automation-owned Pine Manbir Windows TradingView controller GUI windows. Verify task lease, ownership, allowed chart, sole writer and tag visibility before input; missing/mismatched label blocks actions as `BLOCKED:UNLABELED_WINDOW`. **Do not impose AW-1 on Dell, Mac, Moksha/Andaz, Matrix or any other controller.** Historical cross-device tests are not deployment evidence. Do not tag personal windows or disclose secrets. Manbir still requires native screenshots, lost-tag refusal, reload/reconnect and verified rollback. [Current canonical Manbir-scoped rule](https://github.com/karanzing1992/engagement-core/blob/main/docs/AUTOMATION_VISIBLE_WINDOW_TAG_GOLDEN_RULE_20261022.md). This repo source update does not hot-reload an installed plugin.
 
 ## DEMAND-BASED ACTION SYNC — 16 October 2026
 
