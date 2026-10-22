@@ -7,6 +7,10 @@ description: Share and verify new capabilities, technology changes, integrations
 
 Use the canonical protocol at https://github.com/karanzing1992/engagement-core/blob/main/docs/MASTER_STACK_UPDATE_PROTOCOL.md as the policy source. The master technology registry is https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit.
 
+## GOLDEN RULE AW-1 — automation GUI tag (owner mandatory 2026-10-22)
+
+Every automation-owned GUI window/tab/remote desktop/terminal must always show `AUTOMATION | PROJECT | WORKER | TASK-ID | MODE | STATE` before agent input; verify exact owner/lease and protect manual windows. A missing/mismatched tag stops GUI actions as `BLOCKED:UNLABELED_WINDOW`. This is a universal **default** for new automation implementation, but existing runtimes need separate reviewed deployment and screenshot/negative QA. Never confuse an overlay with permission or print PIN/credentials. [Canonical visual-window golden rule](https://github.com/karanzing1992/engagement-core/blob/main/docs/AUTOMATION_VISIBLE_WINDOW_TAG_GOLDEN_RULE_20261022.md). Project instruction reference includes ready-to-copy persistent rule; source changes do not hot reload the installed plugin.
+
 ## DEMAND-BASED ACTION SYNC — 16 October 2026
 
 **Canonical target:** Publish a verified material change **in the same approved action**, not on an hourly publication timer. After approved GitHub default-branch change, identify repo + full SHA; use the owner-installed signed per-repo Apps Script Web App via existing `services/master-stack-worker/dispatch-on-change.py` only when its deployment and secret are verified. Confirm the unique GitHub marker through saved Google Doc readback. For platform-only changes submit the restricted Supabase event, independently verify the evidence, append/readback the unique event marker and mark published **in the same authorized operation** via connected tools; do not treat a queued event or cron heartbeat as success.
