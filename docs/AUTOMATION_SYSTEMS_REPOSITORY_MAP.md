@@ -1,3 +1,5 @@
+> **GOLDEN RULE AW-1 — DEFAULT VISIBLE AUTOMATION TAG (2026-10-22):** Every automation-controlled browser/tab, desktop/remote GUI, or terminal window **must visibly show** `AUTOMATION | PROJECT | WORKER | TASK-ID | MODE | STATE`, sourced from its verified lease. No tags on manual user windows; missing/mismatched label = `BLOCKED:UNLABELED_WINDOW` before new GUI actions. [Full cross-project policy](AUTOMATION_VISIBLE_WINDOW_TAG_GOLDEN_RULE_20261022.md). Policy is active immediately in source instructions; each runtime requires its own on-device installation and visual/negative QA before claiming deployed compliance.
+
 # AUTOMATION & SYSTEMS — Source Repository Map
 Effective: 11 October 2026
 Status: **Verified multi-repository workstream mapping**, not a new single repository or a ChatGPT Project Settings binding.
