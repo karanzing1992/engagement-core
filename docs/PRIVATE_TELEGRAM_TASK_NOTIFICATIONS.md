@@ -1,6 +1,6 @@
 # Private Telegram Task Notification Relay — Reusable Integration Contract
 
-**Version:** 1.0 candidate · **Prepared:** 2026-10-23 · **Owner:** Engagement Core · **State:** source implemented; production WordPress relay awaits the administrator's explicit activation.
+**Version:** 1.0 live transport · **Verified:** 2026-10-23 · **Owner:** Engagement Core · **State:** production WordPress relay enabled, Dell event dispatch and watchdog enabled; individual project emitters require enrollment.
 
 ## Purpose and boundaries
 
@@ -50,3 +50,14 @@ Workflow: `register` once → `heartbeat` as progress occurs → `completed`, `f
 5. Rollback: disable *only* the new notification snippet and stop the user units; do not modify or disable Engagement Core, the bot, paired private booking DM, WooCommerce payments, or original booking alerts.
 
 **Current rollout status:** Source and Dell simulator are prepared. Creating the PHP snippet requires WordPress approval and subsequent user activation. Until both happen and the signed canary succeeds, automatic event delivery is NOT LIVE.
+
+## Live rollout receipts — 23 October 2026
+
+- WPCode relay snippet **#13358** was approved and subsequently activated by the administrator; the private event REST route is registered. Anonymous/unsigned probe returned **403** (signature rejected).
+- A genuine signed Dell -> WordPress -> paired private Telegram canary succeeded with Telegram **message_id 12**. An unattended event-driven synthetic blocked-task notification succeeded with Telegram **message_id 13**.
+- Separate SQLite receipts show both event IDs confirmed, **sent=2**, **queued=0**, **uncertain=0**. No new booking/payment, no guest info, no community publication and no duplicate sends.
+- Dell user `bhm-private-telegram-dispatch.path` and `bhm-task-watchdog.timer` are active and enabled; the independent one-shot dispatch service exits after sending. Activation is governed by owner-private `BHM_PRIVATE_TELEGRAM_ENABLE=1`.
+- Detailed host receipt IDs, observed dates, QA, rollback and project enrollment instructions are archived at [BHM Dev Matrix notification handover](https://github.com/aarondash5-star/business-house-matrix/blob/feat/dev-supervisor-gate-s-20261023/docs/handoffs/PRIVATE_TELEGRAM_MULTI_PROJECT_NOTIFICATION_HANDOVER_20261023.md).
+- Important distinction: **Transport is live; individual projects are not automatically watched until their actual worker/emitter integrations are enrolled.** Mac/external workers must enroll independent public signer keys through separate review. The same private chat is intentionally used, but the paid-booking business handler stays separate and untouched.
+
+Rollback: disable the Dell path and timer and independently disable only relay snippet #13358 if necessary. The existing Moksha private paid-booking notification snippet #13126 and bot pairing must remain operational.
