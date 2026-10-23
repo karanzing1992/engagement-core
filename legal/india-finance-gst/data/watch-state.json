@@ -1,6 +1,10 @@
 {
+  "gst_returns": {
+    "sha256": "faba41803a26854afa666c5d963c8de7ea5c76638140f5d8bbdaa3f254ef034a",
+    "url": "https://tutorial.gst.gov.in/userguide/returns/GSTR3B.htm"
+  },
   "gstcouncil": {
-    "sha256": "a43c228a52bb70a2f49d9978a1c8f47f8c9b1dd06d65bbaa2a47c6b125125ef4",
+    "sha256": "41e9c5b649964df393329a3d74149dc5472ce880120e3e95917e9a5c811d253a",
     "url": "https://gstcouncil.gov.in/what-s-new"
   }
 }
