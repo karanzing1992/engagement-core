@@ -14,7 +14,7 @@ if (!class_exists('BHM_Mission_Control_OTP_V1', false)) {
 final class BHM_Mission_Control_OTP_V1 {
     private const ROUTE = 'mission-control/v1';
     private const PREFIX = 'bhm_mc_otp_v1_';
-    private const ORIGIN = 'https://karanzing1992.github.io';
+    private const ORIGIN = 'https://mokshagoa.com';
     private const CHALLENGE_TTL = 300;
     private const SESSION_TTL = 1200;
     private const SEND_LIMIT = 3;
@@ -59,7 +59,14 @@ final class BHM_Mission_Control_OTP_V1 {
         return $out;
     }
     private static function origin_ok(): bool {
-        return hash_equals(self::ORIGIN, (string)($_SERVER['HTTP_ORIGIN']??''));
+        $origin=(string)($_SERVER['HTTP_ORIGIN']??'');
+        if ($origin!=='') return hash_equals(self::ORIGIN,$origin);
+        // Browser same-origin GET fetches commonly omit the Origin header.
+        // Read access still requires the short-lived private bearer session.
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD']??''))!=='GET') return false;
+        if ((string)($_SERVER['HTTP_SEC_FETCH_SITE']??'')==='same-origin') return true;
+        $ref=(string)($_SERVER['HTTP_REFERER']??'');
+        return $ref!=='' && strpos($ref,self::ORIGIN.'/mission-control/')===0;
     }
     private static function nonce_key(string $name): string {
         return self::PREFIX . $name;
