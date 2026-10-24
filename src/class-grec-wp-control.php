@@ -604,6 +604,7 @@ final class GREC_WordPress_Control {
 		header( 'Content-Type: text/html; charset=' . get_bloginfo( 'charset' ) );
 		header( 'Referrer-Policy: no-referrer' );
 		header( 'X-Content-Type-Options: nosniff' );
+		header( 'X-Robots-Tag: noindex, nofollow, noarchive' );
 		?>
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -629,6 +630,10 @@ final class GREC_WordPress_Control {
 			return;
 		}
 
+		// Preserve signed v0.9.17 OAuth no-cache behaviour.
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+			define( 'DONOTCACHEPAGE', true );
+		}
 		$nonce        = wp_generate_password( 24, false, false );
 		$supabase_url = self::gateway_supabase_url();
 		$public_key   = self::gateway_publishable_key();
@@ -660,11 +665,15 @@ final class GREC_WordPress_Control {
 	<main class="card">
 		<div class="brand">WP Control</div>
 		<h1>Connect ChatGPT</h1>
-		<p class="muted">Authorize ChatGPT to use only WordPress sites you explicitly pair. WP Control never asks for or stores your WordPress administrator password.</p>
+		<p class="muted">Sign in with your existing Supabase account to authorize ChatGPT. These are Supabase credentials, not your WordPress administrator password. Your password is sent directly to Supabase Auth.</p>
 		<section id="login" class="hidden">
-			<label for="email">Email</label>
-			<input id="email" type="email" autocomplete="email" placeholder="you@example.com">
-			<div class="row" style="margin-top:12px"><button id="send">Email me a sign-in link</button></div>
+			<label for="email">Email (account username)</label>
+			<input id="email" type="email" autocomplete="username" maxlength="254" placeholder="you@example.com">
+			<label for="password">Supabase password</label>
+			<input id="password" type="password" autocomplete="current-password" maxlength="512">
+			<div class="row" style="margin-top:12px"><button id="passwordLogin" type="button">Sign in with password</button></div>
+			<p class="muted">Alternatively, use an email sign-in link:</p>
+			<div class="row"><button id="send" type="button" class="secondary">Email me a sign-in link</button></div>
 		</section>
 		<section id="consent" class="hidden">
 			<p><strong id="clientName">ChatGPT</strong> wants to connect to your WP Control account.</p>
@@ -683,7 +692,7 @@ final class GREC_WordPress_Control {
 		const authorizationId=incomingId||sessionStorage.getItem("wpcontrol_authorization_id");
 		if(incomingId) sessionStorage.setItem("wpcontrol_authorization_id",incomingId);
 		const supabase=createClient(PROJECT_URL,PUBLIC_KEY,{auth:{detectSessionInUrl:true,persistSession:true,flowType:"pkce"}});
-		const login=document.querySelector("#login"),consent=document.querySelector("#consent"),status=document.querySelector("#status"),email=document.querySelector("#email"),send=document.querySelector("#send"),approve=document.querySelector("#approve"),deny=document.querySelector("#deny");
+		const login=document.querySelector("#login"),consent=document.querySelector("#consent"),status=document.querySelector("#status"),email=document.querySelector("#email"),password=document.querySelector("#password"),passwordLogin=document.querySelector("#passwordLogin"),send=document.querySelector("#send"),approve=document.querySelector("#approve"),deny=document.querySelector("#deny");
 		const say=(t)=>status.textContent=t||"";
 		let booting=null,redirecting=false,decisionPending=false,initialized=false;
 		const resetAuthorization=()=>sessionStorage.removeItem("wpcontrol_authorization_id");
@@ -717,6 +726,26 @@ final class GREC_WordPress_Control {
 			})().catch(e=>say(e.message||"Authorization failed. Start a new connection from ChatGPT.")).finally(()=>{booting=null});
 			return booting;
 		}
+		passwordLogin.addEventListener("click",async()=>{
+			const v=email.value.trim(),pw=password.value;
+			if(!authorizationId){say("Start a new connection from ChatGPT.");return}
+			if(!v||!pw){say("Enter your Supabase account email and password.");return}
+			passwordLogin.disabled=true;
+			send.disabled=true;
+			try{
+				const r=await supabase.auth.signInWithPassword({email:v,password:pw});
+				password.value="";
+				if(r.error){say("Sign-in failed. Verify your account credentials.");return}
+				await boot();
+			}catch(_error){
+				password.value="";
+				say("Could not sign in. Check the connection and try again.");
+			}finally{
+				passwordLogin.disabled=false;
+				send.disabled=false;
+			}
+		});
+		password.addEventListener("keydown",event=>{if(event.key==="Enter")passwordLogin.click()});
 		send.addEventListener("click",async()=>{
 			const v=email.value.trim();if(!v){say("Enter your email address.");return}
 			if(!authorizationId){say("Start a new connection from ChatGPT.");return}

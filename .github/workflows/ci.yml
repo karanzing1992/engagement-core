@@ -5,6 +5,10 @@ on:
   pull_request:
     paths:
       - 'src/class-grec-wp-control.php'
+      - 'src/class-grec-public-media-handoff.php'
+      - 'engagement-core.php'
+      - 'tools/public-media-handoff/**'
+      - 'tests/public-media-handoff-smoke.php'
       - 'product/gateway/supabase/functions/wpcontrol-mcp/**'
       - 'tests/native-package-sync-gateway-smoke.php'
       - '.github/workflows/ci.yml'
@@ -32,6 +36,8 @@ jobs:
             # Validate the actual WordPress PHP 7.4 plugin/runtime files.
             php -l engagement-core.php
             php -l src/class-grec-wp-control.php
+            php -l src/class-grec-public-media-handoff.php
+            php -l tests/public-media-handoff-smoke.php
             php -l tests/native-package-sync-gateway-smoke.php
           else
             find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
@@ -43,3 +49,7 @@ jobs:
           php tests/native-package-sync-gateway-smoke.php
       - name: Snapchat imported-video metadata smoke test
         run: php tests/snapchat-imported-video-metadata-smoke.php
+      - name: Signed media handoff security regression
+        run: php tests/public-media-handoff-smoke.php
+      - name: Dell media client syntax
+        run: python3 -c "import ast,pathlib; ast.parse(pathlib.Path('tools/public-media-handoff/upload.py').read_text())"
