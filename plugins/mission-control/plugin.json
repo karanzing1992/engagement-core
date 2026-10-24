@@ -1,0 +1,33 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "mission-control-private",
+  "version": "0.1.0",
+  "description": "Private ChatGPT task staging for Mission Control, with authenticated Supabase MCP tools and WordPress dashboard handoff.",
+  "author": {
+    "name": "KaranBiz"
+  },
+  "homepage": "https://mokshagoa.com/mission-control/",
+  "repository": "https://github.com/karanzing1992/engagement-core",
+  "keywords": [
+    "tasks",
+    "mission-control",
+    "supabase",
+    "chatgpt",
+    "productivity"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Mission Control",
+        "shortDescription": "Private ChatGPT task inbox",
+        "longDescription": "Capture and review tasks by project, chat, and Working/Done/On Ice/Deprecated status. Uses owner-scoped Supabase staging and links to the private WordPress dashboard. Does not automatically enumerate ChatGPT history or write to the canonical vault.",
+        "developerName": "KaranBiz",
+        "category": "Productivity",
+        "capabilities": [
+          "Interactive"
+        ],
+        "defaultPrompt": "Open Mission Control, verify my connection, and show my staged tasks."
+      }
+    }
+  }
+}
