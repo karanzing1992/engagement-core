@@ -17,8 +17,12 @@ function wp_parse_url($url, $part = -1) { return parse_url($url, $part); }
 $GLOBALS['opts'] = array();
 $GLOBALS['transients'] = array();
 function get_option($name, $default = false) { return $GLOBALS['opts'][$name] ?? $default; }
-function get_transient($name) { return $GLOBALS['transients'][$name] ?? false; }
-function set_transient($name, $value, $seconds) { $GLOBALS['transients'][$name] = $value; return true; }
+function add_option($name, $value, $deprecated = '', $autoload = false) {
+    if (array_key_exists($name, $GLOBALS['opts'])) { return false; }
+    $GLOBALS['opts'][$name] = $value; return true;
+}
+function delete_option($name) { unset($GLOBALS['opts'][$name]); return true; }
+function wp_schedule_single_event($when, $hook, $args = array()) { return true; }
 require dirname(__DIR__) . '/src/class-grec-public-media-handoff.php';
 function check($truth, $label) {
     if (!$truth) { fwrite(STDERR, 'FAIL: ' . $label . PHP_EOL); exit(1); }
