@@ -83,7 +83,7 @@ $id=data($start)['challenge_id'];
 check(status($auth::verify(new WP_REST_Request(array('challenge_id'=>$id,'code'=>'000000'))))===401,'wrong OTP denied');
 $good=$auth::verify(new WP_REST_Request(array('challenge_id'=>$id,'code'=>$GLOBALS['otp_code'])));
 check(status($good)===200&&strlen((string)(data($good)['access_token']??''))===64,'OTP verify');
-check(status($auth::verify(new WP_REST_Request(array('challenge_id'=>$id,'code'=>$GLOBALS['otp_code'])))===401,'replay denied');
+check(status($auth::verify(new WP_REST_Request(array('challenge_id'=>$id,'code'=>$GLOBALS['otp_code']))))===401,'replay denied');
 $bearer='Bearer '.data($good)['access_token'];
 check($auth::authorize_session(new WP_REST_Request(array(),array('authorization'=>$bearer)))===true,'session valid');
 check(status($auth::authorize_session(new WP_REST_Request()))===401,'missing session denied');
