@@ -51,3 +51,7 @@ Reuse: existing Engagement Core Telegram credential adapter and paired DM, WordP
 - No Supabase Edge Function, device permissions, Telegram groups, plugin release or GitHub Pages production configuration changed.
 
 **Next owner action:** Resolve GitHub Pages on the private repository (browser must use `karanzing1992`, and private Pages may require an eligible GitHub plan); then perform ONE owner-confirmed private Telegram OTP canary from the actual allowed browser origin. Keep task sync and public shell behind the end-to-end test gate.
+
+## Hosting decision update — 24 October 2026
+
+Owner switched from GitHub Pages to Cloudflare Workers static assets. The private dashboard repo now stages `apps/mission-control/wrangler.jsonc` and a manual `.github/workflows/mission-control-cloudflare.yml`, with only `index.html` in the public asset artifact. **No deployment:** Cloudflare's login flow was not completed and no exact hostname was verified. Consequently the active WPCode #13375 still restricts requests to `https://karanzing1992.github.io`; do not claim Cloudflare-origin OTP works. Once the actual Cloudflare URL is confirmed, review/edit the exact origin (never wildcard), re-enable if WordPress disables the edited snippet, prove a no-Origin negative test and one private-owner Telegram OTP canary, and then perform authenticated tasks GET/PUT and mobile QA. GitHub Pages remains disabled; no need to upgrade plans.
