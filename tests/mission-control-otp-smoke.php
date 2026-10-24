@@ -8,7 +8,7 @@ define('ABSPATH',__DIR__);
 $GLOBALS['opt']=array('grec_booking_private_telegram_chat'=>'123456789');
 $GLOBALS['transients']=array();
 $GLOBALS['otp_code']=null;
-$_SERVER['HTTP_ORIGIN']='https://karanzing1992.github.io';
+$_SERVER['HTTP_ORIGIN']='https://mokshagoa.com';
 $_SERVER['REMOTE_ADDR']='127.0.0.1';
 
 class WP_Error {
@@ -75,7 +75,7 @@ $auth='BHM_Mission_Control_OTP_V1';
 check(status($auth::health())===200,'health');
 $_SERVER['HTTP_ORIGIN']='https://malicious.example';
 check(status($auth::start(new WP_REST_Request()))===403,'origin denied');
-$_SERVER['HTTP_ORIGIN']='https://karanzing1992.github.io';
+$_SERVER['HTTP_ORIGIN']='https://mokshagoa.com';
 $start=$auth::start(new WP_REST_Request());
 check(status($start)===200&&preg_match('/^[a-f0-9]{32}$/',data($start)['challenge_id']??''),'OTP start');
 check((bool)preg_match('/^[0-9]{6}$/',(string)$GLOBALS['otp_code']),'code is six digits');
@@ -86,6 +86,14 @@ check(status($good)===200&&strlen((string)(data($good)['access_token']??''))===6
 check(status($auth::verify(new WP_REST_Request(array('challenge_id'=>$id,'code'=>$GLOBALS['otp_code']))))===401,'replay denied');
 $bearer='Bearer '.data($good)['access_token'];
 check($auth::authorize_session(new WP_REST_Request(array(),array('authorization'=>$bearer)))===true,'session valid');
+$_SERVER['HTTP_ORIGIN']='';
+$_SERVER['REQUEST_METHOD']='GET';
+$_SERVER['HTTP_SEC_FETCH_SITE']='same-origin';
+check($auth::authorize_session(new WP_REST_Request(array(),array('authorization'=>$bearer)))===true,'same-origin GET with bearer valid');
+$_SERVER['HTTP_SEC_FETCH_SITE']='cross-site';
+check(status($auth::authorize_session(new WP_REST_Request(array(),array('authorization'=>$bearer))))===403,'Origin-less cross-site GET denied');
+$_SERVER['HTTP_ORIGIN']='https://mokshagoa.com';
+
 check(status($auth::authorize_session(new WP_REST_Request()))===401,'missing session denied');
 $read=$auth::read_tasks(new WP_REST_Request(array(),array('authorization'=>$bearer)));
 check(status($read)===200&&data($read)['version']===0,'empty vault');
