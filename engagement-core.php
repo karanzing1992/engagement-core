@@ -36,6 +36,7 @@ require_once GREC_DIR . 'src/class-grec-media-bootstrap.php';
 require_once GREC_DIR . 'src/class-grec-media-queue.php';
 require_once GREC_DIR . 'src/class-grec-github-oidc.php';
 require_once GREC_DIR . 'src/class-grec-media-ingest.php';
+require_once GREC_DIR . 'src/class-grec-public-media-handoff.php';
 require_once GREC_DIR . 'src/class-grec-brand-assets.php';
 
 final class GREC_Plugin {
@@ -50,6 +51,7 @@ final class GREC_Plugin {
 		GREC_Media_Studio_Bootstrap::init();
 		GREC_Media_Queue::init();
 		GREC_Media_Ingest::init();
+		GREC_Public_Media_Handoff::init();
 		GREC_Brand_Assets::init();
 	}
 
