@@ -13,6 +13,43 @@ const DASHBOARD = "https://mokshagoa.com/mission-control/";
 const TBL = "mission_control_mcp_inbox_v1";
 const STATUSES = ["Working", "Done", "On Ice", "Deprecated"];
 const SECURED = [{ type: "oauth2", scopes: SCOPES }];
+const te = new TextEncoder();
+const td = new TextDecoder();
+function encode64(bytes) {
+  let chars = "";
+  for (let i = 0; i < bytes.length; i += 8192) {
+    chars += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  }
+  return btoa(chars);
+}
+function decode64(str) {
+  return Uint8Array.from(atob(str), c => c.charCodeAt(0));
+}
+async function vaultKey() {
+  const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (!secret) throw new Error("encryption_not_configured");
+  const ikm = await crypto.subtle.importKey("raw", te.encode(secret), "HKDF", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({
+    name: "HKDF", hash: "SHA-256",
+    salt: te.encode("mission-control-mcp-inbox-v1"),
+    info: te.encode("separate-owner-task-aes-gcm")
+  }, ikm, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+function aad(ownerId, taskId) { return te.encode("mission-control-mcp:" + ownerId + ":" + taskId); }
+async function encryptTask(ownerId, taskId, data) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({
+    name: "AES-GCM", iv, additionalData: aad(ownerId, taskId)
+  }, await vaultKey(), te.encode(JSON.stringify(data))));
+  return { payload_iv: encode64(iv), payload_ciphertext: encode64(cipher), payload_version: 1 };
+}
+async function decryptTask(ownerId, row) {
+  const raw = await crypto.subtle.decrypt({
+    name: "AES-GCM", iv: decode64(row.payload_iv), additionalData: aad(ownerId, row.id)
+  }, await vaultKey(), decode64(row.payload_ciphertext));
+  return JSON.parse(td.decode(raw));
+}
+
 
 function json(value, status = 200, headers = {}) {
   return new Response(JSON.stringify(value), {
@@ -76,7 +113,7 @@ function makeServer(ctx) {
     _meta: { "openai/profile": true }
   }, async () => payload({
     authenticated: true, account: ctx.email, dashboard: DASHBOARD,
-    task_store: "Supabase owner-scoped staging inbox",
+    task_store: "Supabase owner-scoped AES-GCM-encrypted staging inbox",
     canonical_store: "WordPress Telegram OTP vault",
     incoming_auto_sync: false, account_wide_chat_discovery: false
   }, "Connected as " + (ctx.email || "Supabase user") + ". Task staging is ready; WordPress import is not yet connected."));
@@ -107,15 +144,26 @@ function makeServer(ctx) {
   }, async (arg) => {
     const link = validChatLink(arg.chat_url);
     if (link === null) return failed("chat_url_must_be_a_private_chatgpt_conversation_link");
+    const id = crypto.randomUUID();
+    const record = {
+      project: arg.project, chat_title: arg.chat_title, chat_url: link,
+      title: arg.title, summary: arg.summary, next_step: arg.next_step,
+      blocker: arg.blocker, status: arg.status
+    };
+    let sealed;
+    try { sealed = await encryptTask(ctx.id, id, record); }
+    catch { return failed("encryption_unavailable"); }
     const row = {
-      owner_id: ctx.id, project: arg.project, title: arg.title, chat_title: arg.chat_title,
-      chat_url: link, summary: arg.summary, next_step: arg.next_step,
-      blocker: arg.blocker, status: arg.status, sync_state: "staged", source: "chatgpt-mcp"
+      id, owner_id: ctx.id, project: "Encrypted", chat_title: "",
+      chat_url: "", title: "Encrypted", summary: "", next_step: "",
+      blocker: "", status: "Working", sync_state: "staged",
+      source: "chatgpt-mcp", ...sealed
     };
     const { data, error } = await ctx.db.from(TBL).insert(row)
-      .select("id,project,title,status,sync_state,created_at").single();
+      .select("id,sync_state,created_at").single();
     if (error) return failed("task_capture_failed");
-    return payload(data, "Task staged in your private Supabase inbox: " + data.title + " [" + data.status + "]. Not yet imported into WordPress.");
+    return payload({ id: data.id, project: record.project, title: record.title, status: record.status, sync_state: data.sync_state, created_at: data.created_at, encrypted: true },
+      "Task encrypted and staged: " + record.title + " [" + record.status + "]. WordPress import is pending.");
   });
 
   server.registerTool("mission_control_list_staged", {
@@ -130,14 +178,23 @@ function makeServer(ctx) {
     securitySchemes: SECURED,
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
   }, async (arg) => {
-    let q = ctx.db.from(TBL).select("id,project,chat_title,chat_url,title,summary,next_step,blocker,status,sync_state,created_at,updated_at")
-      .order("updated_at", { ascending: false }).limit(arg.limit);
-    if (arg.status) q = q.eq("status", arg.status);
-    if (arg.project) q = q.eq("project", arg.project);
-    if (arg.title_contains) q = q.ilike("title", "%" + arg.title_contains.replace(/[%_]/g, "\\$&") + "%");
-    const { data, error } = await q;
+    const { data, error } = await ctx.db.from(TBL)
+      .select("id,payload_iv,payload_ciphertext,sync_state,created_at,updated_at")
+      .order("updated_at", { ascending: false }).limit(1000);
     if (error) return failed("task_list_failed");
-    return payload({ items: data, count: data.length, canonical_synced: false }, "Found " + data.length + " staged task(s). WordPress vault remains separate.");
+    const items = [];
+    try {
+      for (const row of data || []) {
+        const decrypted = await decryptTask(ctx.id, row);
+        if (arg.status && decrypted.status !== arg.status) continue;
+        if (arg.project && decrypted.project !== arg.project) continue;
+        if (arg.title_contains && !decrypted.title.toLowerCase().includes(arg.title_contains.toLowerCase())) continue;
+        items.push({ id: row.id, ...decrypted, sync_state: row.sync_state, created_at: row.created_at, updated_at: row.updated_at });
+        if (items.length >= arg.limit) break;
+      }
+    } catch { return failed("task_decryption_unavailable"); }
+    return payload({ items, count: items.length, encrypted_at_rest: true, scan_capped: (data || []).length === 1000, canonical_synced: false },
+      "Found " + items.length + " encrypted staged task(s). WordPress vault remains separate.");
   });
 
   server.registerTool("mission_control_update_staged", {
@@ -154,16 +211,28 @@ function makeServer(ctx) {
     securitySchemes: SECURED,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
   }, async (arg) => {
-    const patch = { updated_at: new Date().toISOString() };
+    const { data: existing, error: readError } = await ctx.db.from(TBL)
+      .select("id,payload_iv,payload_ciphertext").eq("id", arg.task_id).maybeSingle();
+    if (readError) return failed("task_read_failed");
+    if (!existing) return failed("task_not_found_or_not_owned");
+    let record;
+    try { record = await decryptTask(ctx.id, existing); }
+    catch { return failed("task_decryption_unavailable"); }
+    let changes = 0;
     for (const key of ["title", "status", "next_step", "blocker", "summary"]) {
-      if (Object.prototype.hasOwnProperty.call(arg, key)) patch[key] = arg[key];
+      if (Object.prototype.hasOwnProperty.call(arg, key)) { record[key] = arg[key]; changes++; }
     }
-    if (Object.keys(patch).length === 1) return failed("no_fields_to_update");
-    const { data, error } = await ctx.db.from(TBL).update(patch).eq("id", arg.task_id)
-      .select("id,project,title,status,sync_state,updated_at").maybeSingle();
+    if (!changes) return failed("no_fields_to_update");
+    let sealed;
+    try { sealed = await encryptTask(ctx.id, existing.id, record); }
+    catch { return failed("encryption_unavailable"); }
+    const { data, error } = await ctx.db.from(TBL)
+      .update({ ...sealed, updated_at: new Date().toISOString() })
+      .eq("id", arg.task_id).select("id,sync_state,updated_at").maybeSingle();
     if (error) return failed("task_update_failed");
     if (!data) return failed("task_not_found_or_not_owned");
-    return payload(data, "Updated staged task: " + data.title + " [" + data.status + "].");
+    return payload({ id: data.id, project: record.project, title: record.title, status: record.status, sync_state: data.sync_state, updated_at: data.updated_at, encrypted: true },
+      "Updated encrypted staged task: " + record.title + " [" + record.status + "].");
   });
 
   server.registerTool("mission_control_readiness", {
