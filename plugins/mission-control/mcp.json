@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "mission-control": {
+      "type": "streamable-http",
+      "url": "https://saczglesalubroyaucqe.supabase.co/functions/v1/mission-control-mcp/mcp"
+    }
+  }
+}
