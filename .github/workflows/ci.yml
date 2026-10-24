@@ -7,6 +7,8 @@ on:
       - 'src/class-grec-wp-control.php'
       - 'product/gateway/supabase/functions/wpcontrol-mcp/**'
       - 'tests/native-package-sync-gateway-smoke.php'
+      - 'integrations/private-auth/**'
+      - 'tests/mission-control-otp-smoke.php'
       - '.github/workflows/ci.yml'
 
 permissions:
@@ -33,9 +35,12 @@ jobs:
             php -l engagement-core.php
             php -l src/class-grec-wp-control.php
             php -l tests/native-package-sync-gateway-smoke.php
+            php -l integrations/private-auth/mission-control-telegram-otp.php
           else
             find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           fi
+      - name: Mission Control private OTP smoke test
+        run: php tests/mission-control-otp-smoke.php
       - name: Snapchat encryption smoke test
         run: php tests/snapchat-crypto-smoke.php
       - name: Publisher API permission-scope smoke test
