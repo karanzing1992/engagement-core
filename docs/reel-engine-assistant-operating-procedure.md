@@ -62,3 +62,20 @@ When the user attaches videos in ChatGPT and asks for a final cut, **use the att
 - Completed real-source 30-second vertical MP4 with original media and approved Drive logo, with a 12 MB smaller share copy.
 - Authenticated multi-clip pipeline PR #39 passed source tests and separately reconstructed all 230,924,113 bytes of the large video in 28 SHA-verified 8 MiB chunks.
 - Never say WordPress uploads, permanent cloud rendering or scheduled publishing are working merely because the GHCR container is tested.
+
+
+## Default same-day Reel rescue and publication handoff — 24 October 2026
+
+**Operating policy (owner direction, 24 Oct):** Resume the already-started per-episode job first. Check the existing project handover, machine workspace, job/manifest receipts, scheduler and actual channel state before rendering or copying anything. A scheduled item, completed render, staged upload, platform acceptance and published public post are different states. Do not restart successful work merely because another project chat is now active.
+
+1. **Source-of-truth job:** locate the exact source ID/hash, approved cut and latest RELEASE_MANIFEST.json; verify the final file with SHA-256 and ffprobe. Keep full archive, editable captions and final master separate. Resume from the first unverified state.
+2. **Publisher preflight:** inspect today's Metricool brand and scheduled posts in Asia/Kolkata time; inspect Engagement Core Telegram destinations/latest receipt; check each social channel connection and duplicates. Explicit approval for publishing plus rights/consent and media suitability remain required.
+3. **Primary asset path:** use an already authenticated approved media-delivery destination. When the owner cannot log in, first test saved sign-in sessions. Never copy credentials, disable auth or create a new public exposure just for convenience.
+4. **Important distinction:** WordPress Tools → Reel Uploads is a *private ingest/review vault* (4 MiB resumable chunks), not a public video URL or publisher. Do not misrepresent it as a direct Metricool asset host or upload a finished master expecting a public URL. Cross-platform distribution requires a separately verified, authorised WordPress Media Library upload or existing media host returning a stable, platform-fetchable HTTPS video URL. Verify browser/API auth, upload success and URL reachability before certifying.
+5. **Channel-specific packaging:** preserve faithful guest statements/original audio, official logo, legible captions and 9:16 H.264/AAC QA. Research relevant topic/location tags; never invent guest mentions. Prepare distinct copy/metadata for Instagram/Facebook, Threads/X/Bluesky, YouTube Shorts, LinkedIn, Pinterest, GBP and Telegram where connected and media-compatible.
+6. **Send and prove:** publish only to exact connected Moksha accounts. For Telegram, use Engagement Core, target moksha explicitly, Russian by default, dry-run first, then inspect message IDs. For Metricool, collect per-network public URLs and status; queued/accepted is not published. Do not blindly retry uncertain writes.
+7. **Unresolved connection:** record exact auth/transfer blocker, retain original master and ask owner for smallest action when safely available. A read-only connector, code release or preview does not prove posting.
+
+**24 Oct handover receipt:** Dell job moksha_guest_hero_img_6755_20261024 produced a 37.733-second 1080×1920/30fps H.264/AAC captioned guest review (20,121,049 bytes), preserving master, SRT, hashes and genuine Moksha logo in its RELEASE_MANIFEST.json at /var/lib/generic-linux-automator-exec/moksha-reel-deliverables/2026-10-24/. Delivery was BLOCKED_OWNER_GOOGLE_LOGIN; Telegram dry-run only; no confirmed channel publication. This is not evidence of Media Library upload or posting.
+
+**Certification status:** Resume-first and private/public distinctions are source-backed operating rules. The proposed WordPress Media Library → Metricool finished-video transfer is PENDING end-to-end authentication, upload and public-URL QA. Do not mark VERIFIED_LIVE before a passed test.
