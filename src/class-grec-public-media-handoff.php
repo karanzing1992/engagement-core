@@ -124,7 +124,7 @@ final class GREC_Public_Media_Handoff {
         if ( ! is_array( $record ) ) {
             return self::fail( 'grec_handoff_missing', 'Upload session not found.', 404 );
         }
-        if ( time() - (int) $record['created'] > 3600 && $record['state'] !== 'published' ) {
+        if ( time() - (int) $record['created'] > 3600 && $record['state'] !== 'registered' ) {
             return self::fail( 'grec_handoff_expired', 'Upload session expired.', 410 );
         }
         return $record;
@@ -258,10 +258,13 @@ final class GREC_Public_Media_Handoff {
             }
             require_once ABSPATH . 'wp-admin/includes/file.php';
             require_once ABSPATH . 'wp-admin/includes/image.php';
-            $upload = wp_handle_sideload( array(
+            $sideload = array(
                 'name' => $record['filename'], 'type' => 'video/mp4',
                 'tmp_name' => $dest, 'size' => $total, 'error' => 0,
-            ), array( 'test_form' => false, 'mimes' => array( 'mp4' => 'video/mp4' ) ) );
+            );
+            $upload = wp_handle_sideload( $sideload, array(
+                'test_form' => false, 'mimes' => array( 'mp4' => 'video/mp4' ),
+            ) );
             if ( ! is_array( $upload ) || ! empty( $upload['error'] ) || empty( $upload['file'] ) ) {
                 return self::fail( 'grec_handoff_import', 'WordPress Media Library import failed.', 500 );
             }
