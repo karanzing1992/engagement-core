@@ -7,7 +7,7 @@
 - Existing Dell `dell-pin-auth` Edge Function handles device-specific PIN + challenge and lockout. It is **not** repurposed for Mission Control and no device secrets or keys are copied.
 - New code reuses only the trusted recipient and bot-credential adapter, not the signed task-notification event endpoint. No groups, broadcasts, arbitrary recipient input or extra bot.
 
-## New source (not installed)
+## New source and approval state
 
 `integrations/private-auth/mission-control-telegram-otp.php` is a standalone, fixed-function, WordPress/Engagement Core REST module. It defines:
 
@@ -25,7 +25,7 @@ OTP source uses `random_int`, server-side HMAC keyed with WordPress `wp_salt`, o
 
 ## Frontend and ChatGPT integration
 
-The frontend source is on [android_gpt_bridge draft PR #16](https://github.com/karanzing1992/android_gpt_bridge/pull/16). It currently provides locally encrypted task metadata, project/chat drill-down, status filters, manual editing, ChatGPT JSON import and original chat deep links. A frontend adapter must authenticate with this new OTP route and route task GET/PUT through it before declaring live cloud synchronization. The existing `moksha-master-stack-reinforced` private v1.4.1 plugin is skills-only; it cannot enumerate all ChatGPT account histories. Extending its capabilities needs an authorized task-index MCP endpoint and a same-plugin release, not merely a new Skill description.
+The frontend source is on [android_gpt_bridge draft PR #16](https://github.com/karanzing1992/android_gpt_bridge/pull/16). It currently provides locally encrypted task metadata, project/chat drill-down, status filters, manual editing, ChatGPT JSON import and original chat deep links. The frontend now has the Telegram OTP adapter and authenticates through this endpoint for task GET/PUT. Its JavaScript syntax has been checked. Browser/network behavior remains unverified until the backend is enabled and Pages is available. The existing `moksha-master-stack-reinforced` private v1.4.1 plugin is skills-only; it cannot enumerate all ChatGPT account histories. Extending its capabilities needs an authorized task-index MCP endpoint and a same-plugin release, not merely a new Skill description.
 
 ## Release gates (must pass before activation)
 
@@ -41,6 +41,13 @@ The frontend source is on [android_gpt_bridge draft PR #16](https://github.com/k
 
 Reuse: existing Engagement Core Telegram credential adapter and paired DM, WordPress REST/transients/options, PHP Sodium/HMAC/OpenSSL, existing GitHub Pages SPA and CI. No third-party package and no new bot. Custom code is limited to the missing owner OTP challenge/verify, session and encrypted task metadata contract. Source test environment is mocked, no real messages. New software charges: none; existing WordPress hosting and Telegram service have ordinary operational/network costs. Rollback: disable only the new module/snippet; existing paid-booking and BHM notification snippets remain enabled and unmodified.
 
-## Current state
+## Current state — source and activation separated
 
-**SOURCE_ONLY**. No WordPress snippet installed/activated, no OTP sent, no Supabase Edge Function deployed or modified, no Master plugin release updated, no GitHub Pages publication. Do not call this a live authentication service based only on source commits or CI.
+- **Backend CI GREEN:** [PHP checks run #40079703371](https://github.com/karanzing1992/engagement-core/actions/runs/40079703371) passed PHP 7.4/8.1/8.3 syntax and isolated OTP negative-case smoke tests. The previous red run was fixed by closing one assertion parenthesis.
+- **WordPress code saved OFF:** Owner reviewed and approved WPVibe operation `op_305529ca84394258`; WPCode snippet **#13375**, `active:false`, confirmed by approval-status readback. [Review/enable in wp-admin](https://mokshagoa.com/wp-admin/admin.php?page=wpcode-snippet-manager&snippet_id=13375). Only the owner can flip the WPCode activation switch, which triggers WordPress fatal-error protection.
+- **Frontend staged:** [android_gpt_bridge draft PR #16](https://github.com/karanzing1992/android_gpt_bridge/pull/16) now defaults to Telegram OTP and retains offline PIN fallback. The isolated `.github/workflows/mission-control-pages.yml` publishes only the HTML shell. No site is published; the private repository reports `has_pages:false` and Pages must be enabled with GitHub Actions source.
+- **Telegram canary PENDING:** No live OTP message or recipient receipt verified yet. Existing paid bookings, signed private notifications and enabled publishing destinations have not been altered.
+- **Master plugin PENDING:** Current installed private `moksha-master-stack-reinforced` v1.4.1 is skills-only and cannot enumerate account-wide private chats. Plugin Creator archive update requires an actual writable package; this execution profile denied local writes. A source-only skill/spec may be prepared, but do not claim a plugin release or direct MCP tools.
+- No Supabase Edge Function, device permissions, Telegram groups, plugin release or GitHub Pages production configuration changed.
+
+**Next owner action:** enable reviewed WPCode #13375, then verify `/health` and do ONE owner-confirmed private Telegram OTP canary. Keep the user-authenticated UI and the public Pages shell behind the test gate.
