@@ -16,6 +16,13 @@ final class GREC_Public_Media_Handoff {
 
     public static function init(): void {
         add_action( 'rest_api_init', array( __CLASS__, 'routes' ), 35 );
+        add_action( 'grec_public_media_nonce_cleanup', array( __CLASS__, 'cleanup_nonce' ), 10, 1 );
+    }
+
+    public static function cleanup_nonce( $nonce ): void {
+        if ( is_string( $nonce ) && preg_match( '/^[a-f0-9]{32}$/D', $nonce ) ) {
+            delete_option( self::PREFIX . 'nonce_' . $nonce );
+        }
     }
 
     public static function routes(): void {
@@ -77,11 +84,13 @@ final class GREC_Public_Media_Handoff {
         if ( ! sodium_crypto_sign_verify_detached( $signature, $message, $key ) ) {
             return self::fail( 'grec_handoff_signature', 'Signature verification failed.', 401 );
         }
-        $replay_key = 'grec_handoff_nonce_' . $nonce;
-        if ( get_transient( $replay_key ) ) {
+        // add_option uses a unique DB option name: concurrent replays cannot
+        // both claim the same nonce, even without a persistent object cache.
+        $replay_key = self::PREFIX . 'nonce_' . $nonce;
+        if ( ! add_option( $replay_key, time(), '', false ) ) {
             return self::fail( 'grec_handoff_replay', 'Signed request already used.', 409 );
         }
-        set_transient( $replay_key, 1, 600 );
+        wp_schedule_single_event( time() + 600, 'grec_public_media_nonce_cleanup', array( $nonce ) );
         return true;
     }
 
