@@ -35,3 +35,11 @@
 - No merging until independent QA, explicit owner acceptance, and rollback evidence.
 
 **Quality states:** DEV_SOURCE_DONE / STAGING_BROWSER_QA_PASSED / USER_TEST_PENDING / PRODUCTION_NO_GO.
+
+## Final package and user-test handoff (verified 25 Oct 2026)
+- Plugin metadata normalized to `0.2.0-dev`; PHP CLI lint passed for all runtime PHP classes.
+- **Original local contact contract: 16/16 synthetic checks PASS** after updating route-contract assertion from two to four routes; earlier command had masked failed exit status with `| tail`, and was corrected. New overview/activity routes add to existing contacts routes.
+- Standalone **staging-only ZIP** created on Dell (not claimed published in GitHub): `/var/lib/generic-linux-automator-exec/eccrm-wordpress-qa-20261025/engagement-core-crm-tabler-ux-20261025-STAGING-ONLY.zip`. Archive integrity PASS. Size 108,182 bytes. SHA-256 `88ac9796894535d1331e7458ae517b35191c55ffa9690843427fc864981aa52e`. Contains 679,792-byte Tabler 1.7.0 CSS and MIT notice. Distribution and WordPress install-certification are **still gated**.
+- Temporary Dell Cloudflare link: `https://injuries-sell-rocket-guards.trycloudflare.com/wp-login.php`. Public login returned 200, displayed synthetic reviewer credentials, and Chrome verified user login, CRM overview, real contacts and 390px no-overflow. Timed deletion/closure scheduled `2026-10-25 23:19:56 Asia/Kolkata`; do not cite as permanent domain.
+- Reviewer is subscriber with only `manage_eccrm`, lacks `manage_options`; no real customer data or production infrastructure changes.
+- User visual acceptance is **still pending**; production remains **NO-GO**. Do not merge pending PR or begin further CRM modules.
