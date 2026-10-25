@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Engagement Core — CRM G1 Wireframes</title>
+<link rel="stylesheet" href="wireframes.css">
+<script src="wireframes.js" defer></script>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to main content</a>
+<div class="app" id="app">
+<aside class="sidebar" id="sidebar" aria-label="Desktop navigation">
+  <a class="brand" href="#home" aria-label="Engagement Core prototype home">
+    <span class="brand-symbol">e<span>.</span></span><span><strong>engagement</strong><small>CORE CRM · DESIGN</small></span>
+  </a>
+  <p class="nav-kicker">WORKSPACE</p>
+  <nav id="side-nav" class="side-nav" aria-label="CRM modules"></nav>
+  <div class="side-footer"><span class="signal"></span><span>G1 visual prototype<br><small>No customer data or live connections</small></span></div>
+</aside>
+<div class="main-wrap">
+  <header class="topbar">
+    <div class="heading">
+      <button id="menu-toggle" class="icon-button only-mobile" aria-label="Open navigation" aria-expanded="false">☰</button>
+      <div><div class="eyebrow" id="section-heading">WORKSPACE</div><h1 id="page-heading">Home</h1></div>
+    </div>
+    <div class="top-actions"><span class="status-pill"><span class="signal"></span> Design preview</span><button class="icon-button" id="back-button" aria-label="Go back">↶</button><span class="user-dot" aria-label="Synthetic user">D</span></div>
+  </header>
+  <main id="main" class="content" tabindex="-1">
+    <div class="prototype-banner"><strong>WIREFRAME · SYNTHETIC DEMO</strong><span>No CRM records, conversations, AI or channel connections are active in this prototype.</span></div>
+    <div class="review-controls" role="group" aria-label="Design state simulator">
+      <label for="state-select">Preview state</label>
+      <select id="state-select"><option value="normal">Normal</option><option value="empty">Empty</option><option value="loading">Loading</option><option value="error">Error</option><option value="denied">Permission denied</option></select>
+      <span id="screen-counter" aria-live="polite">Screen 00 / 15</span>
+    </div>
+    <section id="screen" aria-live="polite"></section>
+  </main>
+</div>
+<nav class="bottom-nav" id="bottom-nav" aria-label="Mobile primary navigation"></nav>
+<div class="drawer-shade" id="drawer-shade" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</div>
+</body></html>
