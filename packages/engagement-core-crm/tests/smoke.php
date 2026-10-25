@@ -65,7 +65,7 @@ verify(is_wp_error(ECCRM_REST::authorize()),'deny unauthorized CRM access');
 $GLOBALS['allowed']=true;
 verify(ECCRM_REST::authorize()===true,'allow authorized CRM operator');
 ECCRM_REST::routes();
-verify(count($GLOBALS['routes'])===2,'register two versioned contact routes');
+verify(count($GLOBALS['routes'])===4,'register contacts, record, overview and activity routes');
 verify(is_wp_error(ECCRM_REST::create(new WP_REST_Request([], 'bad-json-type'))),'reject malformed JSON object');
 $response=ECCRM_REST::create(new WP_REST_Request([],['display_name'=>'Synthetic','source'=>'staycore','external_id'=>'guest-1']));
 verify($response instanceof WP_REST_Response && $response->status===201,'create contact via API');
