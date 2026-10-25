@@ -54,13 +54,58 @@ final class ECCRM_Contacts {
         return $data;
     }
 
-    public static function list( int $limit = 25, int $offset = 0 ): array {
+    public static function list( int $limit = 25, int $offset = 0, string $search = '', string $lifecycle = '' ): array {
         global $wpdb;
         $table = ECCRM_Schema::table( 'contacts' );
         $limit = min( max( $limit, 1 ), 100 );
         $offset = max( $offset, 0 );
+        $where = array();
+        $args = array();
+        $search = substr( sanitize_text_field( $search ), 0, 100 );
+        if ( '' !== $search ) {
+            $like = '%' . $wpdb->esc_like( $search ) . '%';
+            $where[] = '(display_name LIKE %s OR email LIKE %s OR phone LIKE %s)';
+            array_push( $args, $like, $like, $like );
+        }
+        if ( in_array( $lifecycle, array( 'lead', 'qualified', 'customer', 'inactive' ), true ) ) {
+            $where[] = 'lifecycle = %s';
+            $args[] = $lifecycle;
+        }
+        $filter = $where ? ' WHERE ' . implode( ' AND ', $where ) : '';
+        $sql = "SELECT id, display_name, email, phone, lifecycle, source, created_at, updated_at
+                FROM {$table}{$filter} ORDER BY id DESC LIMIT %d OFFSET %d";
+        $args[] = $limit;
+        $args[] = $offset;
+        return (array) $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A );
+    }
+
+    public static function summary(): array {
+        global $wpdb;
+        $table = ECCRM_Schema::table( 'contacts' );
+        $rows = (array) $wpdb->get_results(
+            "SELECT lifecycle, COUNT(*) AS total FROM {$table} GROUP BY lifecycle",
+            ARRAY_A
+        );
+        $counts = array( 'total' => 0, 'lead' => 0, 'qualified' => 0, 'customer' => 0, 'inactive' => 0 );
+        foreach ( $rows as $row ) {
+            $count = (int) $row['total'];
+            $counts['total'] += $count;
+            if ( array_key_exists( $row['lifecycle'], $counts ) && 'total' !== $row['lifecycle'] ) {
+                $counts[ $row['lifecycle'] ] += $count;
+            }
+        }
+        return $counts;
+    }
+
+    public static function activity( int $limit = 20 ): array {
+        global $wpdb;
+        $table = ECCRM_Schema::table( 'events' );
+        $limit = min( max( $limit, 1 ), 50 );
         return (array) $wpdb->get_results(
-            $wpdb->prepare( "SELECT id, display_name, email, phone, lifecycle, source, created_at, updated_at FROM {$table} ORDER BY id DESC LIMIT %d OFFSET %d", $limit, $offset ),
+            $wpdb->prepare(
+                "SELECT id, event_type, entity_id, created_at FROM {$table} ORDER BY id DESC LIMIT %d",
+                $limit
+            ),
             ARRAY_A
         );
     }

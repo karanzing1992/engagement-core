@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Engagement Core CRM
  * Description: Locally hosted customer records and integration-ready CRM foundation. External AI is optional.
- * Version: 0.1.0-dev
+ * Version: 0.2.0-dev
  * Requires at least: 6.9
  * Requires PHP: 8.1
  * Author: Engagement Core
@@ -13,7 +13,7 @@
 defined( 'ABSPATH' ) || exit;
 
 if ( ! defined( 'ECCRM_VERSION' ) ) {
-    define( 'ECCRM_VERSION', '0.1.0-dev' );
+    define( 'ECCRM_VERSION', '0.2.0-dev' );
     define( 'ECCRM_PATH', plugin_dir_path( __FILE__ ) );
     define( 'ECCRM_CAPABILITY', 'manage_eccrm' );
 }
