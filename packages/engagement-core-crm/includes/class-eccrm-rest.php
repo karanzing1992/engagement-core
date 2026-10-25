@@ -1,16 +1,13 @@
 <?php
-/** Versioned authenticated WordPress REST CRM interface. */
+/** Versioned, capability-checked local CRM API. Never exposes external channel credentials. */
 defined( 'ABSPATH' ) || exit;
-
 final class ECCRM_REST {
     public static function register(): void {
         add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
     }
-
     public static function authorize() {
         return current_user_can( ECCRM_CAPABILITY ) ? true : new WP_Error( 'eccrm_forbidden', 'CRM access denied.', array( 'status' => 403 ) );
     }
-
     public static function routes(): void {
         register_rest_route( 'eccrm/v1', '/contacts', array(
             array( 'methods' => WP_REST_Server::READABLE, 'permission_callback' => array( __CLASS__, 'authorize' ), 'callback' => array( __CLASS__, 'index' ) ),
@@ -20,30 +17,46 @@ final class ECCRM_REST {
             array( 'methods' => WP_REST_Server::READABLE, 'permission_callback' => array( __CLASS__, 'authorize' ), 'callback' => array( __CLASS__, 'show' ) ),
             array( 'methods' => 'PATCH', 'permission_callback' => array( __CLASS__, 'authorize' ), 'callback' => array( __CLASS__, 'update' ) ),
         ) );
+        register_rest_route( 'eccrm/v1', '/overview', array(
+            'methods' => WP_REST_Server::READABLE, 'permission_callback' => array( __CLASS__, 'authorize' ), 'callback' => array( __CLASS__, 'overview' ),
+        ) );
+        register_rest_route( 'eccrm/v1', '/activity', array(
+            'methods' => WP_REST_Server::READABLE, 'permission_callback' => array( __CLASS__, 'authorize' ), 'callback' => array( __CLASS__, 'activity' ),
+        ) );
     }
-
     public static function index( WP_REST_Request $request ) {
-        return rest_ensure_response( array( 'items' => ECCRM_Contacts::list( (int) ( $request->get_param( 'limit' ) ?: 25 ), (int) ( $request->get_param( 'offset' ) ?: 0 ) ) ) );
+        $limit = min( 100, max( 1, (int) ( $request->get_param( 'limit' ) ?: 25 ) ) );
+        $offset = max( 0, (int) ( $request->get_param( 'offset' ) ?: 0 ) );
+        $search = (string) ( $request->get_param( 'search' ) ?: '' );
+        $stage = (string) ( $request->get_param( 'lifecycle' ) ?: '' );
+        return rest_ensure_response( array(
+            'items' => ECCRM_Contacts::list( $limit, $offset, $search, $stage ),
+            'limit' => $limit, 'offset' => $offset,
+        ) );
     }
-
+    public static function overview() {
+        return rest_ensure_response( ECCRM_Contacts::summary() );
+    }
+    public static function activity( WP_REST_Request $request ) {
+        return rest_ensure_response( array(
+            'items' => ECCRM_Contacts::activity( min( 50, max( 1, (int) ( $request->get_param( 'limit' ) ?: 20 ) ) ) ),
+        ) );
+    }
     public static function show( WP_REST_Request $request ) {
         $record = ECCRM_Contacts::find( (int) $request['id'] );
         return $record ? rest_ensure_response( $record ) : new WP_Error( 'eccrm_not_found', 'Contact not found.', array( 'status' => 404 ) );
     }
-
     private static function input( WP_REST_Request $request ) {
         $json = $request->get_json_params();
         $input = null !== $json ? $json : $request->get_body_params();
         return is_array( $input ) ? $input : new WP_Error( 'eccrm_invalid_payload', 'Expected JSON object or form fields.', array( 'status' => 400 ) );
     }
-
     public static function create( WP_REST_Request $request ) {
         $input = self::input( $request );
         if ( is_wp_error( $input ) ) { return $input; }
         $record = ECCRM_Contacts::create( $input );
         return is_wp_error( $record ) ? $record : new WP_REST_Response( $record, 201 );
     }
-
     public static function update( WP_REST_Request $request ) {
         $input = self::input( $request );
         if ( is_wp_error( $input ) ) { return $input; }
@@ -51,3 +64,4 @@ final class ECCRM_REST {
         return is_wp_error( $record ) ? $record : rest_ensure_response( $record );
     }
 }
+
