@@ -9,3 +9,6 @@
 /product/gateway/supabase/migrations/*generic*ssh* @karanzing1992
 /tools/generic-linux-automator/ @karanzing1992
 /docs/GENERIC_SSH_DEDICATED_PRODUCTION_RUNTIME_FREEZE_20261027.md @karanzing1992
+
+# Dedicated Generic SSH browser login surface: changes require owner review.
+/product/gateway/browser-ui/generic-ssh-oauth-ui/ @karanzing1992
