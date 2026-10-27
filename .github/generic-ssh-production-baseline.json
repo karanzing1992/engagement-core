@@ -1,0 +1,28 @@
+{
+  "schema": "generic-ssh-production-freeze-v1",
+  "recorded_utc": "2026-10-27",
+  "status": "SOURCE_FROZEN_LIVE_EDGE_STILL_SHARED",
+  "owner": "karanzing1992",
+  "live_supabase_project_id": "saczglesalubroyaucqe",
+  "live_edge_function": "generic-linux-automator",
+  "observed_live_edge_version": 10,
+  "observed_live_edge_source_sha256": "717858d13a2047de90b8c0bc0047f9d86393b293dece1a55e974c4f67ffb6fbc",
+  "warning": "Git blobs below pin repository source only; do not assume the running v10 Edge source matches this repository without verified reconciliation. CI checks are NOT enforced merge gates unless a GitHub branch ruleset explicitly requires them.",
+  "git_blob_sha1": {
+    "product/gateway/supabase/functions/generic-linux-automator/index.ts": "fc6af8253af68523d14c6a3da8d6cb422e861dc2",
+    "product/gateway/supabase/functions/generic-linux-automator/mcp-tool-input-schema-v1.2.0.json": "25161c7d441318585d68ebfb08115584d1365f65",
+    "product/gateway/supabase/functions/owner-oauth-login/index.ts": "6e07699b19e94bd2c14c43037bb1d1386de3a1d6",
+    "tools/generic-linux-automator/worker.py": "b44f74e15cb7a4bad891130e0cb2a837de63dfd0",
+    "tools/generic-linux-automator/setup-lanes.py": "e2f84d7a32ad2fdd90644506230f9621d9aa55ea",
+    "tools/generic-linux-automator/generic-linux-automator-lane@.service": "be835873ae55182f3bff3bfa5dd186122d1ebbae",
+    "product/gateway/supabase/migrations/20261021_generic_ssh_three_lanes.sql": "e0cfc0d146f7a46ffe1409ec8f518dca5a520a79"
+  },
+  "protected_directory_prefixes": [
+    "product/gateway/supabase/functions/generic-linux-automator/",
+    "product/gateway/supabase/functions/owner-oauth-login/",
+    "tools/generic-linux-automator/"
+  ],
+  "protected_migration_pattern": "product/gateway/supabase/migrations/*generic*ssh*",
+  "release_unfreeze": "Owner-reviewed emergency only: adjust baseline and pass independently scoped QA, signed readback and rollback. No direct project-led deploy.",
+  "tracking_issue": "https://github.com/karanzing1992/engagement-core/issues/83"
+}
