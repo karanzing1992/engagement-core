@@ -6,6 +6,20 @@ STOP ALL owner instruction remains binding (Mac #362–364, Dell #365–367, sto
 
 Portable skill source: https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/gpt-machine-claude-bridges/SKILL.md . Evidence: https://github.com/KaranZi/shaadi-aunty-dodge/blob/main/docs/production/DIRECT_MCP_CLI_BRIDGE_RECOVERY_20261016.md . This is source documentation; installed plugin release and consumer sync require separate verified action.
 
+## UNIVERSAL MCP CONNECTION REGISTRATION SOP — MANDATORY (27 OCTOBER 2026)
+
+**Authoritative cross-project SOP:** [MCP OAuth Registration & Isolation](MCP_OAUTH_REGISTRATION_SOP.md).
+**Required per-connector intake and QA evidence:** [MCP Registration Checklist](templates/MCP_CONNECTION_REGISTRATION_CHECKLIST.md).
+**Incident and remaining certification:** https://github.com/karanzing1992/engagement-core/issues/81.
+
+**Rule MCP-0 (hard default):** Before any participating project creates, reconnects, re-registers, integrates, releases, or migrates a remote HTTP MCP plugin/connector, its owner and agent MUST read the canonical SOP, locate and reuse existing authorized connectors, decide shared-vs-separate issuer with tenant boundaries, record the approved OAuth client/issuer/resource policy, then capture a dedicated checklist. Do NOT route a non-WordPress client to a WordPress-only consent page or silently create a second plugin.
+
+**Security acceptance:** A distinct login page is *not* OAuth authorization isolation. Inspect client identity only from verified authorization details, verify issuer/audience/expiry/signed client ID at each resource, enforce site/host/owner grants and reject tokens from other connectors. Test OAuth discovery, PKCE/state/OTP, redirect and consent, parallel tabs, six off-diagonal deny cases for the WP/Linux/Manbir matrix and actual authenticated read-only tool calls; preserve working device pairings. Record QA and rollback. An untested connector is **PENDING_AUTH_QA**.
+
+**Historical repair facts:** Supabase `saczglesalubroyaucqe` has a deployed neutral consent router v3, `wpcontrol-auth` v18 and `owner-oauth-login` v6. Legacy wrong-site redirects were removed and Dell/Mac authenticated heartbeat status passed. End-to-end 3×3 token isolation and Manbir tool access remain open; do not certify them from a gateway health response. These are source- and live-labeled in the SOP.
+
+**Distribution:** This protocol and the SOP are the cross-project policy source of truth; update the existing Master Stack skill/plugin release as needed and add an SOP reference to each project's persistent instructions or approved agent adapter. Repo, ChatGPT plugins and Project settings do **not** auto-sync or hot-reload. Require a verified per-consumer ACK rather than a claim that all projects have inherited the rule.
+
 # MOKSHA MASTER — Shared Stack Synchronization Protocol
 **Effective:** 11 October 2026 | **Applies to:** All nine monitored repositories and participating ChatGPT projects.
 
