@@ -246,7 +246,7 @@ final class GREC_Snap_Public_API {
         return $tokens['access_token'];
     }
 
-    private static function request( string $method, string $path, $body = null, string $content_type = 'application/json' ): array {
+    private static function request( string $method, string $path, $body = null, string $content_type = 'application/json', string $stage = 'request' ): array {
         // API hosts are fixed; a regional multipart path can never redirect to an arbitrary URL.
         if ( ! preg_match( '#^/(?:[a-z]{2}/)?v1/(?:public_profiles|organizations)/[a-zA-Z0-9/_-]+$#', $path ) ) {
             throw new InvalidArgumentException( 'Unexpected Snapchat API path.' );
@@ -262,12 +262,23 @@ final class GREC_Snap_Public_API {
             $args['body'] = 'application/json' === $content_type ? wp_json_encode( $body ) : $body;
         }
         $response = wp_remote_request( self::API . $path, $args );
-        if ( is_wp_error( $response ) ) { throw new RuntimeException( $response->get_error_message() ); }
-        $data = json_decode( wp_remote_retrieve_body( $response ), true );
-        $http = wp_remote_retrieve_response_code( $response );
+        if ( is_wp_error( $response ) ) {
+            throw new RuntimeException( 'Snapchat API ' . $stage . ' transport error: ' . sanitize_text_field( $response->get_error_message() ) );
+        }
+        $http = (int) wp_remote_retrieve_response_code( $response );
+        $data = json_decode( (string) wp_remote_retrieve_body( $response ), true );
         if ( $http < 200 || $http >= 300 || ! is_array( $data ) || ( isset( $data['request_status'] ) && 'SUCCESS' !== $data['request_status'] ) ) {
-            $error = is_array( $data ) ? ( $data['error_code'] ?? $data['display_message'] ?? $data['debug_message'] ?? 'unknown error' ) : 'invalid JSON response';
-            throw new RuntimeException( 'Snapchat API HTTP ' . $http . ': ' . sanitize_text_field( (string) $error ) );
+            // Do not return the raw error body: upstream gateways may respond with
+            // HTML, including private details. Preserve only safe diagnostics.
+            $code = is_array( $data ) ? ( $data['error_code'] ?? $data['display_message'] ?? $data['debug_message'] ?? $data['request_status'] ?? 'unknown error' ) : 'non-JSON response';
+            $mime = substr( sanitize_text_field( (string) wp_remote_retrieve_header( $response, 'content-type' ) ), 0, 96 );
+            $id = is_array( $data ) ? ( $data['request_id'] ?? '' ) : '';
+            if ( '' === $id ) { $id = (string) wp_remote_retrieve_header( $response, 'x-request-id' ); }
+            $id = substr( preg_replace( '/[^a-zA-Z0-9_.-]/', '', (string) $id ), 0, 100 );
+            $message = 'Snapchat API ' . sanitize_key( $stage ) . ' HTTP ' . $http . ': ' . substr( sanitize_text_field( (string) $code ), 0, 160 );
+            if ( '' !== $mime ) { $message .= ' [content-type: ' . $mime . ']'; }
+            if ( '' !== $id ) { $message .= ' [request-id: ' . $id . ']'; }
+            throw new RuntimeException( $message );
         }
         return $data;
     }
@@ -275,7 +286,7 @@ final class GREC_Snap_Public_API {
     public static function profiles(): array {
         $id = self::uuid( (string) ( self::config()['organization_id'] ?? '' ) );
         if ( '' === $id ) { throw new RuntimeException( 'Snapchat Organization ID has not been saved.' ); }
-        return self::request( 'GET', '/v1/organizations/' . $id . '/public_profiles' );
+        return self::request( 'GET', '/v1/organizations/' . $id . '/public_profiles', null, 'application/json', 'profiles_list' );
     }
 
     public static function verify(): void {
@@ -404,7 +415,7 @@ final class GREC_Snap_Public_API {
                 'name' => $media['name'],
                 'key' => base64_encode( $key ),
                 'iv' => base64_encode( $iv ),
-            ) );
+            ), 'application/json', 'media_create' );
             if ( empty( $container['media_id'] ) || empty( $container['add_path'] ) || empty( $container['finalize_path'] ) ) {
                 throw new RuntimeException( 'Snapchat did not return media upload paths.' );
             }
@@ -425,13 +436,13 @@ final class GREC_Snap_Public_API {
                     $body .= '--' . $boundary . "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"encrypted.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n";
                     $body .= $bytes . "\r\n--" . $boundary . "--\r\n";
                     unset( $bytes );
-                    self::request( 'POST', $upload_path, $body, 'multipart/form-data; boundary=' . $boundary );
+                    self::request( 'POST', $upload_path, $body, 'multipart/form-data; boundary=' . $boundary, 'media_add' );
                     unset( $body );
                 }
             } finally { fclose( $source ); }
             $boundary = 'SnapMoksha' . bin2hex( random_bytes( 12 ) );
             $body = self::form_part( 'action', 'FINALIZE', $boundary ) . '--' . $boundary . "--\r\n";
-            self::request( 'POST', $finalize_path, $body, 'multipart/form-data; boundary=' . $boundary );
+            self::request( 'POST', $finalize_path, $body, 'multipart/form-data; boundary=' . $boundary, 'media_finalize' );
             return sanitize_text_field( (string) $container['media_id'] );
         } finally {
             @unlink( $encrypted );
@@ -453,6 +464,7 @@ final class GREC_Snap_Public_API {
         if ( get_transient( $lock ) ) { throw new RuntimeException( 'A publish attempt for this media is already in progress. Check Snapchat before retrying.' ); }
         set_transient( $lock, 1, 5 * MINUTE_IN_SECONDS );
         $submitted = false;
+        $post_attempted = false;
         try {
             $media_id = self::upload( $media, $profile );
             if ( 'story' === $destination ) {
@@ -464,7 +476,8 @@ final class GREC_Snap_Public_API {
                     }
                     $body['customized_ttl'] = array( 'ttl' => $ttl );
                 }
-                $result = self::request( 'POST', '/v1/public_profiles/' . $profile . '/stories', $body );
+                $post_attempted = true;
+                $result = self::request( 'POST', '/v1/public_profiles/' . $profile . '/stories', $body, 'application/json', 'story_submit' );
             } else {
                 $description = trim( (string) ( $options['description'] ?? '' ) );
                 if ( ( function_exists( 'mb_strlen' ) ? mb_strlen( $description ) : strlen( $description ) ) > 160 ) {
@@ -475,11 +488,12 @@ final class GREC_Snap_Public_API {
                 if ( ! preg_match( '/^[a-z]{2}_[A-Z]{2}$/', $locale ) ) {
                     throw new InvalidArgumentException( 'Locale must look like en_IN or ru_RU.' );
                 }
+                $post_attempted = true;
                 $result = self::request( 'POST', '/v1/public_profiles/' . $profile . '/spotlights', array(
                     'media_id' => $media_id,
                     'description' => $description,
                     'locale' => $locale,
-                ) );
+                ), 'application/json', 'spotlight_submit' );
             }
             update_option( 'grec_snap_api_last_submit', array(
                 'destination' => $destination,
@@ -498,8 +512,9 @@ final class GREC_Snap_Public_API {
                 'note' => 'Snapchat accepted the request; check platform visibility/moderation separately.',
             );
         } finally {
-            // Preserve the short deduplication window when Snapchat accepted the request.
-            if ( ! $submitted ) { delete_transient( $lock ); }
+            // An unknown result after Story/Spotlight submission could be a real post.
+            // Retain the deduplication lock rather than permit an immediate blind replay.
+            if ( ! $submitted && ! $post_attempted ) { delete_transient( $lock ); }
         }
     }
 
