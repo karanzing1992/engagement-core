@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-const DEST="https://saczglesalubroyaucqe.supabase.co/functions/v1/mcp-connection-consent/mcp";
+const DEST="https://saczglesalubroyaucqe.supabase.co/functions/v1/mcp-connection-consent/linux";
 Deno.serve((req:Request)=>{
  const u=new URL(req.url);
  if(req.method==="GET"&&u.pathname.endsWith("/health"))
