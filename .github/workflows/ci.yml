@@ -7,6 +7,8 @@ on:
       - 'src/class-grec-wp-control.php'
       - 'product/gateway/supabase/functions/wpcontrol-mcp/**'
       - 'tests/native-package-sync-gateway-smoke.php'
+      - 'src/class-grec-snap-public-api.php'
+      - 'tests/snapchat-*-smoke.php'
       - '.github/workflows/ci.yml'
 
 permissions:
@@ -38,6 +40,8 @@ jobs:
           fi
       - name: Snapchat encryption smoke test
         run: php tests/snapchat-crypto-smoke.php
+      - name: Snapchat request error and stage regression test
+        run: php tests/snapchat-request-diagnostics-smoke.php
       - name: Publisher API permission-scope smoke test
         run: php tests/publisher-scopes-smoke.php
           php tests/native-package-sync-gateway-smoke.php
