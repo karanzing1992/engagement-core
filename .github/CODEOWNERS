@@ -1,0 +1,11 @@
+# Generic SSH production is owner-managed infrastructure (P0 freeze 2026-10-27).
+# Other projects may consume the documented MCP API but do not own or edit its runtime.
+# Require code-owner review via repository branch protection/ruleset; these assignments alone are advisory.
+/.github/CODEOWNERS @karanzing1992
+/.github/workflows/generic-ssh-production-freeze.yml @karanzing1992
+/.github/generic-ssh-production-baseline.json @karanzing1992
+/product/gateway/supabase/functions/generic-linux-automator/ @karanzing1992
+/product/gateway/supabase/functions/owner-oauth-login/ @karanzing1992
+/product/gateway/supabase/migrations/*generic*ssh* @karanzing1992
+/tools/generic-linux-automator/ @karanzing1992
+/docs/GENERIC_SSH_DEDICATED_PRODUCTION_RUNTIME_FREEZE_20261027.md @karanzing1992
