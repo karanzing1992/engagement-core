@@ -5,6 +5,12 @@ description: Share and verify new capabilities, technology changes, integrations
 
 # Moksha Master cross-project stack synchronization
 
+## MCP registration source-of-truth gate — 27 October 2026
+
+**Mandatory whenever registering, reconnecting, updating, migrating, or troubleshooting any remote HTTP MCP connector or plugin in a participating project:** read [canonical MCP OAuth Registration & Isolation SOP](../../../../docs/MCP_OAUTH_REGISTRATION_SOP.md) and open one [per-connector registration checklist](../../../../docs/templates/MCP_CONNECTION_REGISTRATION_CHECKLIST.md). Apply issuer/tenant decision, verified client identity routing, PKCE/state, exact callback and token issuer/audience/client/owner policy, protected-resource metadata, negative cross-plugin authorization tests and rollback before certifying. No new MCP may inherit a WordPress-specific login route or another plugin's unrestricted permissions. Preserve existing plugin IDs, device worker pairings, tenant data and source-vs-live QA classifications. The 27-Oct shared consent UI repair fixes misrouting but is not evidence of complete foreign-client token isolation (engagement-core issue #81). Propagate this SOP reference to future project-specific runbooks rather than forking the OAuth pattern; other ChatGPT Projects still require their own verified instructions/acknowledgements.
+
+
+
 Use the canonical protocol at https://github.com/karanzing1992/engagement-core/blob/main/docs/MASTER_STACK_UPDATE_PROTOCOL.md as the policy source. The master technology registry is https://docs.google.com/document/d/1-dSumLKkhmpzqGF2P-4x5_ZNUh9JamH3ApfXv4y4EeM/edit.
 
 ## AW-1 — Manbir-only automation GUI identity tag (scope corrected 2026-10-22)
