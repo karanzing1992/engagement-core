@@ -1,3 +1,9 @@
+## Mandatory MCP registration SOP — 27 October 2026
+
+Before creating, adding, reconnecting, migrating, publishing or certifying **ANY** remote HTTP MCP connection or GPT native plugin that uses OAuth, read and apply the canonical [MCP OAuth Registration & Isolation SOP](../docs/MCP_OAUTH_REGISTRATION_SOP.md). **Require one completed [MCP Registration Checklist](../docs/templates/MCP_CONNECTION_REGISTRATION_CHECKLIST.md) per connector/environment.** This is a hard quality gate for *all* projects, not a WordPress-specific implementation. Preserve existing plugin identities, worker pairing, tenant/owner boundaries, security and rollback. Never route a new project's OAuth flow to the legacy WordPress-specific login; do not equate a branded page or a `/health` reply with valid OAuth resource authorization.
+
+Shared issuer mode requires server-side registered client identity checks and signed `client_id` plus owner/host/site permission verification, followed by negative cross-client tests; separate issuer is required for distinct trust domains. Capture OAuth discovery, callback, PKCE/state/replay, concurrent login, read-only tool receipt, 3×3 foreign-token denial where applicable and Master Registry readback. Existing October 27 routing fix is **PARTIAL**, not full token-isolation certification. The SOP is the governing reference, not permission to deploy or modify production.
+
 # Engagement Core — reusable WordPress connector platform
 
 ## MOKSHA MASTER GOLDEN RULE 0 — RESEARCH FIRST, REUSE FIRST, NEVER BUILD FROM SCRATCH (2026-10-14)
