@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-const DEST="https://saczglesalubroyaucqe.supabase.co/functions/v1/mcp-connection-consent/linux";
+const DEST="https://generic-ssh-oauth-ui.vercel.app/linux";
 Deno.serve((req:Request)=>{
  const u=new URL(req.url);
  if(req.method==="GET"&&u.pathname.endsWith("/health"))
