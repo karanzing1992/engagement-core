@@ -20,6 +20,16 @@ Portable skill source: https://github.com/karanzing1992/engagement-core/blob/mai
 
 **Distribution:** This protocol and the SOP are the cross-project policy source of truth; update the existing Master Stack skill/plugin release as needed and add an SOP reference to each project's persistent instructions or approved agent adapter. Repo, ChatGPT plugins and Project settings do **not** auto-sync or hot-reload. Require a verified per-consumer ACK rather than a claim that all projects have inherited the rule.
 
+## MCP CONNECTION CAUTION README — ALL PARTICIPATING PROJECTS (27 OCTOBER 2026)
+
+**Mandatory first-read** for new, reconnected or migrated remote HTTP MCP connections: [MCP Connection Caution README](../MCP_CONNECTION_CAUTION_README.md). The canonical security/registration procedure remains [MCP OAuth Registration & Isolation SOP](MCP_OAUTH_REGISTRATION_SOP.md), with [per-connection QA evidence checklist](templates/MCP_CONNECTION_REGISTRATION_CHECKLIST.md).
+
+**Cross-project source distribution VERIFIED 27 October 2026:** Root-level `MCP_CONNECTION_CAUTION_README.md` has been committed and read back in the nine enrolled GitHub projects: `engagement-core`, `moksha_wordpress`, `android_gpt_bridge`, `mokshasitemap`, `andaz-vibe-stay`, `staycore-pms`, `synergistica-website`, `constituency-ops-v1`, and `gpt-pine-engineer`. Each local copy links to the same central SOP; do not fork inconsistent OAuth rules. **New projects must add the caution README/reference during onboarding before MCP registration.**
+
+**Blocking rule:** preserve the existing plugin identity and device pairings; verify actual OAuth issuer/client/authorization source, correct callback, PKCE/state, token signature/issuer/audience/client_id and owner/role/host/site permissions; verify cross-plugin token rejection and actual authorized read-only tool response. Another project's consent page, public /health or worker heartbeat is not auth isolation. The former WP/Generic Linux/Manbir UI routing collision has a partial live fix, but 3×3 cross-client token denial and Manbir authenticated action have not been independently certified (engagement-core issue #81).
+
+**Propagation truth:** GitHub source/README dissemination is **not** ChatGPT Project instruction modification, plugin release, or a complete runtime/consumer ACK. Existing plugins and active chats do not hot-reload source documentation. Add this caution URL to each future project instruction and check its adoption explicitly. Keep tenant/auth boundaries and cost/security gates intact.
+
 # MOKSHA MASTER — Shared Stack Synchronization Protocol
 **Effective:** 11 October 2026 | **Applies to:** All nine monitored repositories and participating ChatGPT projects.
 
