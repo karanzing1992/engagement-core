@@ -42,3 +42,16 @@
 Only an explicit Generic SSH owner-approved critical security repair or owner-authorized migration may modify the production service. Each action must be scoped to an exact artifact, approval, rollback and independent QA, and never grant additional root/sudo powers implicitly. Standard development and other project automation must be incapable of deploying to the isolated production project.
 
 **Important:** Until the new project and IAM controls are deployed and independently verified, this is a recorded owner freeze, not technical enforcement. Do not mark isolation complete.
+
+## Hardened controls applied in shared structure (27 October 2026)
+
+**Implemented and read back on the existing `main` branch:**
+- `.github/CODEOWNERS` declares `@karanzing1992` the sole code owner of Generic SSH gateway, owner OAuth, the worker tools/systemd template, the Generic SSH migration paths and the freeze policy. This triggers review requests; a repository ruleset requiring code-owner approval is still necessary for enforceable blocking.
+- `.github/generic-ssh-production-baseline.json` captures seven pinned Git blob identities and the separately observed live Edge Function v10 and fingerprint. Repository hashes and live Edge fingerprints are **different evidence types**: comparison between deployed source and committed repository source has not been certified.
+- `.github/workflows/generic-ssh-production-freeze.yml` defines a read-only GitHub Actions check for `push` and `pull_request` on main; it fails if the seven source blobs drift or a tracked Generic SSH runtime path is touched. It does not alter the gateway, host, secrets, database or OAuth. The workflow file has been read back, but its successful GitHub Actions run and status enforcement are not yet independently confirmed.
+
+**Database isolation review:** Eleven `public.generic_auto_*` production tables already have RLS enabled, no table RLS policies and no direct `anon`/`authenticated` table grants. These existing controls were preserved, not re-created. The shared project's `service_role` retains privileges that bypass RLS and can be used by other authorized functions, so **this is NOT an independent tenant/database/runtime boundary**. No live table moves, service-key rotation, auth changes, Edge deployment or worker re-pair occurred.
+
+**To enforce the production freeze at GitHub level:** A repo admin must apply branch protection/rulesets to `main` requiring (a) pull requests, (b) code-owner approval, (c) successful `frozen-runtime-check` status, and (d) block force pushes/deletions and bypass where the plan permits. CODEOWNERS and an unrequired workflow are incomplete enforcement. All production Edge deploy access must additionally remain restricted to a dedicated owner deployment identity; GitHub rules do not prevent direct Supabase dashboard/CLI edits by existing project administrators.
+
+**Interim operational mode:** Shared production gateway is still active and not fully isolated. Other projects may consume the Generic SSH API through its existing scoped owner approvals but may not edit or redeploy the Generic SSH gateway/OAuth/worker. Do not call this `VERIFIED_ISOLATED` or claim the physical Dell/Mac CPUs are exclusively dedicated.
