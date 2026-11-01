@@ -79,7 +79,7 @@ jobs:
 
       - name: Execute headless MCP synthetic edit and export
         env:
-          RUN_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'fixture' }}
+          RUN_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (contains(github.event.head_commit.message, '[live-groq]') && 'live' || 'fixture') }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           set -euo pipefail
