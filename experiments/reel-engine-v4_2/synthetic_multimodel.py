@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import socket
 import time
 from PIL import Image, ImageDraw
 from gemini_adapter import BASE_URL, MODEL, GeminiUnavailable, extract_json, frame_request, make_request
@@ -68,19 +69,33 @@ def call_gemini():
     imgs=[(float(i*8),paint(i,*scene)) for i,scene in enumerate(SCENES)]
     payload=frame_request(imgs,BRAND)
     response=None
-    for attempt in range(3):
-        try:
-            response=make_request(BASE_URL + "/models/" + MODEL + ":generateContent",key,payload,timeout=75)
+    model_used=None
+    # Gemini Flash 3.8 may be capacity-constrained; both candidates have
+    # documented free input/output tiers. Fail closed if both are unavailable.
+    for model in (MODEL, "gemini-3.6-flash"):
+        for attempt in range(2):
+            try:
+                response=make_request(
+                    BASE_URL + "/models/" + model + ":generateContent",
+                    key, payload, timeout=28)
+                model_used=model
+                break
+            except (GeminiUnavailable, TimeoutError, socket.timeout) as exc:
+                if (isinstance(exc, GeminiUnavailable) and
+                        not any(x in str(exc) for x in ("HTTP 503","HTTP 429"))):
+                    raise
+                print("GEMINI_CAPACITY_RETRY", model, attempt+1, flush=True)
+                if attempt==0:
+                    time.sleep(2)
+        if response is not None:
             break
-        except GeminiUnavailable as e:
-            if "HTTP 503" not in str(e) or attempt == 2:
-                raise
-            print("GEMINI_TRANSIENT_503_RETRY", attempt + 1, flush=True)
-            time.sleep(3 * (attempt + 1))
+    if response is None:
+        raise GeminiUnavailable("Gemini 3.8/3.6 unavailable or timed out")
     extracted=extract_json(response)
     # This is not trusted footage provenance: inspect the result and keep only text.
     if not isinstance(extracted.get("shots"),list) or not extracted["shots"]:
         raise RuntimeError("Gemini did not describe the synthetic frames")
+    extracted["_meta"]={"model_used":model_used,"synthetic_only":True}
     (OUT/"gemini_observations.json").write_text(json.dumps(extracted,indent=2))
     return extracted
 
@@ -174,7 +189,8 @@ def main():
              "real_media_publishing":False,"status":"STARTED"}
     try:
         gemini=call_gemini()
-        print("GEMINI_SYNTHETIC_VISION_PASS",len(gemini["shots"]),flush=True)
+        receipt["gemini_model_used"]=gemini["_meta"]["model_used"]
+        print("GEMINI_SYNTHETIC_VISION_PASS",len(gemini["shots"]),gemini["_meta"]["model_used"],flush=True)
         client,shots,concepts=call_director(gemini)
         print("GROQ_120B_DIRECTOR_PASS",len(concepts),flush=True)
         styles=call_execution(client,concepts)
