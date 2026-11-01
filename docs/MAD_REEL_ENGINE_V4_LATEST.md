@@ -50,3 +50,8 @@ Moksha M2 private campaign packet remains previously verified. Moksha M3 artisti
 5. V4.5: repeated controlled reliability, quota accounting and recovery; only owner-approved M4 publish integration.
 
 **Rollback:** Disable only `.github/workflows/mad-filmcraft-groq-cloud-pilot.yml` or revert its scoped pilot commits; preserve other workflow deployments, GitHub secrets, Mac services, M2/M3 documentation and original media.
+
+
+## Version supersession — 2 November 2026
+
+**The latest usable creative private-preview version is now V4.1:** [open V4.1](MAD_REEL_ENGINE_V4_1_LATEST.md). This V4 document remains the historical synthetic Groq + FilmCraft MCP cloud-certification baseline. The three real Arambol footage previews (A/B/C) were Groq GPT-OSS 20B planned, but **FFmpeg-rendered locally**, not FilmCraft GitHub cloud rendered. V4.1 is technical-preview usable, not publication rights cleared.

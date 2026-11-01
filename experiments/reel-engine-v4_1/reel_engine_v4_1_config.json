@@ -1,0 +1,211 @@
+{
+  "version": "4.1",
+  "status": "latest_usable_private_preview",
+  "creative": {
+    "provider": "Groq",
+    "model": "openai/gpt-oss-20b",
+    "temperature": 0.9,
+    "temperature_note": "highest creativity tested for V4.1, not the API maximum",
+    "response_format": "json_object",
+    "max_completion_tokens": 6500,
+    "three_distinct_storyboards": true,
+    "workflow": "Grounded timecode observations + brand and rights constraints → Groq concept plan → editorial review → frozen plan → FFmpeg local"
+  },
+  "source": {
+    "type": "user_uploaded_video",
+    "demonstrated_length_seconds": 119,
+    "demonstrated_dimensions": "640x480",
+    "privacy": "NEVER place raw third-party footage or rendered previews into public repository",
+    "timecode_scope": "source-specific only; re-evaluate timecodes for any other footage"
+  },
+  "brand": {
+    "authority": "Moksha Brand Identity & Experience Handbook; Moksha Social Golden Rules",
+    "colors": {
+      "forest": "#18382F",
+      "gold": "#C5A15A",
+      "sand": "#E8DCC7",
+      "ivory": "#F9F5EA"
+    },
+    "tone": "Quietly premium, authentic, rooted in nature",
+    "absolute_rules": [
+      "No invented logo or venue scenes",
+      "No false claim that Sweet Water Lake is Moksha property",
+      "No unapproved guest likeness use or rights claims",
+      "Hook within first 1-1.5 seconds",
+      "No aggressive sales or unproven health promises",
+      "No publication without independent rights and owner approval"
+    ]
+  },
+  "render": {
+    "engine": "FFmpeg local, not FilmCraft GitHub cloud",
+    "dimensions": "720x1280",
+    "fps": 24,
+    "codec": "h264",
+    "audio": "AAC mono",
+    "audio_source": "original procedural synthesis",
+    "duration_seconds": 24,
+    "source_frame": "landscape inset with blurred own-footage background",
+    "qa": [
+      "ffprobe metadata",
+      "ffmpeg full decode",
+      "SHA256 output"
+    ],
+    "portable_renderer_status": "python compiled, dry-run PASS, Version B exact-hash reproduction PASS"
+  },
+  "treatments": [
+    {
+      "id": "A",
+      "name": "Lake Journey",
+      "title": "AROUND THE WATER",
+      "subtitle": "SWEET WATER LAKE · ARAMBOL",
+      "last": "Find your quiet",
+      "style": "ambient",
+      "clips": [
+        [
+          0,
+          3
+        ],
+        [
+          11,
+          3
+        ],
+        [
+          18,
+          3
+        ],
+        [
+          23,
+          3
+        ],
+        [
+          35,
+          3
+        ],
+        [
+          50,
+          3
+        ],
+        [
+          92,
+          3
+        ],
+        [
+          103,
+          3
+        ]
+      ],
+      "angle": "Lakeside reflection — village texture to natural lake reveal"
+    },
+    {
+      "id": "B",
+      "name": "Rhythmic Shore",
+      "title": "FOLLOW THE RHYTHM",
+      "subtitle": "THE SOUNDS OF ARAMBOL",
+      "last": "And then, the water.",
+      "style": "rhythmic",
+      "clips": [
+        [
+          23,
+          3
+        ],
+        [
+          29,
+          3
+        ],
+        [
+          35,
+          3
+        ],
+        [
+          44,
+          3
+        ],
+        [
+          50,
+          3
+        ],
+        [
+          56,
+          3
+        ],
+        [
+          92,
+          3
+        ],
+        [
+          103,
+          3
+        ]
+      ],
+      "angle": "Market drumming and human energy resolving at the lake"
+    },
+    {
+      "id": "C",
+      "name": "Grounded to Lake",
+      "title": "THE PATH IS THE STORY",
+      "subtitle": "TAKE THE LONG WAY · ARAMBOL",
+      "last": "Worth every step.",
+      "style": "organic",
+      "clips": [
+        [
+          58,
+          3
+        ],
+        [
+          62,
+          3
+        ],
+        [
+          70,
+          3
+        ],
+        [
+          92,
+          3
+        ],
+        [
+          97,
+          3
+        ],
+        [
+          103,
+          3
+        ],
+        [
+          109,
+          3
+        ],
+        [
+          115,
+          3
+        ]
+      ],
+      "angle": "POV stones through palms to lake"
+    }
+  ],
+  "outputs": {
+    "A": {
+      "sha256": "4708a7f412598a6cd520ca801d77c78391ca8982a189fe871f40f4628d2907bc",
+      "bytes": 5164762
+    },
+    "B": {
+      "sha256": "0ff0a639c0f0196f48d2761cdafa5134164d12fb96710bcfee4356902bb7b57d",
+      "bytes": 5579770
+    },
+    "C": {
+      "sha256": "7aff5efd2a4c2796d9eeee06d8c70912424a9ff244f4752efc3bdf843ccb6ebd",
+      "bytes": 5548403
+    }
+  },
+  "boundaries": {
+    "real_footage_artistic_certification": false,
+    "rights_and_consent_cleared": false,
+    "instagram_published": false,
+    "filmcraft_real_footage_cloud_execution": false,
+    "generalized_automatic_vision_and_brand_rag": false
+  },
+  "previous_cloud_v4": {
+    "run": "https://github.com/karanzing1992/engagement-core/actions/runs/41356306390",
+    "status": "synthetic 480x270 2s verified"
+  }
+}
