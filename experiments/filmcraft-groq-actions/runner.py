@@ -205,7 +205,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=("fixture", "live"), default="fixture")
     args = parser.parse_args()
-    status = {"mode": args.mode, "filmcraft_version": "0.16.0",
+    status = {"engine_version": "v4", "mode": args.mode, "filmcraft_version": "0.16.0",
               "groq_model": "openai/gpt-oss-20b" if args.mode == "live" else "fixture",
               "success": False}
     try:

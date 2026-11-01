@@ -1,4 +1,4 @@
-name: MAD FilmCraft Groq Cloud Pilot
+name: MAD Reel Engine V4 | Groq FilmCraft Cloud
 
 on:
   push:
@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   filmcraft-mcp-cloud-smoke:
-    name: Groq plan to FilmCraft MCP to MP4
+    name: Reel Engine V4 synthetic Groq plan to FilmCraft MCP to MP4
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     defaults:
