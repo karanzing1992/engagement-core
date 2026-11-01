@@ -11,8 +11,9 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 from PIL import Image, ImageDraw
-from gemini_adapter import BASE_URL, MODEL, extract_json, frame_request, make_request
+from gemini_adapter import BASE_URL, MODEL, GeminiUnavailable, extract_json, frame_request, make_request
 from creative_director import check_concepts, compile_edl, _call_groq
 
 HERE = Path(__file__).resolve().parent
@@ -66,7 +67,16 @@ def call_gemini():
         raise RuntimeError("GEMINI_API_KEY missing")
     imgs=[(float(i*8),paint(i,*scene)) for i,scene in enumerate(SCENES)]
     payload=frame_request(imgs,BRAND)
-    response=make_request(BASE_URL + "/models/" + MODEL + ":generateContent",key,payload,timeout=75)
+    response=None
+    for attempt in range(3):
+        try:
+            response=make_request(BASE_URL + "/models/" + MODEL + ":generateContent",key,payload,timeout=75)
+            break
+        except GeminiUnavailable as e:
+            if "HTTP 503" not in str(e) or attempt == 2:
+                raise
+            print("GEMINI_TRANSIENT_503_RETRY", attempt + 1, flush=True)
+            time.sleep(3 * (attempt + 1))
     extracted=extract_json(response)
     # This is not trusted footage provenance: inspect the result and keep only text.
     if not isinstance(extracted.get("shots"),list) or not extracted["shots"]:
