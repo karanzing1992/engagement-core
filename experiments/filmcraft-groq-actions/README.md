@@ -18,3 +18,7 @@ The runner accepts only the fixed 480×270, 24-fps, two-second test profile. LLM
 This pilot is deliberately separate from MAD production and the existing WP deployment workflows. Promote only after the synthetic export and live-Groq (secret-gated) run both pass. Use a new isolated media store for real footage; never add originals to this public repository.
 
 See `../../.github/workflows/mad-filmcraft-groq-cloud-pilot.yml` for the execution pipeline.
+
+## Live cloud acceptance test
+
+The live `GROQ_API_KEY` test is initiated by a narrowly scoped commit with `[live-groq]` in its message, or by selecting `live` in manual workflow dispatch. The API key remains an Actions secret; do not put credentials in repository files.
