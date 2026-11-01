@@ -144,9 +144,9 @@ def run_preflight(args):
             raise GeminiUnavailable("Explicit --accept-free-tier-terms required")
         if not key:
             raise GeminiUnavailable("Create a Google AI Studio key and configure it outside Git")
-        models = make_request(BASE_URL + "/models?pageSize=100", key)
+        model_info = make_request(BASE_URL + "/models/" + args.model, key)
         info["network_tested"] = True
-        info["model_available"] = args.model in visible_model_names(models)
+        info["model_available"] = model_info.get("name") == "models/" + args.model
         if not info["model_available"]:
             raise GeminiUnavailable("Requested model is unavailable for this API key")
     return info
@@ -174,8 +174,12 @@ def run_vision(args):
     result = make_request(BASE_URL + "/models/" + args.model + ":generateContent",
                           key, payload, timeout=55)
     report = extract_json(result)
+    digest = hashlib.sha256()
+    with source.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1_048_576), b""):
+            digest.update(chunk)
     return {"provider": "gemini", "model": args.model, "source_sha256":
-            hashlib.sha256(source.read_bytes()).hexdigest(),
+            digest.hexdigest(),
             "sample_timestamps": times, "media_uploaded": True,
             "private_review_only": True, "observation": report}
 
