@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/reel-engine-v42-gemini-first-20261102
+      - feature/reel-v42-multimodel-director-20261102
     paths:
       - experiments/reel-engine-v4_2/**
       - .github/workflows/reel-engine-v42-gemini-adapter-ci.yml
@@ -22,6 +23,7 @@ jobs:
         working-directory: experiments/reel-engine-v4_2
         run: |
           set -euo pipefail
-          python3 -m unittest -v test_gemini_adapter.py
+          python3 -m unittest -v test_gemini_adapter.py test_creative_director.py
           python3 gemini_adapter.py preflight
-          python3 -m py_compile gemini_adapter.py
+          python3 -m py_compile gemini_adapter.py creative_director.py
+          python3 creative_director.py --shots fixture_verified_shots.json --brand README.md --brief 'Use the sample synthetic shots' --output /tmp/reel-v42-preflight.json

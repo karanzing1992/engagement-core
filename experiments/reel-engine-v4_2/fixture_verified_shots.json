@@ -1,0 +1,35 @@
+{
+  "provenance": "human_reviewed",
+  "shots": [
+    {
+      "id": "river",
+      "start_seconds": 0,
+      "duration_seconds": 8,
+      "visible_description": "Synthetic daylight river water from a purely fictitious video sample"
+    },
+    {
+      "id": "canopy",
+      "start_seconds": 8,
+      "duration_seconds": 8,
+      "visible_description": "Synthetic leaves swaying in the wind in a sample video"
+    },
+    {
+      "id": "path",
+      "start_seconds": 16,
+      "duration_seconds": 8,
+      "visible_description": "Synthetic empty stone trail in sample video"
+    },
+    {
+      "id": "light",
+      "start_seconds": 24,
+      "duration_seconds": 8,
+      "visible_description": "Synthetic bright sun rays among branches in sample video"
+    },
+    {
+      "id": "shadows",
+      "start_seconds": 32,
+      "duration_seconds": 8,
+      "visible_description": "Synthetic natural shadows moving across rocks in sample video"
+    }
+  ]
+}
