@@ -1,0 +1,26 @@
+name: Reel Engine V4.2 | Gemini Live Connection Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gemini-connection:
+    name: Authenticate Gemini model metadata (no media)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify dedicated Gemini API key and model access
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        working-directory: experiments/reel-engine-v4_2
+        run: |
+          set -euo pipefail
+          if [ -z "${GEMINI_API_KEY:-}" ]; then
+            echo "::error::GEMINI_API_KEY repository Actions secret is missing."
+            exit 2
+          fi
+          python3 gemini_adapter.py preflight --verify-connection --accept-free-tier-terms
