@@ -1,0 +1,26 @@
+{
+  "sequence": {
+    "name": "MAD_Reel_Intro",
+    "width": 480,
+    "height": 270,
+    "fps": 24
+  },
+  "placement": {
+    "track": "V1",
+    "seconds": 0,
+    "duration": 2,
+    "matchSequence": false
+  },
+  "export": {
+    "format": "h264",
+    "width": 480,
+    "height": 270,
+    "range": "custom",
+    "startSeconds": 0,
+    "endSeconds": 2,
+    "wait": true,
+    "hardwareEncoding": "off"
+  },
+  "creative_intent": "Minimalist silent intro",
+  "provenance": "Previously produced by Groq GPT-OSS-20B on MAD Mac, 2026-11-02; no credentials included"
+}
