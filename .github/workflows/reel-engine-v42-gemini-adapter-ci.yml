@@ -1,0 +1,27 @@
+name: Reel Engine V4.2 - Gemini Adapter Offline QA
+
+on:
+  push:
+    branches:
+      - feature/reel-engine-v42-gemini-first-20261102
+    paths:
+      - experiments/reel-engine-v4_2/**
+      - .github/workflows/reel-engine-v42-gemini-adapter-ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gemini provider tests (no credentials or footage)
+        working-directory: experiments/reel-engine-v4_2
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v test_gemini_adapter.py
+          python3 gemini_adapter.py preflight
+          python3 -m py_compile gemini_adapter.py
