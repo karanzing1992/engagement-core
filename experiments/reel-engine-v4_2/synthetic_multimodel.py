@@ -108,7 +108,7 @@ def call_director(gemini):
 def call_execution(client,concepts):
     prompt=("You are ONLY the technical editor. The creative storyboards are approved "
             "and unchangeable. Output JSON object with key edits, mapping each ID A/B/C "
-            "to {pace: 'serene'|'medium'|'kinetic', transition: 'cut'|'dissolve'}. "
+            "to {pace: 'serene'|'medium'|'kinetic', transition: 'cut'}. "
             "Use no shell commands, file paths, online media, or new footage. "
             "Never change source timestamps. Here are the plans: "
             + json.dumps(concepts)[:6500])
@@ -117,7 +117,7 @@ def call_execution(client,concepts):
     if not isinstance(vals,dict) or set(vals)!={"A","B","C"}:
         raise RuntimeError("20B returned invalid execution style plan")
     for id_,v in vals.items():
-        if v.get("pace") not in {"serene","medium","kinetic"} or v.get("transition") not in {"cut","dissolve"}:
+        if v.get("pace") not in {"serene","medium","kinetic"} or v.get("transition") != "cut":
             raise RuntimeError("20B attempted unapproved edit parameter")
     (OUT/"execution_20b.json").write_text(json.dumps(vals,indent=2))
     return vals
@@ -138,7 +138,7 @@ def render(concepts,shots,styles):
         out=OUT/("version_%s.mp4"%v["id"])
         subprocess.run(["ffmpeg","-hide_banner","-loglevel","error","-y",
                         "-safe","0","-f","concat","-i",str(concat),"-vf",
-                        "fps=15,format=yuv420p","-an","-c:v","libx264",
+                        "fps=%d,format=yuv420p" % {"serene":12,"medium":15,"kinetic":20}[styles[v["id"]]["pace"]],"-an","-c:v","libx264",
                         "-threads","2","-preset","ultrafast","-crf","29",
                         "-t","15","-movflags","+faststart",str(out)],
                         check=True,timeout=90)
