@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/mad-filmcraft-groq-actions-pilot-20261102
+      - main
     paths:
       - .github/workflows/mad-filmcraft-groq-cloud-pilot.yml
       - experiments/filmcraft-groq-actions/**
