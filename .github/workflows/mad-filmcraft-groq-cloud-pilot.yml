@@ -37,12 +37,18 @@ jobs:
       - name: Check out public pilot
         uses: actions/checkout@v4
 
+      - name: Install FFmpeg on the ephemeral Ubuntu runner
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+
       - name: Verify runner dependencies
         run: |
           set -euo pipefail
           python3 --version
-          ffmpeg -version | head -n 1
-          ffprobe -version | head -n 1
+          ffmpeg -version | sed -n '1p'
+          ffprobe -version | sed -n '1p'
           df -h "$RUNNER_TEMP"
 
       - name: Download and verify FilmCraft v0.16.0 Linux x86_64
