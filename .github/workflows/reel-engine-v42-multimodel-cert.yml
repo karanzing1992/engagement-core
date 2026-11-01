@@ -1,0 +1,54 @@
+name: Reel Engine V4.2 | Live Synthetic Multimodel Certification
+
+on:
+  push:
+    branches:
+      - feature/reel-v42-live-gemini-synthetic-cert-20261102
+    paths:
+      - experiments/reel-engine-v4_2/synthetic_multimodel.py
+      - .github/workflows/reel-engine-v42-multimodel-cert.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reel-v42-synthetic-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  live-synthetic-chain:
+    name: Gemini vision - Groq 120B - Groq 20B - FFmpeg synthetic exports
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - name: Checkout publicly auditable synthetic code
+        uses: actions/checkout@v4
+      - name: Install synthetic-only media tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python3 -m pip install --user --disable-pip-version-check pillow==11.3.0 groq==0.37.1
+      - name: Run offline regression contracts
+        working-directory: experiments/reel-engine-v4_2
+        run: |
+          set -eu
+          python3 -m unittest -v test_gemini_adapter.py test_creative_director.py
+      - name: Perform single-call-per-model live synthetic certification
+        working-directory: experiments/reel-engine-v4_2
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          set -eu
+          test -n "$GEMINI_API_KEY"
+          test -n "$GROQ_API_KEY"
+          python3 synthetic_multimodel.py
+      - name: Upload non-private synthetic receipts and videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-v42-live-synthetic-${{ github.run_number }}
+          path: experiments/reel-engine-v4_2/synthetic_output/
+          retention-days: 7
+          if-no-files-found: warn
