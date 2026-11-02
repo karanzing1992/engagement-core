@@ -1,0 +1,38 @@
+{
+  "provenance": "human_reviewed",
+  "external_metadata_approved": true,
+  "rights_and_consent": true,
+  "content_origin": "GENERATED TEXT FIXTURE ONLY - ZERO CUSTOMER FOOTAGE",
+  "shots": [
+    {
+      "id": "S1",
+      "start_seconds": 0,
+      "duration_seconds": 9,
+      "visible_description": "Synthetic blue rippling water against a generic neutral background"
+    },
+    {
+      "id": "S2",
+      "start_seconds": 9,
+      "duration_seconds": 9,
+      "visible_description": "Synthetic tree leaves blowing gently in daylight on an empty path"
+    },
+    {
+      "id": "S3",
+      "start_seconds": 18,
+      "duration_seconds": 9,
+      "visible_description": "Synthetic brown pebble stones on a winding trail"
+    },
+    {
+      "id": "S4",
+      "start_seconds": 27,
+      "duration_seconds": 9,
+      "visible_description": "Synthetic yellow sun rays passing between branches"
+    },
+    {
+      "id": "S5",
+      "start_seconds": 36,
+      "duration_seconds": 9,
+      "visible_description": "Synthetic dark evergreen leaves seen from beneath"
+    }
+  ]
+}
