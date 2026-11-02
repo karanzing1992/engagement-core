@@ -122,6 +122,15 @@ def execute(mode, destination, profile):
         render = render_multiple(originals, output, {
             "target_seconds": duration, "width": width, "height": height,
             "fps": fps, "clip_plan": cuts}, tmp / "segments")
+        # Existing concat/copy step can retain non-constant average frame rate.
+        # Normalize *synthetic diagnostic only* before independent certification.
+        normalized = tmp / "v5-synthetic-constant-fps.mp4"
+        run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+             "-i", str(output), "-vf", "fps=%d" % fps, "-r", str(fps),
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+             "-pix_fmt", "yuv420p", "-c:a", "copy",
+             "-movflags", "+faststart", str(normalized)])
+        normalized.replace(output)
         video = verify_video(output, width, height, fps)
     report = {"engine": "MAD Reel Engine", "version": "5.0.0",
         "status": "SYNTHETIC_TECHNICAL_CERTIFICATION_ONLY",
