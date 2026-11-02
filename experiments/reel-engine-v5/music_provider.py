@@ -9,6 +9,8 @@
 """
 import argparse
 import hashlib
+import html
+import uuid
 import json
 from pathlib import Path
 import re
@@ -79,7 +81,77 @@ def candidate(item):
     }
 
 
-def search(query,limit=6,*,opener=None):
+
+COMMONS_API="https://commons.wikimedia.org/w/api.php"
+def commons_candidate(page):
+    """Normalize Wikimedia's own machine-readable license metadata; still unverified."""
+    title=page.get("title","")
+    info=(page.get("imageinfo") or [{}])[0]
+    if info.get("mediatype") not in ("AUDIO","UNKNOWN"):
+        return None
+    ext=info.get("extmetadata") or {}
+    def value(k):
+        a=ext.get(k,{})
+        return a.get("value","") if isinstance(a,dict) else ""
+    lic_name=value("LicenseShortName").lower().strip()
+    lic_url=value("LicenseUrl").strip()
+    if "cc0" in lic_name or "/publicdomain/zero/" in lic_url:
+        normalized="cc0"
+        lic_url="https://creativecommons.org/publicdomain/zero/1.0/"
+    elif "public domain" in lic_name and "mark" in lic_url:
+        normalized="pdm"
+        lic_url="https://creativecommons.org/publicdomain/mark/1.0/"
+    elif re.search(r"\bcc by\s+\d",lic_name) and "-nc" not in lic_name and "-nd" not in lic_name and "-sa" not in lic_name:
+        normalized="by"
+        if not lic_url.startswith("https://creativecommons.org/licenses/by/"):
+            return None
+    else:
+        return None
+    origin=info.get("descriptionurl") or ("https://commons.wikimedia.org/wiki/"+urllib.parse.quote(title.replace(" ","_")))
+    media=info.get("url","")
+    if not (is_https(origin) and is_https(media)):
+        return None
+    artist=html.unescape(re.sub(r"<[^>]+>","",value("Artist"))).strip()
+    if not artist:
+        artist="Creator attribution requires verification on original file page"
+    item={"id":str(uuid.uuid5(uuid.NAMESPACE_URL,origin)),"title":title.replace("File:",""),
+          "creator":artist[:120],"license":normalized,"license_url":lic_url,
+          "license_version":"","foreign_landing_url":origin,"url":media,
+          "provider":"wikimedia_commons","attribution":""}
+    return candidate(item)
+
+def search_commons(query,limit=6,*,opener=None):
+    if not 1 <= len(query.strip()) <=180 or not 1<=limit<=MAX_RESULTS:
+        raise ValueError("Invalid Commons music query")
+    qs=urllib.parse.urlencode({"action":"query","format":"json","generator":"search",
+       "gsrsearch":"filetype:audio "+query,"gsrnamespace":6,"gsrlimit":limit,
+       "prop":"imageinfo","iiprop":"url|mediatype|extmetadata",
+       "iiextmetadatafilter":"LicenseShortName|LicenseUrl|Artist|Credit"})
+    req=urllib.request.Request(COMMONS_API+"?"+qs,headers={
+       "User-Agent":"MAD-ReelEngine-V5/1.0 (metadata-only, no scraping)",
+       "Accept":"application/json"})
+    client=opener or urllib.request.urlopen
+    try:
+        with client(req,timeout=15) as f:
+            body=f.read(700001)
+    except (urllib.error.HTTPError,urllib.error.URLError,TimeoutError):
+        raise LicenseError("Wikimedia Commons API unavailable; do not use unverified audio") from None
+    if len(body)>700000:
+        raise LicenseError("Commons metadata response too large")
+    pages=json.loads(body.decode("utf8")).get("query",{}).get("pages",{})
+    if not isinstance(pages,dict):
+        raise LicenseError("Commons response malformed")
+    tracks=[commons_candidate(p) for p in pages.values()]
+    return {"provider":"wikimedia_commons","query":query,
+       "open_api":True,"candidates":[x for x in tracks if x],
+       "rights_status":"DISCOVERY_ONLY_UNVERIFIED",
+       "downloaded_files":0,"composed_audio":False}
+
+def search(query,limit=6,*,opener=None,provider="openverse"):
+    if provider == "wikimedia":
+        return search_commons(query,limit,opener=opener)
+    if provider not in ("openverse", "auto"):
+        raise ValueError("Unknown approved catalog provider")
     if not isinstance(query,str) or not 1<=len(query.strip())<=180:
         raise ValueError("Music search query must be 1..180 characters")
     if not 1<=limit<=MAX_RESULTS:
@@ -98,7 +170,9 @@ def search(query,limit=6,*,opener=None):
         with client(req,timeout=20) as f:
             body=f.read(500001)
     except (urllib.error.HTTPError,urllib.error.URLError,TimeoutError):
-        raise LicenseError("Openverse API unavailable; no unlicensed fallback") from None
+        if provider=="auto":
+            return search_commons(query,limit,opener=None)
+        raise LicenseError("Openverse API unavailable; use --provider wikimedia or auto") from None
     if len(body)>500000:
         raise LicenseError("Openverse metadata response too large")
     data=json.loads(body.decode("utf-8"))
@@ -251,6 +325,7 @@ def main():
     s=sub.add_parser("search")
     s.add_argument("--query",required=True)
     s.add_argument("--limit",type=int,default=6)
+    s.add_argument("--provider",choices=["openverse","wikimedia","auto"],default="auto")
     s.add_argument("--output",required=True)
     i=sub.add_parser("ingest")
     i.add_argument("--track",required=True)
@@ -264,7 +339,7 @@ def main():
     args=p.parse_args()
     try:
         if args.cmd=="search":
-            data=search(args.query,args.limit)
+            data=search(args.query,args.limit,provider=args.provider)
             out=Path(args.output);out.parent.mkdir(parents=True,exist_ok=True)
             out.write_text(json.dumps(data,indent=2,ensure_ascii=False)+"\n")
         elif args.cmd=="ingest":
