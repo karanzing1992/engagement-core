@@ -1,0 +1,47 @@
+name: Reel Engine V5 | Independent Music & Capability QA
+
+on:
+  push:
+    branches:
+      - feature/reel-engine-v5-open-capability-20261102
+    paths:
+      - .github/workflows/reel-engine-v5-music-qa.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  open-license-music:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check V5 configuration and module unit tests
+        working-directory: experiments/reel-engine-v5
+        run: |
+          set -eu
+          python3 -m unittest -v test_v5_orchestrator.py test_music_provider.py
+          python3 -m py_compile v5_orchestrator.py capability_probe.py music_provider.py
+      - name: Verify Openverse anonymous live music search without downloading tracks
+        working-directory: experiments/reel-engine-v5
+        run: |
+          set -eu
+          python3 music_provider.py search --query 'ambient instrumental' --limit 6 --output openverse_live_receipt.json
+          python3 -c 'import json; d=json.load(open("openverse_live_receipt.json")); assert d["rights_status"]=="DISCOVERY_ONLY_UNVERIFIED" and d["downloaded_files"]==0 and d["composed_audio"]==False; print("OPENVERSE_ANONYMOUS_LIVE_PASS", len(d["candidates"]))'
+      - name: Inspect installed FFmpeg tools (no source footage)
+        working-directory: experiments/reel-engine-v5
+        run: |
+          set -eu
+          python3 capability_probe.py --output tool_capability_receipt.json
+          python3 -c 'import json; d=json.load(open("tool_capability_receipt.json")); assert d["read_only"] and not d["rendered"]; print("V5_TOOL_DISCOVERY_PASS",d["tools"]["ffmpeg_core"]["discovered"])'
+      - name: Upload metadata-only rights-unverified receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-v5-openverse-metadata-${{ github.run_number }}
+          path: |
+            experiments/reel-engine-v5/openverse_live_receipt.json
+            experiments/reel-engine-v5/tool_capability_receipt.json
+          retention-days: 7
+          if-no-files-found: warn
