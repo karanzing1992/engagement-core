@@ -1,0 +1,39 @@
+name: Reel Engine V5 — Cross-Project Default Routing QA
+
+on:
+  push:
+    branches:
+      - feature/reel-v5-cross-project-default-20261102
+    paths:
+      - ops/media/**
+      - docs/REEL_ENGINE_V5_CROSS_PROJECT_DEFAULT.md
+      - .github/workflows/reel-engine-v5-cross-project-routing.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify owner projects and V5 default
+        working-directory: ops/media
+        run: |
+          set -eu
+          python3 -m unittest -v test_reel_engine_router.py
+          python3 -m py_compile reel_engine_router.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from reel_engine_router import load_policy, route_job
+          p=load_policy()
+          for project in p["projects"]:
+              j={"project_id":project["id"],"job_type":"instagram_reel"}
+              result=route_job(j,p)
+              assert result["version"]=="5.0.0" and result["rendered"] is False
+          assert p["music"]["composition_allowed"] is False
+          print("CROSS_PROJECT_V5_DEFAULT_PASS",len(p["projects"]))
+          PY
