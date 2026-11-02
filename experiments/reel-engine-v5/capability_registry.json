@@ -1,0 +1,191 @@
+{
+  "version": 5,
+  "description": "Open extension registry. Described does not mean installed, verified, or enabled. Execution must be authorized with an implementation and test receipt.",
+  "adapters": [
+    {
+      "id": "ffmpeg_core",
+      "kind": "editor",
+      "status": "proven_v4_1_and_v4_2_narrow_scope",
+      "capabilities": [
+        "trim",
+        "concat",
+        "scale",
+        "fps",
+        "h264_export",
+        "aac_audio",
+        "audio_generator"
+      ],
+      "installed_in": [
+        "github_actions_ubuntu_pilot",
+        "mac_v4_1_previous"
+      ],
+      "limitations": "Advanced effects and arbitrary source export need version-specific QA."
+    },
+    {
+      "id": "filmcraft_mcp",
+      "kind": "editor",
+      "status": "proven_v4_synthetic_narrow_scope",
+      "capabilities": [
+        "sequence",
+        "media_import",
+        "timeline_place",
+        "project_save",
+        "h264_export"
+      ],
+      "potential": [
+        "transitions",
+        "effects",
+        "keyframes",
+        "color",
+        "text",
+        "audio"
+      ],
+      "installed_in": [
+        "github_actions_v4"
+      ],
+      "limitations": "Full advertised commands not certified by V4.2 or V5. Only validated method allowlists may execute."
+    },
+    {
+      "id": "gemini_vision",
+      "kind": "vision",
+      "status": "proven_v4_2_synthetic_3_6",
+      "capabilities": [
+        "image_frame_describe",
+        "shot_log"
+      ],
+      "potential": [
+        "video_timecode_batches",
+        "dialogue_analysis"
+      ],
+      "limitations": "Real footage restricted until rights, privacy and data-use approval; 3.8 generation 503/timeout in prior run."
+    },
+    {
+      "id": "groq_director",
+      "kind": "creative",
+      "status": "proven_v4_2_synthetic",
+      "capabilities": [
+        "storyboard",
+        "narrative",
+        "creative_iteration"
+      ],
+      "limitations": "Model can hallucinate nonexistent moments; only source-attested manifest accepted."
+    },
+    {
+      "id": "groq_execution",
+      "kind": "planner",
+      "status": "proven_v4_2_synthetic",
+      "capabilities": [
+        "paced_edl",
+        "bounded_style_selection"
+      ],
+      "limitations": "Does not execute commands itself."
+    }
+  ],
+  "operations": [
+    {
+      "name": "trim",
+      "adapter": "ffmpeg_core",
+      "status": "verified",
+      "fields": [
+        "shot_id",
+        "offset_seconds",
+        "duration_seconds"
+      ]
+    },
+    {
+      "name": "concat",
+      "adapter": "ffmpeg_core",
+      "status": "verified",
+      "fields": [
+        "source_ids"
+      ]
+    },
+    {
+      "name": "scale",
+      "adapter": "ffmpeg_core",
+      "status": "verified",
+      "fields": [
+        "width",
+        "height"
+      ]
+    },
+    {
+      "name": "h264_export",
+      "adapter": "ffmpeg_core",
+      "status": "verified",
+      "fields": [
+        "profile"
+      ]
+    },
+    {
+      "name": "transition",
+      "adapter": "filmcraft_mcp",
+      "status": "candidate",
+      "fields": [
+        "kind",
+        "duration_seconds"
+      ]
+    },
+    {
+      "name": "keyframe",
+      "adapter": "filmcraft_mcp",
+      "status": "candidate",
+      "fields": [
+        "property",
+        "time_seconds",
+        "value"
+      ]
+    },
+    {
+      "name": "color_grade",
+      "adapter": "filmcraft_mcp",
+      "status": "candidate",
+      "fields": [
+        "creative_look"
+      ]
+    },
+    {
+      "name": "motion_typography",
+      "adapter": "filmcraft_mcp",
+      "status": "candidate",
+      "fields": [
+        "text",
+        "style"
+      ]
+    },
+    {
+      "name": "sound_design",
+      "adapter": "ffmpeg_core",
+      "status": "candidate",
+      "fields": [
+        "tracks",
+        "mix"
+      ]
+    },
+    {
+      "name": "mask",
+      "adapter": "filmcraft_mcp",
+      "status": "candidate",
+      "fields": [
+        "source",
+        "shape"
+      ]
+    },
+    {
+      "name": "stabilize",
+      "adapter": "ffmpeg_core",
+      "status": "candidate",
+      "fields": [
+        "strength"
+      ]
+    },
+    {
+      "name": "speed_ramp",
+      "adapter": "ffmpeg_core",
+      "status": "candidate",
+      "fields": [
+        "keyframes"
+      ]
+    }
+  ]
+}
