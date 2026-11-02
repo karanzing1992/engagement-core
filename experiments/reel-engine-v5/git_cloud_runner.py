@@ -56,6 +56,18 @@ def compile_edl(segments, ids):
     return result
 
 
+def technical_preview_segments(segments):
+    """Synthetic-only: log every unequipped proposed effect; render verified cuts only."""
+    clean, unexecuted = [], []
+    for segment in segments:
+        for op in segment.get("proposed_operations", []):
+            unexecuted.append({"shot_id": segment["shot_id"],
+                               "name": op["name"], "parameters": op.get("parameters", {}),
+                               "reason": "no_execution_adapter_invoked_in_synthetic_technical_mode"})
+        clean.append(dict(segment, proposed_operations=[]))
+    return clean, unexecuted
+
+
 def create_synthetic_sources(folder, shots):
     paths = []
     for i, shot in enumerate(shots.values()):
@@ -108,7 +120,10 @@ def execute(mode, destination, profile):
         proposal = fixture_plan()
     plans = validate_plan(proposal, shots, 1, cfg)
     ops = plan_operations(plans, registry)
-    cuts = compile_edl(plans[0]["segments"], list(shots))
+    # Technical preview deliberately does not claim FilmCraft/effect fidelity.
+    # Every proposed operation is recorded as UNEXECUTED, not silently dropped.
+    preview_segments, unexecuted = technical_preview_segments(plans[0]["segments"])
+    cuts = compile_edl(preview_segments, list(shots))
     duration = sum(c["seconds"] for c in cuts)
     if duration < 3 or duration > 120:
         raise Rejected("Existing renderer duration limit")
@@ -137,6 +152,8 @@ def execute(mode, destination, profile):
         "mode": mode, "profile": profile, "model_inference": mode == "live",
         "director_planning_validated": True,
         "deferred_operations": ops["deferred_operations"],
+        "unexecuted_operations": unexecuted,
+        "creative_operation_fidelity": len(unexecuted) == 0,
         "render_engine": "services/reel-engine/multi_renderer.py",
         "segments": render["sections"], "duration_seconds": render["duration"],
         "real_footage_certified": False, "artistic_quality_certified": False,
