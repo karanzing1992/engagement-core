@@ -11,7 +11,8 @@
     "allow_creative_iteration": true,
     "brand_style_locked": true,
     "source_truth_locked": true,
-    "publishing_requires_owner_approval": true
+    "publishing_requires_owner_approval": true,
+    "soundtrack_policy": "Never compose music. Discover and select an existing openly licensed source recording, retain credit and licensing receipts. If unavailable, report blocked for soundtrack-dependent output."
   },
   "models": {
     "creative": [
@@ -111,7 +112,8 @@
       "fps": 30,
       "codec": "h264",
       "audio": "aac",
-      "status": "target_not_v5_video_certified"
+      "status": "target_not_v5_video_certified",
+      "audio_source": "approved third-party music plus authorized original ambience; no AI composition"
     },
     "private_preview": {
       "dimensions": [
@@ -121,7 +123,8 @@
       "fps": 24,
       "codec": "h264",
       "audio": "aac",
-      "status": "v4_1_real_footage_verified"
+      "status": "v4_1_real_footage_verified",
+      "audio_source": "approved existing recording, do not generate substitute"
     },
     "synthetic_test": {
       "dimensions": [
@@ -158,5 +161,47 @@
     "moksha_m3_release_gate_unchanged": true,
     "avoid_mac_thermal_changes": true,
     "secret_egress_prohibited": true
+  },
+  "music": {
+    "mode": "third_party_existing_licensed_tracks_only",
+    "primary_provider": "Openverse",
+    "provider_api": "https://api.openverse.org/v1/audio/",
+    "api_access": "anonymous_free_with_rate_limit",
+    "fallback_providers": [
+      {
+        "name": "Wikimedia Commons",
+        "status": "manual_review_optional"
+      },
+      {
+        "name": "Freesound",
+        "status": "requires_key_and_commercial_API_use_terms"
+      },
+      {
+        "name": "Free Music Archive",
+        "status": "manual_license_check"
+      }
+    ],
+    "allowed_licenses": [
+      "cc0",
+      "pdm",
+      "by"
+    ],
+    "disallowed": [
+      "by-nc",
+      "by-nd",
+      "by-nc-sa",
+      "by-nc-nd",
+      "by-sa",
+      "unknown"
+    ],
+    "composition_allowed": false,
+    "procedurally_synthesized_music_allowed": false,
+    "editorial_music_selection": "style, pacing, rhythm, emotional arc from verified metadata only",
+    "must_verify_original_creator_license_page": true,
+    "credit_required_for_by": true,
+    "retain_source_provenance": true,
+    "final_export_if_music_missing": "block_if_soundtrack_requested",
+    "technical_mix": "ffmpeg loudnorm and fade after human license approval",
+    "rights_review_required": true
   }
 }
