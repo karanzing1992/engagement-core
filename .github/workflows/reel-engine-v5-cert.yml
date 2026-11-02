@@ -26,12 +26,24 @@ jobs:
         working-directory: experiments/reel-engine-v5
         run: |
           set -eu
-          python3 -m unittest -v test_v5_orchestrator.py
-          python3 -m py_compile v5_orchestrator.py
+          python3 -m unittest -v test_v5_orchestrator.py test_music_provider.py
+          python3 -m py_compile v5_orchestrator.py capability_probe.py music_provider.py
           python3 v5_orchestrator.py --shots synthetic_shots.json \
             --brand fixture_brand.txt --brief "Make six very different creative Reel concepts" \
             --versions 6 --profile private_preview --output /tmp/v5_preflight.json
           python3 -c "import json; v=json.load(open('/tmp/v5_preflight.json')); assert v['requested_treatments']==6 and not v['rendered'] and not v['published']"
+      - name: Live Openverse metadata discovery (no music downloaded)
+        working-directory: experiments/reel-engine-v5
+        run: |
+          set -eu
+          python3 music_provider.py search --query "ambient instrumental nature" --limit 6 --output /tmp/reel-v5-music-candidates.json
+          python3 -c "import json; d=json.load(open('/tmp/reel-v5-music-candidates.json')); assert d['rights_status']=='DISCOVERY_ONLY_UNVERIFIED' and d['downloaded_files']==0 and d['composed_audio'] is False"
+      - name: Probe local editor tool registry without editing media
+        working-directory: experiments/reel-engine-v5
+        run: |
+          set -eu
+          python3 capability_probe.py --output /tmp/v5_probe.json
+          python3 -c "import json; d=json.load(open('/tmp/v5_probe.json')); assert d['read_only'] and not d['rendered']"
       - name: Install pinned Groq SDK for optional synthetic creativity proof
         run: python3 -m pip install --user --disable-pip-version-check groq==0.37.1
       - name: Live Groq 120B flexible treatment test (synthetic descriptions only)
