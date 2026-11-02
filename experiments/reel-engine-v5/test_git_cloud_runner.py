@@ -27,6 +27,18 @@ class GitCloudTests(unittest.TestCase):
         with self.assertRaisesRegex(subject.Rejected, "Uncertified"):
             subject.compile_edl(segments, ["S1", "S2", "S3"])
 
+    def test_synthetic_live_preview_audits_unexecuted_effects(self):
+        original = subject.fixture_plan()["versions"][0]["segments"]
+        original[0]["proposed_operations"] = [
+            {"name": "color_grade", "parameters": {"creative_look": "warm"}},
+            {"name": "motion_typography", "parameters": {"text": "test"}}]
+        clean, pending = subject.technical_preview_segments(original)
+        self.assertEqual(len(pending), 2)
+        self.assertEqual([x["name"] for x in pending], ["color_grade", "motion_typography"])
+        self.assertEqual(clean[0]["proposed_operations"], [])
+        self.assertEqual(len(original[0]["proposed_operations"]), 2)
+        self.assertEqual(len(subject.compile_edl(clean, ["S1", "S2", "S3"])), 3)
+
     def test_reject_unrenderable_length(self):
         segments = subject.fixture_plan()["versions"][0]["segments"] * 6
         with self.assertRaisesRegex(subject.Rejected, "1-16"):
