@@ -35,3 +35,6 @@ The Issue workflow validates the issue using GitHub's authenticated actor, runs 
 
 ## Free/open-source gate and rollback
 Existing FFmpeg/libx264, Python stdlib, owned renderer, already configured Groq/Gemini SDKs where available; no new paid SaaS or subscription. Respect GitHub Actions runtime/artifact quotas, model free-tier limits, evidence and legal licenses. Roll back the single new workflow and bridge modules without touching WordPress, private media, MAD Manager or Mac thermal rules.
+
+## Live Groq creative operation audit (2026-11-02 repair)
+Authenticated Groq 120B plans can propose candidate transitions, color looks and typography beyond the existing verified FFmpeg cut adapter. The first issue #107 live test was correctly blocked when an unsupported proposal was encountered; see run 41409134036. The synthetic-only technical-preview mode now logs every proposed but unexecuted operation in the receipt and sets creative_operation_fidelity=false. It renders only validated source cuts and never claims faithful cinematic/artistic execution. This never authorizes dropping effects for a real project, private footage, publication or V5 release certification.
