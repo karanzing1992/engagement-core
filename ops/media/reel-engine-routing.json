@@ -1,0 +1,140 @@
+{
+  "schema_version": "1.0",
+  "policy_id": "MAD-REEL-ENGINE-CROSS-PROJECT-V5-20261102",
+  "status": "default_policy_active_for_new_jobs",
+  "effective_date": "2026-11-02",
+  "default_engine": "reel-engine-v5",
+  "version": "5.0.0",
+  "default_for": [
+    "instagram_reel",
+    "facebook_reel",
+    "youtube_short",
+    "snapchat_spotlight",
+    "youtube_video",
+    "social_video",
+    "brand_video",
+    "promotional_game_trailer",
+    "event_highlight",
+    "website_promo_video"
+  ],
+  "not_for": [
+    "game_runtime_renderer",
+    "live_gameplay_animations",
+    "existing_inflight_jobs",
+    "historical_job_replay",
+    "other_non_video_business_operations"
+  ],
+  "canonical_config": "experiments/reel-engine-v5/v5_config.json",
+  "canonical_docs": "docs/MAD_REEL_ENGINE_V5_BASELINE.md",
+  "routing_scope": "new creative media jobs only; preserves preexisting queue, user approvals and project-specific brands",
+  "projects": [
+    {
+      "id": "moksha_wellness",
+      "display_name": "Moksha Wellness",
+      "scope": "all new promotional Reels, Shorts, and wellness video production",
+      "brand": "MOKSHA MASTER Brand Identity Handbook, Social Golden Rules and Creator Direction",
+      "owner_gate": "Moksha creative QA and M3/M4 publishing signoff"
+    },
+    {
+      "id": "andaz_vibe_stay",
+      "display_name": "Andaz Vibe Stay",
+      "scope": "new hostel/hospitality promotional Reels and Shorts",
+      "brand": "Andaz Vibe Stay/Andaz brand control, not Moksha brand",
+      "owner_gate": "Andaz media rights and owner approval"
+    },
+    {
+      "id": "delulutech",
+      "display_name": "DeluluTech / WP Manager / CRM",
+      "scope": "new product demos and promotion videos; excludes product backends",
+      "brand": "individual product and DeluluTech brand systems",
+      "owner_gate": "client privacy, user auth, demo fixture approval"
+    },
+    {
+      "id": "goa_commune",
+      "display_name": "Goa Community / Commune",
+      "scope": "new community and event promo video",
+      "brand": "community project guidelines",
+      "owner_gate": "participant permission and event rights"
+    },
+    {
+      "id": "synergistica",
+      "display_name": "Synergistica Staffing Solutions",
+      "scope": "new recruitment promo Reels and company films",
+      "brand": "staffing business brand, no invented job claims",
+      "owner_gate": "consent and accuracy"
+    },
+    {
+      "id": "shaadi_auntys_dodge",
+      "display_name": "Shaadi Aunty's Dodge game",
+      "scope": "game teasers/trailers/social highlights only, NOT the runtime game animation/rendering pipeline",
+      "brand": "game's visual and asset guidelines",
+      "owner_gate": "game asset rights and owner artistic approval"
+    },
+    {
+      "id": "other_owner_projects",
+      "display_name": "Other current and future owned projects",
+      "scope": "opt-in new video briefs inherit V5 engine unless explicitly overridden by a project-specific approved requirement",
+      "brand": "must attach matching project's brand profile",
+      "owner_gate": "source rights and project owner approval"
+    }
+  ],
+  "creative_roles": {
+    "director": "groq openai/gpt-oss-120b",
+    "vision": [
+      "gemini-3.8-flash preferred where available",
+      "gemini-3.6-flash fallback"
+    ],
+    "execution_planner": "groq openai/gpt-oss-20b",
+    "editor_adapters": [
+      "FilmCraft MCP verified subset",
+      "FFmpeg verified subset"
+    ],
+    "new_providers": "capability registry with verified adapter and cost/consent controls"
+  },
+  "music": {
+    "policy": "existing third-party openly licensed recordings only",
+    "composition_allowed": false,
+    "default_discovery": [
+      "Openverse",
+      "Wikimedia Commons"
+    ],
+    "approved_licenses": [
+      "CC0",
+      "public domain mark",
+      "CC BY with credit"
+    ],
+    "must_verify_original_source": true,
+    "original_ambience_preserve_when_licensed": true,
+    "no_unlicensed_fallback": true
+  },
+  "job_requirements": [
+    "per-project brand context",
+    "source video consent and license proof",
+    "source grounded timestamps and approved creative brief",
+    "operation-level editor capability verification",
+    "no model shell",
+    "thermal and quota budgets",
+    "private media storage and attribution manifest",
+    "creative and technical QA",
+    "owner approval before publishing"
+  ],
+  "replay_and_legacy": {
+    "latest_default": "v5",
+    "legacy_v4_1_use": "manual exception only, label as historical capabilities and never regenerate AI music in V5",
+    "existing_jobs_unmodified": true,
+    "silent_fallback": false
+  },
+  "certification": {
+    "policy_and_synthetic_creative": "passed",
+    "v5_real_footage_music": "not yet certified",
+    "legacy_v4_1_real_preview": "passed previously",
+    "social_publication": "owner gate",
+    "no_claim_all_tools_work": true
+  },
+  "ops": {
+    "manager_authority": "existing MAD Manager only",
+    "mac_thermal_controls": "preserve",
+    "no_background_schedule_installed": true,
+    "branch_gate": "merge, test, install local pointer and receipts before calling fully synchronized"
+  }
+}
