@@ -85,7 +85,7 @@ def search(query,limit=6,*,opener=None):
     if not 1<=limit<=MAX_RESULTS:
         raise ValueError("Music discovery limited to 1..12 suggestions per query")
     qs=urllib.parse.urlencode({"q":query,"license":"cc0,by,pdm",
-                                "page_size":limit,"page":1,
+                                "page_size":limit,"page":1,"category":"music",
                                 "mature":"false","filter_dead":"true"})
     url=SEARCH_URL+"?"+qs
     if not url.startswith(SEARCH_URL+"?"):
@@ -221,17 +221,28 @@ def mix(video,approved_audio_dir,outfile,*,duration=None):
     if not (1.0<=float(dur)<=180.0):
         raise LicenseError("Music mix duration outside approved batch profile")
     fade_start=max(0.0,float(dur)-1.1)
+    probe_audio=subprocess.run(["ffprobe","-v","error","-select_streams","a",
+        "-show_entries","stream=index","-of","json",str(video)],
+        capture_output=True,text=True,timeout=18,check=True)
+    has_source_ambience=bool(json.loads(probe_audio.stdout).get("streams",[]))
+    music_chain="volume=0.62,afade=t=out:st="+str(round(fade_start,3))+":d=1.1"
+    if has_source_ambience:
+        # Never discard the original source ambience: mix it under the licensed
+        # recording, with a final loudness ceiling. Only after source rights QA.
+        mix_filter=("[0:a:0]volume=0.3[amb];[1:a:0]"+music_chain+
+                    "[mus];[amb][mus]amix=inputs=2:duration=first:normalize=0,"
+                    "loudnorm=I=-16:TP=-1.5:LRA=11[outa]")
+    else:
+        mix_filter="[1:a:0]"+music_chain+",loudnorm=I=-16:TP=-1.5:LRA=11[outa]"
     args=["ffmpeg","-y","-hide_banner","-loglevel","error",
           "-i",str(video),"-stream_loop","-1","-i",str(audio),
-          "-map","0:v:0","-map","1:a:0","-af",
-          "volume=0.62,loudnorm=I=-16:TP=-1.5:LRA=11,"
-          "afade=t=out:st="+str(round(fade_start,3))+":d=1.1",
+          "-filter_complex",mix_filter,"-map","0:v:0","-map","[outa]",
           "-t",str(round(float(dur),3)),"-c:v","copy","-c:a","aac",
           "-b:a","160k","-movflags","+faststart",str(target)]
     subprocess.run(args,check=True,timeout=150)
     return {"music_provenance_verified":True,"music_track":m["track"]["title"],
             "video":str(target),"video_sha256":sha256_file(target),
-            "composed_audio":False,"published":False}
+            "composed_audio":False,"published":False,"original_ambience_preserved":has_source_ambience}
 
 
 def main():
