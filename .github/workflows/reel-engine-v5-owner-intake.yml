@@ -1,0 +1,71 @@
+name: V5 owner-approved certification intake
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Approved certification issue number
+        required: true
+        type: string
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: v5-intake-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+jobs:
+  intake:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'v5-certify'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve approved issue and verify source
+        id: intake
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          SOURCE_URL: ${{ secrets.V5_CERT_SOURCE_URL }}
+          EXPECTED_SHA: 931a373e5b392de395bb5d6e0a11780e83dbe43977715129c5796faac1b13a6f
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh issue view "$ISSUE_NUMBER" --json number,title,body,state > /tmp/v5-issue.json
+          python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/v5-issue.json'))
+          assert d['state']=='OPEN' and d['number']==99, 'Only owner-approved issue #99 admitted'
+          assert '1000083489.mp4' in d['title']
+          PY
+          if [ -z "$SOURCE_URL" ]; then
+            echo "status=BLOCKED_SOURCE_AUTH" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/v5-private"
+          chmod 700 "$RUNNER_TEMP/v5-private"
+          curl --fail --location --silent --show-error --retry 2 --max-time 120 "$SOURCE_URL" -o "$RUNNER_TEMP/v5-private/source.mp4"
+          echo "$EXPECTED_SHA  $RUNNER_TEMP/v5-private/source.mp4" | sha256sum -c -
+          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$RUNNER_TEMP/v5-private/source.mp4" >/dev/null
+          echo "status=SOURCE_VERIFIED" >> "$GITHUB_OUTPUT"
+      - name: V5 contract preflight
+        if: steps.intake.outputs.status == 'SOURCE_VERIFIED'
+        working-directory: experiments/reel-engine-v5
+        run: python3 -m unittest -q test_v5_orchestrator.py test_music_provider.py
+      - name: Publish accurate intake receipt
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          STATUS: ${{ steps.intake.outputs.status }}
+          OUTCOME: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          if [ "$STATUS" = "SOURCE_VERIFIED" ] && [ "$OUTCOME" = "success" ]; then
+            MSG="V5 intake: SOURCE_VERIFIED and contract preflight passed. Full creative render, music rights and artistic certification remain pending; no release."
+          elif [ "$STATUS" = "BLOCKED_SOURCE_AUTH" ]; then
+            MSG="V5 intake: BLOCKED_SOURCE_AUTH. Set repository secret V5_CERT_SOURCE_URL to an expiring authenticated direct-download URL for the privately held Drive source, then rerun. Never make source public."
+          else
+            MSG="V5 intake: FAILED or interrupted. Inspect workflow run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. No render/certification claim."
+          fi
+          gh issue comment "$ISSUE_NUMBER" --body "$MSG"
