@@ -48,7 +48,7 @@ def authorize(event):
         raise GateRejected("Invalid project")
     if payload.get("job_type") not in ALLOWED_TYPES:
         raise GateRejected("Unsupported video job type")
-    if payload.get("mode") not in {"fixture", "live"}:
+    if payload.get("mode") not in {"fixture", "live", "multimodal"}:
         raise GateRejected("Unsupported inference mode")
     if payload.get("profile") not in {"synthetic_test", "instagram_reel"}:
         raise GateRejected("Unsupported export profile")

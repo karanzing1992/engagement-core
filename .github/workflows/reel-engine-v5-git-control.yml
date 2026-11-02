@@ -22,7 +22,7 @@ on:
         description: Synthetic test with offline fixture or live Groq 120B
         required: true
         type: choice
-        options: [fixture, live]
+        options: [fixture, live, multimodal]
         default: fixture
       profile:
         description: Synthetic verification output profile
@@ -81,16 +81,20 @@ jobs:
             mode="${MANUAL_MODE:-fixture}"
             profile="${MANUAL_PROFILE:-synthetic_test}"
           fi
-          case "$mode" in fixture|live) ;; *) exit 2;; esac
+          case "$mode" in fixture|live|multimodal) ;; *) exit 2;; esac
           case "$profile" in synthetic_test|instagram_reel) ;; *) exit 2;; esac
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "profile=$profile" >> "$GITHUB_OUTPUT"
       - name: Install Groq provider SDK only if live synthetic mode requested
-        if: steps.job.outputs.mode == 'live'
+        if: steps.job.outputs.mode == 'live' || steps.job.outputs.mode == 'multimodal'
         run: python3 -m pip install --disable-pip-version-check 'groq==0.37.1'
+      - name: Install Pillow only for real synthetic-frame Gemini analysis
+        if: steps.job.outputs.mode == 'multimodal'
+        run: python3 -m pip install --disable-pip-version-check 'Pillow==11.3.0'
       - name: V5 director to guarded EDL to existing FFmpeg renderer to independent QA
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RUN_MODE: ${{ steps.job.outputs.mode }}
           RUN_PROFILE: ${{ steps.job.outputs.profile }}
         run: |

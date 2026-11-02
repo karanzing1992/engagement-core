@@ -68,14 +68,23 @@ def technical_preview_segments(segments):
     return clean, unexecuted
 
 
-def create_synthetic_sources(folder, shots):
+def create_synthetic_sources(folder, shots, vision_images=None):
+    """Use the SAME synthetic drawings presented to Gemini for multimodal runs."""
     paths = []
     for i, shot in enumerate(shots.values()):
         path = folder / ("synthetic-%02d.mp4" % i)
-        run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-             "-f", "lavfi", "-i", "color=c=%s:s=320x180:r=15" % COLORS[i % len(COLORS)],
-             "-t", str(shot["duration_seconds"]), "-c:v", "libx264",
-             "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-an", str(path)])
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+        if vision_images is not None:
+            image = vision_images / ("scene_%d.jpg" % (i + 1))
+            if not image.is_file() or image.stat().st_size < 1024:
+                raise Rejected("Gemini input image missing; cannot establish visual source parity")
+            command += ["-loop", "1", "-framerate", "15", "-i", str(image)]
+        else:
+            command += ["-f", "lavfi", "-i",
+                        "color=c=%s:s=320x180:r=15" % COLORS[i % len(COLORS)]]
+        command += ["-t", str(shot["duration_seconds"]), "-c:v", "libx264",
+                    "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-an", str(path)]
+        run(command)
         paths.append(path)
     return paths
 
@@ -101,19 +110,47 @@ def verify_video(path, width, height, fps):
             "sound": "silent diagnostic audio, NOT music or cleared soundtrack"}
 
 
+def describe_synthetic_vision(result):
+    """Append actual Gemini output as corroboration, never invented provenance."""
+    if not isinstance(result, dict) or not isinstance(result.get("shots"), list) or not result["shots"]:
+        raise Rejected("Gemini did not analyze synthetic frames")
+    meta = result.get("_meta") or {}
+    model = meta.get("model_used")
+    if meta.get("synthetic_only") is not True or not isinstance(model, str) or not model.startswith("gemini-"):
+        raise Rejected("Vision response missing verified synthetic model identity")
+    brief = ("Gemini analysis of synthetic drawings used as actual render sources ONLY. "
+             "Use authenticated observed descriptions for corroboration; "
+             "original V5 verified shot timecodes and source facts take precedence. "
+             "Never claim these are real venue or guest images. "
+             + json.dumps(result["shots"], ensure_ascii=False)[:2500])
+    return brief, {"model": model, "shot_count": len(result["shots"]),
+                   "synthetic_only": True, "real_guest_data_sent": False}
+
+
 def execute(mode, destination, profile):
-    if mode not in ("fixture", "live") or profile not in ("synthetic_test", "instagram_reel"):
+    if mode not in ("fixture", "live", "multimodal") or profile not in ("synthetic_test", "instagram_reel"):
         raise Rejected("Only bounded synthetic certification jobs are accepted")
     manifest = read_json(HERE / "synthetic_shots.json")
     if manifest.get("content_origin") != "GENERATED TEXT FIXTURE ONLY - ZERO CUSTOMER FOOTAGE":
         raise Rejected("Source identity must be the synthetic-only public fixture")
     cfg, registry = load_system(HERE / "v5_config.json", HERE / "capability_registry.json")
     shots = validate_source(manifest, cfg)
-    if mode == "live":
+    vision_meta = {"status": "not_executed", "synthetic_only": True}
+    vision_brief = ""
+    if mode == "multimodal":
+        # Reuse the independently proven V4.2 synthetic-only vision adapter.
+        # It constructs its own test drawings; it cannot open guest paths/URLs.
+        sys.path.insert(0, str(ROOT / "experiments" / "reel-engine-v4_2"))
+        from synthetic_multimodel import call_gemini
+        vision_brief, vision_meta = describe_synthetic_vision(call_gemini())
+        vision_meta["status"] = "live_synthetic_observation"
+    if mode in ("live", "multimodal"):
         required_clearance(manifest, external=True)
         prompt = build_director_prompt(cfg, shots,
             (HERE / "fixture_brand.txt").read_text(encoding="utf-8"),
-            "One synthetic-only edit of 3 short segments; do not propose unsupported tools.",
+            "One synthetic-only edit of 3 short segments. "
+            "Proposed effects without an executor will be audited as unexecuted. "
+            + vision_brief,
             1, profile)
         proposal = call_groq(cfg, prompt, os.environ.get("GROQ_API_KEY", ""))
     else:
@@ -132,7 +169,9 @@ def execute(mode, destination, profile):
     destination.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(prefix="v5-synthetic-") as name:
         tmp = Path(name)
-        originals = create_synthetic_sources(tmp, shots)
+        vision_images = (ROOT / "experiments" / "reel-engine-v4_2" / "synthetic_output"
+                         if mode == "multimodal" else None)
+        originals = create_synthetic_sources(tmp, shots, vision_images=vision_images)
         output = destination / "v5-synthetic-diagnostic.mp4"
         render = render_multiple(originals, output, {
             "target_seconds": duration, "width": width, "height": height,
@@ -149,7 +188,9 @@ def execute(mode, destination, profile):
         video = verify_video(output, width, height, fps)
     report = {"engine": "MAD Reel Engine", "version": "5.0.0",
         "status": "SYNTHETIC_TECHNICAL_CERTIFICATION_ONLY",
-        "mode": mode, "profile": profile, "model_inference": mode == "live",
+        "mode": mode, "profile": profile, "model_inference": mode in ("live", "multimodal"),
+        "vision_analysis": vision_meta,
+        "synthetic_render_sources_match_gemini_frames": mode == "multimodal",
         "director_planning_validated": True,
         "deferred_operations": ops["deferred_operations"],
         "unexecuted_operations": unexecuted,
@@ -166,7 +207,7 @@ def execute(mode, destination, profile):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--mode", choices=("fixture", "live"), default="fixture")
+    p.add_argument("--mode", choices=("fixture", "live", "multimodal"), default="fixture")
     p.add_argument("--profile", choices=("synthetic_test", "instagram_reel"),
                    default="synthetic_test")
     p.add_argument("--out-dir", type=Path, required=True)

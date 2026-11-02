@@ -39,6 +39,29 @@ class GitCloudTests(unittest.TestCase):
         self.assertEqual(len(original[0]["proposed_operations"]), 2)
         self.assertEqual(len(subject.compile_edl(clean, ["S1", "S2", "S3"])), 3)
 
+    def test_vision_response_requires_synthetic_identity(self):
+        ok = {"shots": [{"id": "S1", "visible": "blue water"}],
+              "_meta": {"synthetic_only": True, "model_used": "gemini-3.6-flash"}}
+        brief, proof = subject.describe_synthetic_vision(ok)
+        self.assertIn("blue water", brief)
+        self.assertTrue(proof["synthetic_only"])
+        self.assertFalse(proof["real_guest_data_sent"])
+        for bad in [[], {"shots": []},
+                    {"shots": ok["shots"], "_meta": {"synthetic_only": False,
+                                                     "model_used": "gemini-3.6-flash"}},
+                    {"shots": ok["shots"], "_meta": {"synthetic_only": True,
+                                                     "model_used": "unverified"}}]:
+            with self.assertRaises(subject.Rejected):
+                subject.describe_synthetic_vision(bad)
+
+    def test_multimodal_requires_same_render_source_as_vision_input(self):
+        with TemporaryDirectory() as tmp:
+            img_dir = Path(tmp) / "images"
+            img_dir.mkdir()
+            with self.assertRaisesRegex(subject.Rejected, "Gemini input image missing"):
+                subject.create_synthetic_sources(Path(tmp), {
+                    "S1": {"duration_seconds": 3}}, vision_images=img_dir)
+
     def test_reject_unrenderable_length(self):
         segments = subject.fixture_plan()["versions"][0]["segments"] * 6
         with self.assertRaisesRegex(subject.Rejected, "1-16"):

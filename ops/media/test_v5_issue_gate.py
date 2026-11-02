@@ -14,6 +14,17 @@ class TestGate(unittest.TestCase):
         self.assertFalse(accepted["publishing"])
         self.assertFalse(accepted["private_media"])
 
+    def test_owner_multimodal_is_synthetic_only(self):
+        import json
+        e = copy.deepcopy(BASE)
+        data = json.loads(e["issue"]["body"])
+        data["mode"] = "multimodal"
+        e["issue"]["body"] = json.dumps(data)
+        result = authorize(e)
+        self.assertEqual(result["mode"], "multimodal")
+        self.assertFalse(result["private_media"])
+        self.assertFalse(result["publishing"])
+
     def test_other_user_rejected(self):
         e = copy.deepcopy(BASE); e["issue"]["user"]["login"] = "attacker"
         with self.assertRaises(GateRejected): authorize(e)
