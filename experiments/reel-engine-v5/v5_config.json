@@ -1,6 +1,6 @@
 {
   "version": "5.0.0",
-  "status": "capability_orchestration_candidate",
+  "status": "default_for_all_new_reel_jobs__real_media_certification_pending",
   "policy": "creative_freedom_with_guarded_execution",
   "creative": {
     "mode": "open_director",
@@ -203,5 +203,9 @@
     "final_export_if_music_missing": "block_if_soundtrack_requested",
     "technical_mix": "ffmpeg loudnorm and fade after human license approval",
     "rights_review_required": true
-  }
+  },
+  "cross_project_routing": "ops/media/reel-engine-routing.json",
+  "default_for_new_video_jobs": true,
+  "real_media_production_certified": false,
+  "existing_jobs_unchanged": true
 }
