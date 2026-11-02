@@ -1,0 +1,60 @@
+name: Reel Engine V5 - GitHub Hosted Private Render
+on:
+  workflow_dispatch:
+    inputs:
+      source_artifact_run:
+        description: 'Workflow run ID containing private source artifact'
+        required: true
+        type: string
+      source_artifact_name:
+        description: 'Source artifact name'
+        default: 'v5-source'
+        required: true
+        type: string
+      job_id:
+        description: 'Private render identifier'
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: v5-render-${{ inputs.job_id }}
+  cancel-in-progress: false
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+      - name: Retrieve private source artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ${{ inputs.source_artifact_name }}
+          run-id: ${{ inputs.source_artifact_run }}
+          github-token: ${{ github.token }}
+          path: source
+      - name: Verify source and render private 1080x1920 draft
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          test "$(find source -type f -name '*.mp4' | wc -l)" -eq 1
+          input="$(find source -type f -name '*.mp4' -print -quit)"
+          ffprobe -v error "$input" >/dev/null
+          ffmpeg -hide_banner -loglevel error -nostdin -y -i "$input" -t 19 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,eq=contrast=1.04:saturation=1.06,fade=t=in:st=0:d=0.5,fade=t=out:st=18.4:d=0.6" -c:v libx264 -preset veryfast -crf 21 -pix_fmt yuv420p -c:a aac -b:a 160k -movflags +faststart output/v5-private-draft.mp4
+          ffprobe -v error -show_entries stream=width,height -show_entries format=duration -of json output/v5-private-draft.mp4 > output/verification.json
+          sha256sum output/v5-private-draft.mp4 > output/SHA256SUMS
+      - name: Store private render and QA receipts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v5-private-render-${{ inputs.job_id }}
+          path: output/
+          retention-days: 30
+          if-no-files-found: error
