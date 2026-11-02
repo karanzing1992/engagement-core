@@ -68,14 +68,23 @@ def technical_preview_segments(segments):
     return clean, unexecuted
 
 
-def create_synthetic_sources(folder, shots):
+def create_synthetic_sources(folder, shots, vision_images=None):
+    """Use the SAME synthetic drawings presented to Gemini for multimodal runs."""
     paths = []
     for i, shot in enumerate(shots.values()):
         path = folder / ("synthetic-%02d.mp4" % i)
-        run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-             "-f", "lavfi", "-i", "color=c=%s:s=320x180:r=15" % COLORS[i % len(COLORS)],
-             "-t", str(shot["duration_seconds"]), "-c:v", "libx264",
-             "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-an", str(path)])
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+        if vision_images is not None:
+            image = vision_images / ("scene_%d.jpg" % (i + 1))
+            if not image.is_file() or image.stat().st_size < 1024:
+                raise Rejected("Gemini input image missing; cannot establish visual source parity")
+            command += ["-loop", "1", "-framerate", "15", "-i", str(image)]
+        else:
+            command += ["-f", "lavfi", "-i",
+                        "color=c=%s:s=320x180:r=15" % COLORS[i % len(COLORS)]]
+        command += ["-t", str(shot["duration_seconds"]), "-c:v", "libx264",
+                    "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-an", str(path)]
+        run(command)
         paths.append(path)
     return paths
 
@@ -109,7 +118,7 @@ def describe_synthetic_vision(result):
     model = meta.get("model_used")
     if meta.get("synthetic_only") is not True or not isinstance(model, str) or not model.startswith("gemini-"):
         raise Rejected("Vision response missing verified synthetic model identity")
-    brief = ("Gemini analysis of separately generated synthetic drawings ONLY. "
+    brief = ("Gemini analysis of synthetic drawings used as actual render sources ONLY. "
              "Use authenticated observed descriptions for corroboration; "
              "original V5 verified shot timecodes and source facts take precedence. "
              "Never claim these are real venue or guest images. "
@@ -160,7 +169,9 @@ def execute(mode, destination, profile):
     destination.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(prefix="v5-synthetic-") as name:
         tmp = Path(name)
-        originals = create_synthetic_sources(tmp, shots)
+        vision_images = (ROOT / "experiments" / "reel-engine-v4_2" / "synthetic_output"
+                         if mode == "multimodal" else None)
+        originals = create_synthetic_sources(tmp, shots, vision_images=vision_images)
         output = destination / "v5-synthetic-diagnostic.mp4"
         render = render_multiple(originals, output, {
             "target_seconds": duration, "width": width, "height": height,
@@ -179,6 +190,7 @@ def execute(mode, destination, profile):
         "status": "SYNTHETIC_TECHNICAL_CERTIFICATION_ONLY",
         "mode": mode, "profile": profile, "model_inference": mode in ("live", "multimodal"),
         "vision_analysis": vision_meta,
+        "synthetic_render_sources_match_gemini_frames": mode == "multimodal",
         "director_planning_validated": True,
         "deferred_operations": ops["deferred_operations"],
         "unexecuted_operations": unexecuted,
