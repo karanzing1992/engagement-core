@@ -1,0 +1,11 @@
+{
+  "track_id": "REPLACE_WITH_OPENVERSE_TRACK_UUID",
+  "original_source_page": "https://original-source.example.com/track",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "source_license_proof_url": "https://original-source.example.com/track/license",
+  "reviewer_confirmed_rights": false,
+  "attribution_approved": false,
+  "reviewed_by": "",
+  "reviewed_on": "YYYY-MM-DD",
+  "notes": "Set reviewer_confirmed_rights true only after independently checking original composer/recording license, rights and commercial/social use. Original source audio must be downloaded through authorized source; never use a search result as proof."
+}
