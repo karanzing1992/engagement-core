@@ -23,12 +23,12 @@ jobs:
           set -eu
           python3 -m unittest -v test_v5_orchestrator.py test_music_provider.py
           python3 -m py_compile v5_orchestrator.py capability_probe.py music_provider.py
-      - name: Verify Openverse anonymous live music search without downloading tracks
+      - name: Verify Openverse or Wikimedia Commons live music catalog without downloading tracks
         working-directory: experiments/reel-engine-v5
         run: |
           set -eu
-          python3 music_provider.py search --query 'ambient instrumental' --limit 6 --output openverse_live_receipt.json
-          python3 -c 'import json; d=json.load(open("openverse_live_receipt.json")); assert d["rights_status"]=="DISCOVERY_ONLY_UNVERIFIED" and d["downloaded_files"]==0 and d["composed_audio"]==False; print("OPENVERSE_ANONYMOUS_LIVE_PASS", len(d["candidates"]))'
+          python3 music_provider.py search --provider auto --query 'ambient instrumental' --limit 6 --output openverse_live_receipt.json
+          python3 -c 'import json; d=json.load(open("openverse_live_receipt.json")); assert d["provider"] in ("openverse","wikimedia_commons") and d["rights_status"]=="DISCOVERY_ONLY_UNVERIFIED" and d["downloaded_files"]==0 and d["composed_audio"]==False; print("OPEN_LICENSE_CATALOG_LIVE_PASS", d["provider"], len(d["candidates"]))'
       - name: Inspect installed FFmpeg tools (no source footage)
         working-directory: experiments/reel-engine-v5
         run: |
