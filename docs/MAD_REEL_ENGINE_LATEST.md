@@ -1,5 +1,7 @@
 # MAD Reel Engine — Version Baselines & Certification
 
+**DEFAULT FOR EVERY NEW PROJECT VIDEO/REEL JOB: V5.0.0** — [Cross-project routing and project-brand boundaries](REEL_ENGINE_V5_CROSS_PROJECT_DEFAULT.md). Includes Moksha, Andaz, DeluluTech demos, Goa Community, Synergistica, Shaadi Aunty's Dodge promotional trailers and future registered projects. This is an owner-selected planning/production toolchain; it does not attest finished V5 real-media/rights/artistic certification. Existing/in-flight work stays on its original version; no automatic v4.1 fallback.
+
 **CURRENT ENGINE ARCHITECTURE AND CONFIGURATION BASELINE: [Reel Engine V5.0.0](MAD_REEL_ENGINE_V5_BASELINE.md)** — open-brief Groq 120B director, flexible treatment structures, extensible provider/tool registry, optional Gemini vision, guarded EDL execution and **existing free/openly-licensed third-party music only** (Openverse discovery + source license verification, no AI-composed soundtrack). Development baseline does **not** certify every effect, ArtCraft or any real-footage release.
 
 **LAST VERIFIED REAL-FOOTAGE PRIVATE PREVIEW OUTPUT: V4.1** — three technically validated Arambol cuts; older procedural audio is historical and must not be copied into new V5 content. A new licensed-music real-footage certification is still required.
