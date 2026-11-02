@@ -1,0 +1,162 @@
+{
+  "version": "5.0.0",
+  "status": "capability_orchestration_candidate",
+  "policy": "creative_freedom_with_guarded_execution",
+  "creative": {
+    "mode": "open_director",
+    "default_treatments": 3,
+    "allow_user_requested_treatments": true,
+    "allow_non_linear_story": true,
+    "allow_model_generated_tool_suggestions": true,
+    "allow_creative_iteration": true,
+    "brand_style_locked": true,
+    "source_truth_locked": true,
+    "publishing_requires_owner_approval": true
+  },
+  "models": {
+    "creative": [
+      {
+        "provider": "groq",
+        "model": "openai/gpt-oss-120b",
+        "role": "director",
+        "temperature": 0.85,
+        "max_completion_tokens": 4700,
+        "credential_env": "GROQ_API_KEY",
+        "verified": "live_synthetic_20261102"
+      },
+      {
+        "provider": "groq",
+        "model": "openai/gpt-oss-20b",
+        "role": "alternate_director",
+        "temperature": 0.9,
+        "max_completion_tokens": 5500,
+        "credential_env": "GROQ_API_KEY",
+        "verified": "v4_1_real_source_reviewed"
+      }
+    ],
+    "vision": [
+      {
+        "provider": "gemini",
+        "model": "gemini-3.8-flash",
+        "role": "vision",
+        "verified": "metadata_only_generation_capacity_error",
+        "credential_env": "GEMINI_API_KEY"
+      },
+      {
+        "provider": "gemini",
+        "model": "gemini-3.6-flash",
+        "role": "vision",
+        "verified": "live_synthetic_20261102",
+        "credential_env": "GEMINI_API_KEY"
+      }
+    ],
+    "execution": [
+      {
+        "provider": "groq",
+        "model": "openai/gpt-oss-20b",
+        "role": "edit_planner",
+        "temperature": 0.15,
+        "credential_env": "GROQ_API_KEY",
+        "verified": "live_synthetic_20261102"
+      }
+    ],
+    "critique": [
+      {
+        "provider": "groq",
+        "model": "openai/gpt-oss-120b",
+        "role": "art_director_review",
+        "temperature": 0.55,
+        "credential_env": "GROQ_API_KEY",
+        "verified": "model_connection_not_separate_critic_cert"
+      }
+    ]
+  },
+  "creative_brief": {
+    "nonnegotiable": [
+      "real visual provenance",
+      "actual approved brand tokens",
+      "copyright and person permissions",
+      "no invented venue scenes or logo",
+      "no unsupported medical claims",
+      "no automatic publishing"
+    ],
+    "flexible": [
+      "duration",
+      "pace",
+      "tone",
+      "genre",
+      "number of treatments",
+      "cut count",
+      "visual devices",
+      "sound design",
+      "transitions",
+      "story structure",
+      "motion typography",
+      "color treatment"
+    ]
+  },
+  "source": {
+    "provenance_required": true,
+    "shot_manifest_required": true,
+    "allow_unverified_source": false,
+    "upload_to_public_ci": false,
+    "external_frame_upload_default": false
+  },
+  "profiles": {
+    "instagram_reel": {
+      "dimensions": [
+        1080,
+        1920
+      ],
+      "fps": 30,
+      "codec": "h264",
+      "audio": "aac",
+      "status": "target_not_v5_video_certified"
+    },
+    "private_preview": {
+      "dimensions": [
+        720,
+        1280
+      ],
+      "fps": 24,
+      "codec": "h264",
+      "audio": "aac",
+      "status": "v4_1_real_footage_verified"
+    },
+    "synthetic_test": {
+      "dimensions": [
+        360,
+        640
+      ],
+      "fps": 15,
+      "codec": "h264",
+      "audio": null,
+      "status": "v4_2_synthetic_verified"
+    }
+  },
+  "tools": {
+    "registry_path": "capability_registry.json",
+    "allow_register_new_adapter": true,
+    "require_explicit_adapter_install": true,
+    "require_verified_execution": true,
+    "never_execute_model_shell": true,
+    "unavailable_ops": "defer_and_report"
+  },
+  "budget": {
+    "max_treatments_per_job": 12,
+    "max_source_seconds": 14400,
+    "max_timeline_seconds_per_treatment": 180,
+    "max_shots_per_manifest": 1000,
+    "max_render_seconds_total_per_job": 600,
+    "max_external_calls_per_job": 15,
+    "fee_policy": "free_or_free_tier_only_with_provider_account_verified",
+    "resource_caps_not_creative_style_limits": true
+  },
+  "governance": {
+    "production_social_publishing": false,
+    "owner_artistic_approval_required": true,
+    "moksha_m3_release_gate_unchanged": true,
+    "avoid_mac_thermal_changes": true,
+    "secret_egress_prohibited": true
+  }
+}
