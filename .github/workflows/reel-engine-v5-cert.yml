@@ -1,0 +1,70 @@
+name: Reel Engine V5 | Creative Freedom & Capability Certification
+
+on:
+  push:
+    branches:
+      - feature/reel-engine-v5-open-capability-20261102
+    paths:
+      - experiments/reel-engine-v5/**
+      - .github/workflows/reel-engine-v5-cert.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reel-v5-cert-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  creative-and-capabilities:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify V5 contracts and tool registry with no network or footage
+        working-directory: experiments/reel-engine-v5
+        run: |
+          set -eu
+          python3 -m unittest -v test_v5_orchestrator.py test_music_provider.py
+          python3 -m py_compile v5_orchestrator.py capability_probe.py music_provider.py
+          python3 v5_orchestrator.py --shots synthetic_shots.json \
+            --brand fixture_brand.txt --brief "Make six very different creative Reel concepts" \
+            --versions 6 --profile private_preview --output /tmp/v5_preflight.json
+          python3 -c "import json; v=json.load(open('/tmp/v5_preflight.json')); assert v['requested_treatments']==6 and not v['rendered'] and not v['published']"
+      - name: Live Openverse metadata discovery (no music downloaded)
+        working-directory: experiments/reel-engine-v5
+        run: |
+          set -eu
+          python3 music_provider.py search --query "ambient instrumental nature" --limit 6 --output /tmp/reel-v5-music-candidates.json
+          python3 -c "import json; d=json.load(open('/tmp/reel-v5-music-candidates.json')); assert d['rights_status']=='DISCOVERY_ONLY_UNVERIFIED' and d['downloaded_files']==0 and d['composed_audio'] is False"
+      - name: Probe local editor tool registry without editing media
+        working-directory: experiments/reel-engine-v5
+        run: |
+          set -eu
+          python3 capability_probe.py --output /tmp/v5_probe.json
+          python3 -c "import json; d=json.load(open('/tmp/v5_probe.json')); assert d['read_only'] and not d['rendered']"
+      - name: Install pinned Groq SDK for optional synthetic creativity proof
+        run: python3 -m pip install --user --disable-pip-version-check groq==0.37.1
+      - name: Live Groq 120B flexible treatment test (synthetic descriptions only)
+        working-directory: experiments/reel-engine-v5
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          set -eu
+          test -n "${GROQ_API_KEY:-}"
+          python3 v5_orchestrator.py --shots synthetic_shots.json \
+            --brand fixture_brand.txt \
+            --brief "Write three truly different nature-based cinematic Reel treatments; surprise me with distinct structure and visual ideas, use only the provided synthetic frames" \
+            --versions 3 --profile private_preview \
+            --authorize-external-shot-metadata --live-groq \
+            --output v5_synthetic_creative_receipt.json
+          python3 -c "import json; d=json.load(open('v5_synthetic_creative_receipt.json')); assert d['status']=='planned_unrendered' and len(d['concepts'])==3 and not d['published']"
+      - name: Upload non-private creative receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-v5-synthetic-planning-${{ github.run_number }}
+          path: experiments/reel-engine-v5/v5_synthetic_creative_receipt.json
+          retention-days: 7
+          if-no-files-found: warn
