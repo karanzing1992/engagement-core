@@ -119,3 +119,14 @@ jobs:
         run: |
           gh issue comment "$ISSUE" --repo "$REPO" --body \
             "V5 GitHub synthetic technical integration passed. Receipt + MP4: $RUN_URL (Actions artifact, 7-day retention). This is NOT real-footage, music-rights or artistic/release certification. No social publishing."
+
+      - name: Return failed certification status to owner's GitHub issue
+        if: failure() && github.event_name == 'issues'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue comment "$ISSUE" --repo "$REPO" --body \
+            "V5 synthetic certification FAILED or was blocked. Inspect job logs: $RUN_URL. No production, private-media, music-rights or artistic certification is implied; no social publishing."
