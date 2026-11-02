@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createMcpHandler } from "agents/mcp";
 import { z } from "zod";
 
+function constantTimeEqual(a,b) { if (typeof a!=="string" || typeof b!=="string" || a.length!==b.length) return false; let d=0; for(let i=0;i<a.length;i++) d|=a.charCodeAt(i)^b.charCodeAt(i); return d===0; }
 function createServer(env) {
   const server = new McpServer({name:"moksha-reel-engine-v5",version:"0.1.0"});
   const gh = async (path, options={}) => {
@@ -10,7 +11,7 @@ function createServer(env) {
       headers:{"Authorization":"Bearer "+env.GITHUB_TOKEN,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","User-Agent":"moksha-v5-mcp",...(options.headers||{})}
     });
     const body = await response.text();
-    if (!response.ok) throw new Error("GitHub API HTTP "+response.status+": "+body.slice(0,400));
+    if (!response.ok) throw new Error("GitHub API HTTP "+response.status);
     return body ? JSON.parse(body) : {};
   };
   const response = value => ({content:[{type:"text",text:JSON.stringify(value)}]});
@@ -28,7 +29,7 @@ function createServer(env) {
 export default {
   async fetch(request, env, ctx) {
     const token=request.headers.get("Authorization")?.replace(/^Bearer /i,"");
-    if(!env.MCP_ACCESS_TOKEN || !env.GITHUB_TOKEN || !token || token!==env.MCP_ACCESS_TOKEN) return new Response("Unauthorized",{status:401,headers:{"WWW-Authenticate":"Bearer"}});
+    if(!env.MCP_ACCESS_TOKEN || !env.GITHUB_TOKEN || !token || !constantTimeEqual(token,env.MCP_ACCESS_TOKEN)) return new Response("Unauthorized",{status:401,headers:{"WWW-Authenticate":"Bearer"}});
     if(new URL(request.url).pathname!=="/mcp") return new Response("Not Found",{status:404});
     return createMcpHandler(()=>createServer(env))(request,env,ctx);
   }
