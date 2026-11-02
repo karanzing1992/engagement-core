@@ -277,7 +277,7 @@ def main(argv=None):
                 "models":{k:[x["model"] for x in cfg["models"][k]] for k in cfg["models"]},
                 "registered_tools":[a["id"] for a in reg["adapters"]],
                 "requested_treatments":count,"profile":args.profile,
-                "user_media_uploaded":False,"rendered":False,"published":False}
+                "user_media_uploaded":False,"rendered":False,"published":False,"music_policy":"existing_openly_licensed_only_no_composition"}
         if args.live_groq:
             required_clearance(shots_manifest,external=True)
             if not args.authorize_external_shot_metadata:
