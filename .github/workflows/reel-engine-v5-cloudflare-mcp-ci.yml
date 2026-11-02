@@ -1,0 +1,40 @@
+name: V5 Cloudflare MCP certification checks
+on:
+  pull_request:
+    paths:
+      - 'experiments/reel-engine-v5/cloudflare-mcp/**'
+      - '.github/workflows/reel-engine-v5-github-render.yml'
+      - '.github/workflows/reel-engine-v5-cloudflare-mcp-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Install and verify Cloudflare MCP bundle
+        working-directory: experiments/reel-engine-v5/cloudflare-mcp
+        run: |
+          npm install --no-audit --no-fund
+          npm run check
+          npx wrangler deploy --dry-run --outdir /tmp/v5-mcp-dry-run
+      - name: Check render workflow configuration
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('.github/workflows/reel-engine-v5-github-render.yml').read_text()
+          assert 'workflow_dispatch:' in s
+          assert 'actions/download-artifact@' in s
+          assert 'actions/upload-artifact@' in s
+          assert 'ffmpeg ' in s
+          assert 'persist-credentials: false' in s
+          assert 'retention-days: 30' in s
+          print('Render workflow static contract checks PASS')
+          PY
