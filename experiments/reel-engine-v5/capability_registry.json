@@ -79,6 +79,20 @@
         "bounded_style_selection"
       ],
       "limitations": "Does not execute commands itself."
+    },
+    {
+      "id": "openverse_music",
+      "kind": "music_discovery",
+      "status": "implementation_added_free_anonymous_api_live_check_pending",
+      "capabilities": [
+        "search_existing_audio",
+        "license_filter_cc0_ccby_pdm",
+        "attribution_manifest",
+        "license_evidence_gate",
+        "ingest_verified_recording",
+        "mix_existing_music"
+      ],
+      "limitations": "Openverse indexes reported licenses but does not guarantee license accuracy; original source manual license proof and user approval required. No automatic media downloads or unlicensed releases."
     }
   ],
   "operations": [
@@ -185,6 +199,27 @@
       "status": "candidate",
       "fields": [
         "keyframes"
+      ]
+    },
+    {
+      "name": "music_search",
+      "adapter": "openverse_music",
+      "status": "candidate",
+      "fields": [
+        "mood",
+        "genre",
+        "tempo",
+        "query"
+      ]
+    },
+    {
+      "name": "licensed_music_mix",
+      "adapter": "openverse_music",
+      "status": "candidate",
+      "fields": [
+        "verified_audio_asset",
+        "credits",
+        "mixing_profile"
       ]
     }
   ]
