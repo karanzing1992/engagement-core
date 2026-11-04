@@ -49,6 +49,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install pinned Pillow for synthetic model contract checks
+        run: python3 -m pip install --disable-pip-version-check 'Pillow==11.3.0'
       - name: Install free FFmpeg binary
         run: |
           sudo apt-get update -qq
@@ -88,13 +90,12 @@ jobs:
       - name: Install Groq provider SDK only if live synthetic mode requested
         if: steps.job.outputs.mode == 'live' || steps.job.outputs.mode == 'multimodal'
         run: python3 -m pip install --disable-pip-version-check 'groq==0.37.1'
-      - name: Install Pillow only for real synthetic-frame Gemini analysis
+      - name: Verify Pillow for Groq-only synthetic-frame analysis
         if: steps.job.outputs.mode == 'multimodal'
         run: python3 -m pip install --disable-pip-version-check 'Pillow==11.3.0'
       - name: V5 director to guarded EDL to existing FFmpeg renderer to independent QA
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RUN_MODE: ${{ steps.job.outputs.mode }}
           RUN_PROFILE: ${{ steps.job.outputs.profile }}
         run: |
