@@ -18,7 +18,7 @@ export async function projectWrite(req,env,url){
  }
  if(p[3]==="messages"){
   const content=q?.content?.trim();
-  if(typeof content!=="string"||content.length<2||content.length>1200||/[\\x00-\\x1f]|https?:\\/\\/|github_pat_|ghp_|sk-[A-Za-z0-9]{12}/i.test(content))return err("Use a 2–1200 character creative direction without links or secrets");
+  if(typeof content!=="string"||content.length<2||content.length>1200||/[\x00-\x1f]|https?:\/\/|github_pat_|ghp_|sk-[A-Za-z0-9]{12}/i.test(content))return err("Use a 2–1200 character creative direction without links or secrets");
   const a={id:crypto.randomUUID(),role:"user",content,created_at:now};
   const b={id:crypto.randomUUID(),role:"assistant",content:"Direction saved for this reel. Create a render to apply it to the attached footage.",created_at:now};
   await db.batch([
