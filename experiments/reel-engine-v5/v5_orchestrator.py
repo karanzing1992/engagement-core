@@ -31,13 +31,20 @@ def load_system(config_path, registry_path):
     cfg, reg = read_json(config_path), read_json(registry_path)
     if cfg.get("version") != "5.0.0" or reg.get("version") != 5:
         raise Rejected("V5 configuration/registry version mismatch")
+    gate=cfg.get("provider_policy",{})
+    if gate.get("allowed")!=["groq"] or gate.get("fallback")!="same_provider_only":
+        raise Rejected("V5 only permits the configured Groq API")
+    if cfg.get("routing_revision")!="groq_only_task_routing_20261104":
+        raise Rejected("Groq-only task routing revision mismatch")
     models = cfg.get("models", {})
     for role in ("creative", "vision", "execution", "critique"):
         if not models.get(role):
             raise Rejected("Missing model role " + role)
         for entry in models[role]:
-            if not entry.get("provider") or not entry.get("model"):
-                raise Rejected("Invalid provider/model in " + role)
+            if entry.get("provider")!="groq" or not isinstance(entry.get("model"),str):
+                raise Rejected("Only Groq-hosted model IDs are permitted for " + role)
+            if entry.get("credential_env")!="GROQ_API_KEY":
+                raise Rejected("Groq-only key mapping required for " + role)
             t = entry.get("temperature")
             if t is not None and not (0 <= t <= 2):
                 raise Rejected("Model creativity temperature outside API profile")
@@ -48,6 +55,16 @@ def load_system(config_path, registry_path):
     for op in operations:
         if op.get("status") not in {"candidate", "verified", "blocked"}:
             raise Rejected("Unknown operation status")
+    tasks=cfg.get("task_routing")
+    if not isinstance(tasks,dict) or not tasks:
+        raise Rejected("Task routing is required")
+    for task,route in tasks.items():
+        role=route.get("role")
+        if role not in models or not route.get("candidate_models"):
+            raise Rejected("Invalid task route "+task)
+        ids={entry["model"] for entry in models[role]}
+        if any(mid not in ids for mid in route["candidate_models"]):
+            raise Rejected("Task route references unavailable model "+task)
     for profile in cfg["profiles"].values():
         w, h = profile["dimensions"]
         if not (64 <= w <= 8192 and 64 <= h <= 8192):
@@ -70,6 +87,22 @@ def select_model(cfg, role, available=None):
         if available is None or key in available:
             return model
     raise Rejected("No configured model available for role " + role)
+
+
+def models_for_task(cfg, task, available=None):
+    """Return prioritized Groq-only candidates based on the exact task and permissions."""
+    route=cfg["task_routing"].get(task)
+    if not route:
+        raise Rejected("Unregistered Groq task: "+str(task))
+    defined={m["model"]:m for m in cfg["models"][route["role"]]}
+    choices=[]
+    for ident in route["candidate_models"]:
+        selected=defined[ident]
+        if available is None or "groq:"+ident in available:
+            choices.append(dict(selected))
+    if not choices:
+        raise Rejected("No authorized Groq model for task "+task)
+    return choices
 
 
 def validate_source(data, cfg):
@@ -239,13 +272,18 @@ def call_groq(cfg, prompt, key, model=None, client=None):
     if client is None:
         from groq import Groq
         client=Groq(api_key=key,timeout=70,max_retries=0)
-    r=client.chat.completions.create(
-       model=m["model"],messages=[
-        {"role":"system","content":"Original creative director. Ground every shot. Return valid JSON only."},
-        {"role":"user","content":prompt}],
-       temperature=m.get("temperature",0.85),
-       max_completion_tokens=m.get("max_completion_tokens",4700),
-       response_format={"type":"json_object"})
+    kwargs={
+       "model":m["model"],
+       "messages":[
+          {"role":"system","content":"Original creative director. Ground every shot. Return valid JSON only."},
+          {"role":"user","content":prompt}],
+       "temperature":m.get("temperature",0.85),
+       "max_completion_tokens":m.get("max_completion_tokens",4700),
+       "response_format":{"type":"json_object"},
+    }
+    if m.get("reasoning_effort"):
+        kwargs["reasoning_effort"]=m["reasoning_effort"]
+    r=client.chat.completions.create(**kwargs)
     text=r.choices[0].message.content
     if not text:
         raise Rejected("Empty creative director output")
