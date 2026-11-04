@@ -1,4 +1,5 @@
-// DeluluTech AI Reel Engine 1.0 owner-only PWA API, synthetic data only.
+// DeluluTech AI Reel Engine owner-only PWA API.
+import {wakeMediaJob,readMediaWake} from './media_event_wake.mjs';
 const ALLOWED_ORIGINS=new Set(["https://reel.delulutech.in","https://delulutech-ai-reel-engine-v1.pages.dev"]);
 const CODE_PREFIX="Bearer nk-";
 function j(v,status=200,h={}){return new Response(JSON.stringify(v),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer",...h}})}
@@ -140,13 +141,22 @@ async function doMedia(request,env,url){
    try{
      await env.DB.prepare("INSERT INTO mad_v1_media_jobs(job_id,upload_id,prompt,rights_confirmed,people_consent,external_ai_approved,state,created_at,updated_at,expires_at) VALUES (?,?,?,1,1,1,'queued',?,?,?)").bind(id,q.upload_id,q.prompt.trim(),now,now,now+MAD_TTL).run();
    }catch{return mediaError("Another render is currently active; wait for it to finish",409)}
-   return j({job_id:id,state:"queued",review_only:true,video_output:"1080x1920 h264/aac",note:"Private review draft; not quality or rights certified"},201);
+   let wake;
+   try{wake=await wakeMediaJob(env,id)}catch{wake={state:'failed',last_error_code:'WAKE_STATE_UNAVAILABLE'}}
+   return j({job_id:id,state:"queued",wake,review_only:true,video_output:"1080x1920 h264/aac",note:"Owner-only render queued; GitHub wake acknowledgement does not certify render success"},201);
  }
  if(p[2]==="jobs"&&validMediaId(p[3],"madmedia-")){
    const id=p[3];
    const job=await env.DB.prepare("SELECT job_id,state,created_at,updated_at,expires_at,error_code,result_bytes,result_sha256,result_chunks,result_receipt FROM mad_v1_media_jobs WHERE job_id=?").bind(id).first();
    if(!job)return mediaError("Job not found",404);
-   if(p.length===4&&request.method==="GET")return j({job_id:id,state:job.state,error_code:job.error_code,result_available:job.state==="review_ready"&&job.expires_at>now,output_bytes:job.state==="review_ready"?job.result_bytes:null,sha256:job.state==="review_ready"?job.result_sha256:null,expires_at:job.expires_at,review_only:true});
+   if(p.length===4&&request.method==="GET"){
+     let wake;try{wake=await readMediaWake(env.DB,id)}catch{wake={state:'unavailable'}}
+     return j({job_id:id,state:job.state,wake,error_code:job.error_code,result_available:job.state==="review_ready"&&job.expires_at>now,output_bytes:job.state==="review_ready"?job.result_bytes:null,sha256:job.state==="review_ready"?job.result_sha256:null,expires_at:job.expires_at,review_only:true});
+   }
+   if(p.length===5&&p[4]==='wake'&&request.method==='POST'){
+     let wake;try{wake=await wakeMediaJob(env,id)}catch{return mediaError('Wake temporarily unavailable',503)}
+     return j({job_id:id,state:job.state,wake,render_started:job.state==='claimed'},wake.state==='failed'?503:202);
+   }
    if(p.length===5&&p[4]==="receipt"&&request.method==="GET"){
      return job.state==="review_ready"?j({job_id:id,receipt:JSON.parse(job.result_receipt||"{}"),review_only:true}):mediaError("Draft not ready",409);
    }
