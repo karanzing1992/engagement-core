@@ -39,15 +39,24 @@ class V5ContractTests(TestCase):
         c,r=system()
         self.assertEqual(c["version"],"5.0.0")
         self.assertEqual(c["models"]["creative"][0]["model"],"openai/gpt-oss-120b")
-        self.assertEqual(c["models"]["vision"][1]["model"],"gemini-3.6-flash")
+        self.assertEqual(c["models"]["vision"][0]["model"],"qwen/qwen3.8-27b")
+        self.assertTrue(all(m["provider"]=="groq" for group in c["models"].values() for m in group))
+        self.assertEqual(c["provider_policy"]["allowed"],["groq"])
         self.assertTrue(c["creative"]["allow_model_generated_tool_suggestions"])
 
     def test_model_routing_fallback(self):
         c,_=system()
-        chosen=v5.select_model(c,"vision",available={"gemini:gemini-3.6-flash"})
-        self.assertEqual(chosen["model"],"gemini-3.6-flash")
+        chosen=v5.select_model(c,"vision",available={"groq:qwen/qwen3.8-27b"})
+        self.assertEqual(chosen["model"],"qwen/qwen3.8-27b")
+        self.assertEqual(v5.models_for_task(c,"cinematic_direction")[0]["model"],"openai/gpt-oss-120b")
+        self.assertEqual(v5.models_for_task(c,"shot_visual_analysis")[0]["model"],"qwen/qwen3.8-27b")
+        self.assertEqual(v5.models_for_task(c,"complex_edit_decision")[0]["model"],"openai/gpt-oss-120b")
+        self.assertEqual(v5.models_for_task(c,"quick_edit_validation")[0]["model"],"openai/gpt-oss-20b")
+        self.assertEqual(v5.models_for_task(c,"artistic_critique")[0]["model"],"openai/gpt-oss-120b")
         with self.assertRaises(v5.Rejected):
             v5.select_model(c,"vision",available={"groq:openai/gpt-oss-120b"})
+        with self.assertRaises(v5.Rejected):
+            v5.models_for_task(c,"shot_visual_analysis",available={"groq:openai/gpt-oss-120b"})
 
     def test_count_not_hardwired_three(self):
         c,_=system()
@@ -126,15 +135,36 @@ class V5ContractTests(TestCase):
         kwargs=fake.chat.completions.create.call_args.kwargs
         self.assertEqual(kwargs["temperature"],0.85)
         self.assertEqual(kwargs["model"],"openai/gpt-oss-120b")
+        self.assertEqual(kwargs["reasoning_effort"],"high")
 
-    def test_new_model_may_be_registered_without_changing_python(self):
+    def test_external_provider_is_rejected_even_when_inserted_at_runtime(self):
         c,_=system()
         c["models"]["creative"].insert(0,{"provider":"new_free_api",
              "model":"custom-large-creative","temperature":0.92})
-        self.assertEqual(v5.select_model(c,"creative")["model"],
-                         "custom-large-creative")
-        self.assertEqual(v5.select_model(c,"creative",
-          available={"groq:openai/gpt-oss-120b"})["provider"],"groq")
+        with self.assertRaises(v5.Rejected):
+            v5.select_model(c,"creative")
+        with self.assertRaises(v5.Rejected):
+            v5.models_for_task(c,"creative_direction_not_registered")
+
+
+    def test_vision_adapter_uses_groq_image_data_only(self):
+        c,_=system()
+        import tempfile
+        with tempfile.TemporaryDirectory() as t:
+            f=Path(t)/"frame.jpg"
+            f.write_bytes(b"FAKEJPEG"+b"x"*256)
+            fake=mock.Mock()
+            fake.chat.completions.create.return_value=SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(
+                    content="A synthetic blue landscape with water ripples."))])
+            result=v5.call_groq_vision(c,f,"Describe this synthetic image only.","dummy",client=fake)
+            self.assertIn("water ripples",result)
+            args=fake.chat.completions.create.call_args.kwargs
+            self.assertEqual(args["model"],"qwen/qwen3.8-27b")
+            self.assertEqual(args["reasoning_effort"],"none")
+            self.assertTrue(args["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,"))
+            with self.assertRaises(v5.Rejected):
+                v5.call_groq_vision(c,f,"Too short","dummy",client=fake)
 
     def test_no_arbitrary_model_shell(self):
         c,r=system()
