@@ -12,7 +12,7 @@ sys.path.insert(0,str(ROOT/"services"/"reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments"/"reel-engine-v5"))
 from cloudflare_bridge_runner import token, ENDPOINT
 from multi_renderer import probe_media,render_multiple
-from v5_orchestrator import Rejected,load_system,build_director_prompt,call_groq,validate_plan,models_for_task
+from v5_orchestrator import Rejected,load_system,build_director_prompt,call_groq,call_groq_vision,validate_plan,models_for_task
 
 CHUNK=4*1024*1024
 def sha(path):
@@ -78,30 +78,13 @@ def sample_frames(input_path,work,probe):
             frames.append((at,frame))
     return frames
 
-def groq_vision_caption(frame, model, client=None):
-    """A consent-cleared owner frame is described only through Groq's vision API."""
+def groq_vision_caption(frame, cfg, client=None):
     key=os.getenv("GROQ_API_KEY","")
     if not key:return None
-    if model.get("provider")!="groq" or model.get("model")!="qwen/qwen3.8-27b":
-        raise ValueError("Unapproved vision model")
-    if client is None:
-        from groq import Groq
-        client=Groq(api_key=key,timeout=35,max_retries=0)
-    data="data:image/jpeg;base64,"+base64.b64encode(frame.read_bytes()).decode("ascii")
     prompt=("Describe ONLY visually observable setting, composition, action, movement "
         "and mood in this actual frame in one sentence. Never identify people, "
         "infer medical effects, invent off-frame moments, or assert venue names.")
-    req={"model":model["model"],"messages":[{"role":"user","content":[
-       {"type":"text","text":prompt},
-       {"type":"image_url","image_url":{"url":data}}]}],
-       "temperature":model.get("temperature",0.2),
-       "max_completion_tokens":model.get("max_completion_tokens",350)}
-    if model.get("reasoning_effort"):
-        req["reasoning_effort"]=model["reasoning_effort"]
-    response=client.chat.completions.create(**req)
-    desc=(response.choices[0].message.content or "").strip()
-    cleaned=re.sub(r"[\\r\\n]+"," ",desc)
-    return cleaned[:300] if len(cleaned)>=8 else None
+    return call_groq_vision(cfg,frame,prompt,key,client=client)
 
 
 def director_failure_code(exc):
@@ -150,7 +133,7 @@ def design(job,src,probe,work):
         description=None
         if k<6 and os.getenv("GROQ_API_KEY",""):
             try:
-                description=groq_vision_caption(frame,vision)
+                description=groq_vision_caption(frame,cfg)
             except Exception:
                 # No guest frames/prompts/provider responses may leak into logs.
                 audit["vision_failures"]+=1
