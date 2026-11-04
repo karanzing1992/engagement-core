@@ -1,0 +1,8 @@
+name = "moksha-v5-mcp"
+main = "src/index.mjs"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+GITHUB_REPO = "karanzing1992/engagement-core"
+GITHUB_WORKFLOW = "reel-engine-v5-github-render.yml"
