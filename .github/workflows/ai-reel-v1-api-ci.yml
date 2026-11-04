@@ -18,6 +18,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify serialized V1 render queue migration
+        run: |
+          python3 services/reel-engine/ai-reel-api-v1/test_serialized_queue.py -v
+          echo MAD_V1_SERIALIZED_QUEUE_REGRESSION_PASS
       - name: Parse and verify owner-scoped API authorization gates
         run: |
           set -euo pipefail
