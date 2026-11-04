@@ -7,7 +7,7 @@ from __future__ import annotations
 import argparse,base64,hashlib,json,math,os,re,subprocess,sys,urllib.request,urllib.error
 from pathlib import Path
 
-ROOT=Path(__file__).resolve().parents[2]
+ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/"services"/"reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments"/"reel-engine-v5"))
 from cloudflare_bridge_runner import token, ENDPOINT
@@ -140,7 +140,7 @@ def design(job,src,probe,work):
         target=sum(x["seconds"] for x in cuts)
         if target<3:raise ValueError("Insufficient continuous source for safe reel")
     else:target=total
-    return cuts,target,planned,any(bool(gemini_captioned) for gemini_captioned in []),director_called
+    return cuts,target,planned,False,director_called
 
 def postprocess(draft,out,work,hook):
     # Typography is owner-supplied / grounded creative brief only, not a fabricated quote.
