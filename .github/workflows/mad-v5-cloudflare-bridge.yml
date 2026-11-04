@@ -3,6 +3,11 @@ on:
   issues:
     types: [opened, edited, labeled]
   workflow_dispatch:
+    inputs:
+      media_job_id:
+        description: 'Optional owner-only queued media job wake hint; never includes source footage'
+        required: false
+        type: string
   schedule:
     - cron: '16,46 * * * *'
 permissions:
@@ -21,6 +26,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Validate optional event-driven owner media wake hint
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          MEDIA_WAKE_JOB_ID: ${{ inputs.media_job_id }}
+        run: |
+          if [[ -n "$MEDIA_WAKE_JOB_ID" && ! "$MEDIA_WAKE_JOB_ID" =~ ^madmedia-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$ ]]; then
+            echo "Rejected invalid media wake job ID" >&2
+            exit 1
+          fi
+          echo "MAD_V5_OWNER_WAKE_HINT_VALID"
       - name: Verify Groq model availability before claiming any owner jobs
         id: groq_model_gate
         env:
