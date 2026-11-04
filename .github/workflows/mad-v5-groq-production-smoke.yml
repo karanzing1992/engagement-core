@@ -1,0 +1,60 @@
+name: MAD V5 | REEL_ENGINE_KEY minimal Groq and ephemeral synthetic smoke
+on:
+  push:
+    branches:
+      - fix/mad-v5-reel-engine-key-signed-media-20261104
+    paths:
+      - .github/workflows/mad-v5-groq-production-smoke.yml
+      - experiments/reel-engine-v5/groq_minimal_inference.py
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  groq-private-synthetic-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify one real Groq text inference under authenticated owner key
+        env:
+          GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
+        run: python3 experiments/reel-engine-v5/groq_minimal_inference.py
+      - name: Install pinned synthetic-only FFmpeg binaries and Python packages
+        run: |
+          set -euo pipefail
+          timeout 120 npm install --prefix "$RUNNER_TEMP/mad-synthetic-tools" --no-save --ignore-scripts --no-audit --no-fund \
+            '@ffmpeg-installer/linux-x64@4.1.0' '@ffprobe-installer/linux-x64@5.2.0'
+          mkdir -p "$RUNNER_TEMP/mad-synthetic-tools/bin"
+          cp "$RUNNER_TEMP/mad-synthetic-tools/node_modules/@ffmpeg-installer/linux-x64/ffmpeg" "$RUNNER_TEMP/mad-synthetic-tools/bin/ffmpeg"
+          cp "$RUNNER_TEMP/mad-synthetic-tools/node_modules/@ffprobe-installer/linux-x64/ffprobe" "$RUNNER_TEMP/mad-synthetic-tools/bin/ffprobe"
+          chmod 700 "$RUNNER_TEMP/mad-synthetic-tools/bin/ffmpeg" "$RUNNER_TEMP/mad-synthetic-tools/bin/ffprobe"
+          "$RUNNER_TEMP/mad-synthetic-tools/bin/ffmpeg" -version | head -1
+          "$RUNNER_TEMP/mad-synthetic-tools/bin/ffprobe" -version | head -1
+          echo "$RUNNER_TEMP/mad-synthetic-tools/bin" >> "$GITHUB_PATH"
+          python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
+      - name: Render and verify an isolated fixture-only V5 diagnostic (no provider planning)
+        env:
+          GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
+        run: |
+          python3 experiments/reel-engine-v5/git_cloud_runner.py \
+            --mode fixture --profile synthetic_test \
+            --brief "Synthetic-only quality-control demonstration; never use guest images or publish." \
+            --out-dir "$RUNNER_TEMP/mad-v5-synthetic-privacy-smoke"
+          python3 - <<'PY'
+          import json,os,pathlib
+          folder=pathlib.Path(os.environ["RUNNER_TEMP"])/"mad-v5-synthetic-privacy-smoke"
+          r=json.loads((folder/"v5-technical-receipt.json").read_text())
+          assert r["status"]=="SYNTHETIC_TECHNICAL_CERTIFICATION_ONLY"
+          assert r["video"]["decoded"] is True
+          assert r["real_footage_certified"] is False and r["published"] is False
+          assert (folder/"v5-synthetic-diagnostic.mp4").is_file()
+          assert r["video"].get("sha256")
+          print("MAD_V5_PRIVATE_SYNTHETIC_SMOKE_PASS")
+          print("SYNTHETIC_SHA256",r["video"]["sha256"])
+          print("GUEST_MEDIA_USED",False,"PUBLISHED",False,"ARTIFACT_UPLOAD",False)
+          PY
+      # No artifacts: rendered synthetic MP4 exists only in the ephemeral runner.
+      # No real guest footage or model/API secrets are transferred to public CI artifacts.
