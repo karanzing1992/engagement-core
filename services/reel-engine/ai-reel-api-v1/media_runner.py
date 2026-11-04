@@ -186,6 +186,10 @@ def design(job,src,probe,work):
     return cuts,target,None,audit
 
 
+def creative_title(planned):
+    return planned["hook"] if planned and planned.get("hook") else "A MOMENT WORTH FEELING"
+
+
 def display_title(hook):
     """Wrap only an actual creative hook or neutral safe title on two mobile-safe lines."""
     clean=" ".join(re.sub(r"[\x00-\x1f]"," ",hook or "").split()) or "A MOMENT WORTH FEELING"
@@ -239,7 +243,7 @@ def render(job,root):
     print("PRIVATE_MEDIA_RENDER_STAGE","FFMPEG_RENDER",flush=True)
     render_multiple([src],base,{"target_seconds":target,"width":1080,"height":1920,
          "fps":30,"clip_plan":cuts,"crf":25},root/"edit")
-    hook=planned["hook"] if planned and planned.get("hook") else "A MOMENT WORTH FEELING"
+    hook=creative_title(planned)
     out=root/"private-review.mp4"
     print("PRIVATE_MEDIA_RENDER_STAGE","TYPOGRAPHY",flush=True)
     postprocess(base,out,root,hook)
