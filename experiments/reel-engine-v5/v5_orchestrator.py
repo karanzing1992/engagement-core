@@ -82,12 +82,15 @@ def models_for_role(cfg, role):
 
 
 def select_model(cfg, role, available=None):
-    """Choose first configured model in provider availability; no invented API access."""
+    """Choose first authorized Groq model, never an external provider."""
+    if role not in cfg["models"]:raise Rejected("Unknown model role")
     for model in cfg["models"][role]:
-        key = model["provider"] + ":" + model["model"]
+        if model.get("provider")!="groq":
+            raise Rejected("V5 external model fallback forbidden")
+        key="groq:"+model["model"]
         if available is None or key in available:
             return model
-    raise Rejected("No configured model available for role " + role)
+    raise Rejected("No configured Groq model available for role " + role)
 
 
 def models_for_task(cfg, task, available=None):
