@@ -2,7 +2,7 @@
 const ALLOWED_ORIGINS=new Set(["https://reel.delulutech.in","https://delulutech-ai-reel-engine-v1.pages.dev"]);
 const CODE_PREFIX="Bearer nk-";
 function j(v,status=200,h={}){return new Response(JSON.stringify(v),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer",...h}})}
-function cors(o){return ALLOWED_ORIGINS.has(o)?{"access-control-allow-origin":o,"vary":"Origin","access-control-allow-headers":"Authorization,Content-Type","access-control-allow-methods":"POST,GET,OPTIONS","access-control-max-age":"600"}:{}}
+function cors(o){return ALLOWED_ORIGINS.has(o)?{"access-control-allow-origin":o,"vary":"Origin","access-control-allow-headers":"Authorization,Content-Type,X-Chunk-SHA256","access-control-allow-methods":"POST,GET,PUT,OPTIONS","access-control-max-age":"600"}:{}}
 function equal(a,b){if(!a||!b||a.length!==b.length)return false;let n=0;for(let i=0;i<a.length;i++)n|=a.charCodeAt(i)^b.charCodeAt(i);return n===0}
 function hex(b){return [...b].map(v=>v.toString(16).padStart(2,"0")).join("")}
 async function authorized(r,e){
