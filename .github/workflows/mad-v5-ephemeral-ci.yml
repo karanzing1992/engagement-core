@@ -24,7 +24,7 @@ jobs:
       - name: Private source gate and authenticated MCP module tests
         working-directory: experiments/reel-engine-v5/github-ephemeral
         run: |
-          node --test core.test.mjs
+          node --test core.test.mjs worker.test.mjs
           node --check worker.mjs
           python3 -m py_compile private_runner.py
       - name: Install open source FFmpeg
