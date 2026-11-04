@@ -4,6 +4,7 @@ on:
     branches:
       - feat/mad-v5-groq-only-task-router-20261104
       - main
+      - test/mad-v5-reel-engine-key-20261104
     paths:
       - experiments/reel-engine-v5/v5_config.json
       - experiments/reel-engine-v5/groq_models_preflight.py
@@ -22,5 +23,5 @@ jobs:
           python-version: '3.12'
       - name: Read-only Groq model list for this existing owner account
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
         run: python3 experiments/reel-engine-v5/groq_models_preflight.py
