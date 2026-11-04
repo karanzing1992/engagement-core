@@ -29,6 +29,8 @@ def request(path,*,payload=None,method="POST",claim=None,raw=None,content_type="
     if claim:headers["X-Mad-Claim-Id"]=claim
     if data is not None:headers["Content-Type"]=content_type
     if sha256:headers["X-Chunk-SHA256"]=sha256
+    kind=path.split("/")[3] if len(path.split("/"))>3 else "unknown"
+    if kind not in {"media-claim","media-source","media-output","media-complete"}:kind="unknown"
     req=urllib.request.Request(ENDPOINT+path,data=data,headers=headers,method=method)
     for attempt in range(5):
         try:
@@ -37,9 +39,12 @@ def request(path,*,payload=None,method="POST",claim=None,raw=None,content_type="
                 if method=="GET" and len(body)>CHUNK:raise ValueError("Remote chunk exceeded max")
                 return body if method=="GET" else json.loads(body)
         except urllib.error.HTTPError as e:
+            # Never emit a URL, query, guest metadata, request body or bearer token.
+            print("PRIVATE_MEDIA_BRIDGE_HTTP",kind,e.code,"attempt",attempt+1,file=sys.stderr,flush=True)
             if e.code not in (429,500,502,503,504) or attempt==4:
                 raise RuntimeError("Private media endpoint unavailable: HTTP "+str(e.code)) from None
-        except (TimeoutError,urllib.error.URLError):
+        except (TimeoutError,urllib.error.URLError) as e:
+            print("PRIVATE_MEDIA_BRIDGE_TRANSPORT",kind,type(e).__name__,"attempt",attempt+1,file=sys.stderr,flush=True)
             if attempt==4:raise RuntimeError("Private media transport exhausted") from None
         import time;time.sleep(2**attempt)
     raise RuntimeError("Private media transport exhausted")
@@ -173,14 +178,19 @@ def verify(out):
 def render(job,root):
     root.mkdir(parents=True,exist_ok=True)
     src=root/"owner-source.mp4"
+    print("PRIVATE_MEDIA_RENDER_STAGE","SOURCE_VERIFY",flush=True)
     probe=source(job,src)
+    print("PRIVATE_MEDIA_RENDER_STAGE","PLAN",flush=True)
     cuts,target,planned,vision,groq=design(job,src,probe,root)
     base=root/"unapproved-base.mp4"
+    print("PRIVATE_MEDIA_RENDER_STAGE","FFMPEG_RENDER",flush=True)
     render_multiple([src],base,{"target_seconds":target,"width":1080,"height":1920,
          "fps":30,"clip_plan":cuts,"crf":25},root/"edit")
     hook=planned["hook"] if planned and planned.get("hook") else job["prompt"]
     out=root/"private-review.mp4"
+    print("PRIVATE_MEDIA_RENDER_STAGE","TYPOGRAPHY",flush=True)
     postprocess(base,out,root,hook)
+    print("PRIVATE_MEDIA_RENDER_STAGE","VERIFY",flush=True)
     info=verify(out)
     if info["bytes"]>80*1024*1024:raise ValueError("Render over free storage limit")
     receipt={"status":"PRIVATE_REAL_MEDIA_TECHNICAL_DRAFT","video":info,
@@ -191,6 +201,7 @@ def render(job,root):
       "music_rights_certified":False,"artistic_quality_certified":False,
       "public_release_certified":False,"published":False,"toolchain":"V5 Groq + FFmpeg" if planned else "V5 FFmpeg fallback"}
     (root/"receipt.json").write_text(json.dumps(receipt))
+    print("PRIVATE_MEDIA_RENDER_STAGE","OUTPUT_UPLOAD",flush=True)
     with out.open("rb") as f:
         for i in range(math.ceil(out.stat().st_size/CHUNK)):
             data=f.read(CHUNK)
@@ -222,6 +233,7 @@ def main():
         receipt,n=render(job,opt.out)
         print("PRIVATE_REAL_MEDIA_REVIEW_DRAFT_RENDERED",job["job_id"],receipt["video"]["sha256"])
     else:
+        print("PRIVATE_MEDIA_RENDER_STAGE","COMPLETE_CALLBACK",flush=True)
         job=json.loads(opt.claim.read_text())
         rec=opt.out/"receipt.json"
         try:
