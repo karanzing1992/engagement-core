@@ -16,6 +16,29 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Compare GitHub runner direct Groq egress (two user agents, no key or response logged)
+        env:
+          REEL_ENGINE_KEY: ${{ secrets.REEL_ENGINE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os,urllib.request,urllib.error
+          secret=os.environ.get("REEL_ENGINE_KEY","")
+          if not secret:
+              print("GH_GROQ_DIRECT_TEST missing_secret")
+              raise SystemExit(2)
+          endpoint="https://api.groq.com/openai/v1/models"
+          for label,agent in (("urllib_default",None),("groq_official_sdk_user_agent","groq-python/0.37.1")):
+              headers={"Authorization":"Bearer "+secret,"Accept":"application/json"}
+              if agent:headers["User-Agent"]=agent
+              req=urllib.request.Request(endpoint,headers=headers,method="GET")
+              try:
+                  with urllib.request.urlopen(req,timeout=15) as response:
+                      print("GH_GROQ_DIRECT_HTTP",label,response.status)
+              except urllib.error.HTTPError as e:
+                  print("GH_GROQ_DIRECT_HTTP",label,e.code)
+              except Exception as e:
+                  print("GH_GROQ_DIRECT_TRANSPORT",label,type(e).__name__)
+          PY
       - name: Probe Groq through temporary owner Cloudflare Worker (no inference/media/logged secrets)
         env:
           REEL_ENGINE_KEY: ${{ secrets.REEL_ENGINE_KEY }}
