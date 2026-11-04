@@ -54,3 +54,21 @@ Once workflow changes are on `main`, the owner may create exactly one GitHub iss
 - **Important quality boundary:** `creative_model_called=true`, but `creative_plan_applied=false`: Groq director plan rejected twice (`director_plan_invalid`); source-only fallback FFmpeg render, ten cuts. Vision 8 sampled/4 captioned, unreviewed. Music rights / artistic quality / publication not certified.
 - Applied production D1 migration `011_event_wake.sql` and independently verified new `mad_v1_media_wakes` table plus `mad_v1_media_wakes_retry` index.
 - **Production automatic dispatch still NOT enabled:** both owner API and Projects Workers lack `MAD_GITHUB_ACTIONS_DISPATCH_TOKEN`; updated Worker source has not been deployed. Owner-only issue wake was a certified manual one-off. The new user submission path must receive scoped GitHub dispatch credential and independent live verification before claiming event-driven automatic certification.
+
+
+## 2026-11-05 permanent wake regression remediation / production rollout
+
+- Durable-recovery PR #159 merged on `main`: https://github.com/karanzing1992/engagement-core/pull/159 ; commit `31716cb5ebc2c38823c2a0880e0a069af08b9d17`.
+- **Production code-only deployed** via Cloudflare `PUT /content` to `delulutech-ai-reel-api-v1` (owner upload API) and `delulutech-ai-reel-projects-v1` (Projects workspace API). This endpoint preserves Worker settings and secrets.
+- Owner API still has D1 `DB`, private media `MEDIA_KV`, and secret `MAD_OWNER_CODE_SHA256`; Projects API still has D1 and owner secret. Both return healthy; owner and project endpoints reject anonymous requests (HTTP 401), and unauthorized origins (HTTP 403).
+- Cloudflare Cron Trigger `*/5 * * * *` installed on owner API for **recovery only**, not as normal render pickup; verified by independent Worker schedules GET. It does **not** call GitHub while dispatch key is absent, and never consumes retry budget in this configuration.
+- Main render submission is now nonblocking (`ctx.waitUntil`); Cloudflare responds after durable D1 enqueue and triggers GitHub dispatch asynchronously when credential configured.
+- D1 wake outbox has atomic deduplication, 90-second failure backoff, 120-second stale in-flight retry, 480-second lost-success fallback, and at most six dispatch attempts. It checks queued/unexpired jobs before dispatch, preventing re-rendering `claimed` and `review_ready` jobs.
+- GitHub CI for PR #159 passed unit tests for credential absence/no retry exhaustion, 204 dispatch, 401 failure, stale-dispatch reconciliation, invalid/expired/claimed job exclusion, and relevant API/workspace security contracts.
+- Live D1 queue on final check: **four review_ready**, one historical failed; **zero queued or claimed**, no new wake outbox rows. No active render was changed or duplicated. Temporary QA Worker was deleted after successful code deployment smoke.
+
+### Activation blocker: GitHub dispatch credential
+
+Automatic GitHub event-based wake is **deployed but NOT operational** until `MAD_GITHUB_ACTIONS_DISPATCH_TOKEN` is set as a secret in both Cloudflare Workers. The connected GitHub plugin cannot mint/expose a GitHub Actions write token; the assistant did not attempt to extract credentials from unrelated services. The owner must create a fine-grained PAT restricted to `karanzing1992/engagement-core` with Actions read/write and paste it directly into each Worker via the Cloudflare dashboard. **Never paste that secret into ChatGPT, GitHub source, issues, or D1.** Alternatively provision a GitHub App installation credential with equivalent narrow privileges.
+
+Once configured, submit a synthetic video in the owner PWA and verify GitHub 204 dispatch + new `workflow_dispatch` run + signed Cloudflare OIDC claim + private completion + hashed preview. Schedule-based GitHub Actions remains a recovery fallback until this acceptance passes. Do not mark the full event-driven path certified before that test.
