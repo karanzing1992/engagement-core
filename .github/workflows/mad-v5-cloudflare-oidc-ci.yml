@@ -58,6 +58,8 @@ jobs:
             except ValueError: pass
           print("CLOUDFLARE_BRIDGE_SOURCE_AND_OWNER_NEGATIVES_PASS")
           PY
+      - name: Install pinned Pillow for synthetic Groq visual fixture contracts
+        run: python3 -m pip install --disable-pip-version-check 'Pillow==11.3.0'
       - name: Run existing V5 model/renderer offline contracts
         run: |
           set -euo pipefail
