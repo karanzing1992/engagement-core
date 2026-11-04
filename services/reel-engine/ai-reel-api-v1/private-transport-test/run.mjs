@@ -122,16 +122,21 @@ async function run(){
     await kv.put('private/mad-v1/output/'+job_id+'/0',source,{expirationTtl:172800});
     await db.prepare('UPDATE mad_v1_media_jobs SET state=?,result_bytes=?,result_sha256=?,result_chunks=?,result_receipt=? WHERE job_id=?')
       .bind('review_ready',source.byteLength,hash(source),1,JSON.stringify(receipt),job_id).run();
+    console.log('GATE_05_BEGIN_PREVIEW_REQUEST');
     const preview=await call('GET',statusPath+'/preview');
+    console.log('GATE_05_PREVIEW_RESPONSE',preview.status);
     equalStatus(preview,200,'owner preview readback');
     assert.equal(preview.headers.get('cache-control'),'private, no-store');
     assert.equal(preview.headers.get('content-type'),'video/mp4');
+    console.log('GATE_05_BEGIN_DOWNLOAD');
     const bytes=Buffer.from(await preview.arrayBuffer());
+    console.log('GATE_05_DOWNLOADED',bytes.byteLength);
     assert.equal(hash(bytes),hash(source),'preview byte digest');
     const previewFile=join(root,'private-preview.mp4');
     writeFileSync(previewFile,bytes);
     const verified=spawnSync('ffmpeg',['-nostdin','-v','error','-i',previewFile,'-f','null','-'],{timeout:60000});
     assert.equal(verified.status,0,'full decode of preview');
+    console.log('GATE_05_BEGIN_RECEIPT_REQUEST');
     const received=await call('GET',statusPath+'/receipt');
     equalStatus(received,200,'private receipt');
     assert.equal((await received.json()).receipt.published,false);
@@ -150,4 +155,4 @@ async function run(){
     console.log('MAD_V5_PRIVATE_UPLOAD_KV_PREVIEW_EMULATED_ACCEPTANCE_PASS; SIGNED_PRODUCTION_RUN_PENDING');
   } finally { await mf.dispose(); rmSync(root,{recursive:true,force:true}); }
 }
-run().catch(async e=>{console.error('MAD_V5_PRIVATE_TRANSPORT_TEST_FAILED',e?.message||'unknown');process.exitCode=1;});
+run().catch(async e=>{console.error('MAD_V5_PRIVATE_TRANSPORT_TEST_FAILED',String(e?.stack||e).split('\n').slice(0,8).join('\n'));process.exitCode=1;});
