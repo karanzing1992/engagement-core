@@ -120,7 +120,7 @@ async function mediaBridge(req,env,url,claims){
 
 export default {async fetch(request,env){
  const u=new URL(request.url);
- if(u.pathname==='/health'&&request.method==='GET')return json({service:'MAD V5 Cloudflare OIDC GitHub Bridge',status:'staging',mode:'synthetic_only',database_bound:!!env.DB,github_auth:'oidc_rs256_pinned_workflow',model_credentials:'remain_in_github_actions',real_guest_media_enabled:false});
+ if(u.pathname==='/health'&&request.method==='GET')return json({service:'MAD V5 Cloudflare OIDC GitHub Bridge',status:'staging',mode:'synthetic_and_owner_private_draft',private_owner_media_transfer_ready:!!env.MEDIA_KV,database_bound:!!env.DB,github_auth:'oidc_rs256_pinned_workflow',model_credentials:'remain_in_github_actions',real_guest_media_enabled:false});
  if(!env.DB)return json({error:'Database unavailable'},503);
  if(u.pathname.startsWith('/bridge/v1/media-')){
   const caller=await verify(request);if(!caller)return json({error:'Unauthorized'},401);
