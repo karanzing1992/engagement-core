@@ -19,56 +19,68 @@
       {
         "provider": "groq",
         "model": "openai/gpt-oss-120b",
-        "role": "director",
+        "role": "cinematic_director",
         "temperature": 0.85,
-        "max_completion_tokens": 4700,
+        "max_completion_tokens": 6500,
+        "reasoning_effort": "high",
         "credential_env": "GROQ_API_KEY",
-        "verified": "live_synthetic_20261102"
+        "availability": "catalog_listed;account_permission_pending"
       },
       {
         "provider": "groq",
-        "model": "openai/gpt-oss-20b",
+        "model": "qwen/qwen3.8-27b",
         "role": "alternate_director",
-        "temperature": 0.9,
+        "temperature": 0.7,
         "max_completion_tokens": 5500,
+        "reasoning_effort": "medium",
         "credential_env": "GROQ_API_KEY",
-        "verified": "v4_1_real_source_reviewed"
+        "availability": "preview_catalog;account_permission_pending"
       }
     ],
     "vision": [
       {
-        "provider": "gemini",
-        "model": "gemini-3.8-flash",
-        "role": "vision",
-        "verified": "metadata_only_generation_capacity_error",
-        "credential_env": "GEMINI_API_KEY"
-      },
-      {
-        "provider": "gemini",
-        "model": "gemini-3.6-flash",
-        "role": "vision",
-        "verified": "live_synthetic_20261102",
-        "credential_env": "GEMINI_API_KEY"
+        "provider": "groq",
+        "model": "qwen/qwen3.8-27b",
+        "role": "visual_shot_analyst",
+        "temperature": 0.2,
+        "max_completion_tokens": 350,
+        "reasoning_effort": "none",
+        "credential_env": "GROQ_API_KEY",
+        "availability": "preview_catalog;account_permission_pending"
       }
     ],
     "execution": [
       {
         "provider": "groq",
-        "model": "openai/gpt-oss-20b",
-        "role": "edit_planner",
-        "temperature": 0.15,
+        "model": "openai/gpt-oss-120b",
+        "role": "complex_timeline_and_tool_planner",
+        "temperature": 0.25,
+        "max_completion_tokens": 2700,
+        "reasoning_effort": "medium",
         "credential_env": "GROQ_API_KEY",
-        "verified": "live_synthetic_20261102"
+        "availability": "catalog_listed;account_permission_pending"
+      },
+      {
+        "provider": "groq",
+        "model": "openai/gpt-oss-20b",
+        "role": "quick_edit_validation",
+        "temperature": 0.1,
+        "max_completion_tokens": 1200,
+        "reasoning_effort": "low",
+        "credential_env": "GROQ_API_KEY",
+        "availability": "catalog_listed;account_permission_pending"
       }
     ],
     "critique": [
       {
         "provider": "groq",
         "model": "openai/gpt-oss-120b",
-        "role": "art_director_review",
-        "temperature": 0.55,
+        "role": "cinematic_art_director_review",
+        "temperature": 0.45,
+        "max_completion_tokens": 3500,
+        "reasoning_effort": "high",
         "credential_env": "GROQ_API_KEY",
-        "verified": "model_connection_not_separate_critic_cert"
+        "availability": "catalog_listed;account_permission_pending"
       }
     ]
   },
@@ -160,7 +172,10 @@
     "owner_artistic_approval_required": true,
     "moksha_m3_release_gate_unchanged": true,
     "avoid_mac_thermal_changes": true,
-    "secret_egress_prohibited": true
+    "secret_egress_prohibited": true,
+    "provider_lock": "groq_only",
+    "live_model_availability": "must_verify_from_authenticated_Groq_model_listing",
+    "no_paid_upgrade_approved": true
   },
   "music": {
     "mode": "third_party_existing_licensed_tracks_only",
@@ -207,5 +222,56 @@
   "cross_project_routing": "ops/media/reel-engine-routing.json",
   "default_for_new_video_jobs": true,
   "real_media_production_certified": false,
-  "existing_jobs_unchanged": true
+  "existing_jobs_unchanged": true,
+  "routing_revision": "groq_only_task_routing_20261104",
+  "provider_policy": {
+    "allowed": [
+      "groq"
+    ],
+    "fallback": "same_provider_only",
+    "no_unverified_model_aliases": true,
+    "server_side_key_only": true,
+    "default_provider": "groq",
+    "account_model_permissions_required": true,
+    "never_fall_back_to_other_api": true
+  },
+  "task_routing": {
+    "cinematic_direction": {
+      "role": "creative",
+      "candidate_models": [
+        "openai/gpt-oss-120b",
+        "qwen/qwen3.8-27b"
+      ],
+      "cost_policy": "existing_Groq_free_tier_only",
+      "missing_access": "fail_or_document_fallback"
+    },
+    "shot_visual_analysis": {
+      "role": "vision",
+      "candidate_models": [
+        "qwen/qwen3.8-27b"
+      ],
+      "modality": "image_text",
+      "max_images_per_request": 3,
+      "privacy": "rights_gate_before_external_frames"
+    },
+    "complex_edit_decision": {
+      "role": "execution",
+      "candidate_models": [
+        "openai/gpt-oss-120b"
+      ]
+    },
+    "quick_edit_validation": {
+      "role": "execution",
+      "candidate_models": [
+        "openai/gpt-oss-20b"
+      ]
+    },
+    "artistic_critique": {
+      "role": "critique",
+      "candidate_models": [
+        "openai/gpt-oss-120b"
+      ],
+      "status": "configured_not_independently_certified"
+    }
+  }
 }

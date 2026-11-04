@@ -25,10 +25,11 @@ PROBE={"duration":20.0,"has_audio":True,"width":640,"height":360}
 
 class PrivateCreativeMisfireTests(TestCase):
     def run_design(self,groq_key="",effect=None):
-        with mock.patch.dict(os.environ,{"GROQ_API_KEY":groq_key,"GEMINI_API_KEY":"",}):
+        with mock.patch.dict(os.environ,{"GROQ_API_KEY":groq_key}):
             with mock.patch.object(runner,"sample_frames",return_value=[(4.0,Path("synthetic-frame.jpg"))]):
                 with mock.patch.object(runner,"call_groq",side_effect=effect) as groq:
-                    cuts,seconds,planned,report=runner.design(JOB,Path("synthetic.mp4"),PROBE,Path("/tmp"))
+                    with mock.patch.object(runner,"groq_vision_caption",return_value="Verified synthetic blue horizon."):
+                        cuts,seconds,planned,report=runner.design(JOB,Path("synthetic.mp4"),PROBE,Path("/tmp"))
         return cuts,seconds,planned,report,groq.call_count
 
     def test_missing_key_is_explicit_and_never_overlays_editing_instructions(self):
@@ -57,6 +58,8 @@ class PrivateCreativeMisfireTests(TestCase):
         self.assertIsNotNone(planned)
         self.assertEqual(calls,2)
         self.assertTrue(report["creative_plan_applied"])
+        self.assertEqual(report["vision_frames_captioned"],1)
+        self.assertEqual(report["vision_model_used"],"qwen/qwen3.8-27b")
         self.assertIsNone(report["creative_fallback_reason"])
         self.assertEqual(report["proposed_effects_not_executed"],3)
         self.assertAlmostEqual(seconds,3.3)

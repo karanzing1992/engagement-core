@@ -69,7 +69,7 @@ def technical_preview_segments(segments):
 
 
 def create_synthetic_sources(folder, shots, vision_images=None):
-    """Use the SAME synthetic drawings presented to Gemini for multimodal runs."""
+    """Use the SAME synthetic drawings presented to Groq for multimodal runs."""
     paths = []
     for i, shot in enumerate(shots.values()):
         path = folder / ("synthetic-%02d.mp4" % i)
@@ -77,7 +77,7 @@ def create_synthetic_sources(folder, shots, vision_images=None):
         if vision_images is not None:
             image = vision_images / ("scene_%d.jpg" % (i + 1))
             if not image.is_file() or image.stat().st_size < 1024:
-                raise Rejected("Gemini input image missing; cannot establish visual source parity")
+                raise Rejected("Groq input image missing; cannot establish visual source parity")
             command += ["-loop", "1", "-framerate", "15", "-i", str(image)]
         else:
             command += ["-f", "lavfi", "-i",
@@ -110,21 +110,76 @@ def verify_video(path, width, height, fps):
             "sound": "silent diagnostic audio, NOT music or cleared soundtrack"}
 
 
+def create_synthetic_frames(folder):
+    """Reuse V4.2's five deterministic synthetic concepts, never private footage."""
+    from PIL import Image, ImageDraw
+    folder.mkdir(parents=True,exist_ok=True)
+    colors=["#204E6C","#587545","#A77A4D","#D4A55B","#18382F"]
+    frames=[]
+    for i,color in enumerate(colors):
+        img=Image.new("RGB",(360,640),color)
+        d=ImageDraw.Draw(img)
+        if i==0:
+            for y in range(160,620,38):d.arc((12,y,340,y+110),0,180,fill="#9BC5D1",width=4)
+        elif i==1:
+            d.line((190,650,175,60),fill="#554735",width=24)
+            for x,y in [(75,130),(230,150),(100,250),(265,300)]:
+                d.ellipse((x-82,y-66,x+82,y+66),fill="#7B9852",outline="#C7D28F",width=3)
+        elif i==2:
+            for b in [(20,330,220,430),(120,230,335,330),(40,455,335,570)]:
+                d.rounded_rectangle(b,radius=17,fill="#D4BA93",outline="#654936",width=8)
+        elif i==3:
+            d.ellipse((90,120,275,305),fill="#FBE7A2")
+            for x in [60,105,155,220,280]:d.line((x,640,x+35,325),fill="#234438",width=28)
+        else:
+            for x in [30,105,200,310]:
+                d.line((x,640,x-15,90),fill="#0B2923",width=29)
+                d.ellipse((x-84,55,x+85,285),fill="#42684B",outline="#94A86D",width=4)
+        d.rectangle((0,555,360,640),fill="#18382F")
+        d.text((22,579),"SYNTHETIC TEST - "+str(i+1),fill="#F9F5EA")
+        frame=folder/("scene_%d.jpg"%(i+1))
+        img.save(frame,quality=83)
+        frames.append(frame)
+    return frames
+
+
+def observe_synthetic_frames(cfg,folder):
+    """Groq Qwen vision reads exact generated frames later used by the renderer."""
+    from v5_orchestrator import models_for_task,call_groq_vision
+    vision=models_for_task(cfg,"shot_visual_analysis")[0]
+    key=os.environ.get("GROQ_API_KEY","")
+    if not key:raise Rejected("Groq key required for synthetic multimodal vision")
+    frames=create_synthetic_frames(folder)
+    descriptions=[]
+    for i,frame in enumerate(frames,1):
+        visible=call_groq_vision(cfg,frame,
+            "Describe the visible composition of this synthetic generated graphic only. "
+            "Do not identify people, invent a location, or claim real customer footage.",key,model=vision)
+        descriptions.append({"id":"S"+str(i),"visible":visible[:300]})
+    return {"shots":descriptions,"_meta":{
+       "model_used":vision["model"],"provider":"groq",
+       "synthetic_only":True,"real_guest_data_sent":False}}
+
+
 def describe_synthetic_vision(result):
-    """Append actual Gemini output as corroboration, never invented provenance."""
-    if not isinstance(result, dict) or not isinstance(result.get("shots"), list) or not result["shots"]:
-        raise Rejected("Gemini did not analyze synthetic frames")
-    meta = result.get("_meta") or {}
-    model = meta.get("model_used")
-    if meta.get("synthetic_only") is not True or not isinstance(model, str) or not model.startswith("gemini-"):
-        raise Rejected("Vision response missing verified synthetic model identity")
-    brief = ("Gemini analysis of synthetic drawings used as actual render sources ONLY. "
-             "Use authenticated observed descriptions for corroboration; "
-             "original V5 verified shot timecodes and source facts take precedence. "
-             "Never claim these are real venue or guest images. "
-             + json.dumps(result["shots"], ensure_ascii=False)[:2500])
-    return brief, {"model": model, "shot_count": len(result["shots"]),
-                   "synthetic_only": True, "real_guest_data_sent": False}
+    """Use only authenticated Groq model outputs as synthetic visual corroboration."""
+    if not isinstance(result,dict) or not isinstance(result.get("shots"),list) or len(result["shots"])!=5:
+        raise Rejected("Groq did not analyze the five synthetic frames")
+    meta=result.get("_meta") or {}
+    if (meta.get("synthetic_only") is not True or meta.get("provider")!="groq"
+            or meta.get("model_used")!="qwen/qwen3.8-27b"
+            or meta.get("real_guest_data_sent") is not False):
+        raise Rejected("Vision response missing verified Groq synthetic identity")
+    if any(not isinstance(item.get("visible"),str) or len(item["visible"])<8 for item in result["shots"]):
+        raise Rejected("Invalid synthetic Groq visual analysis")
+    brief=("Groq analysis of synthetic drawings used as actual render sources ONLY. "
+        "These descriptions are unreviewed visual observations, not certified footage facts. "
+        "Never claim real guest or venue images. "+
+        json.dumps(result["shots"],ensure_ascii=False)[:2500])
+    return brief,{"provider":"groq","model":meta["model_used"],
+        "shot_count":len(result["shots"]),"synthetic_only":True,
+        "real_guest_data_sent":False}
+
 
 
 def execute(mode, destination, profile, brief=""):
@@ -139,12 +194,12 @@ def execute(mode, destination, profile, brief=""):
     shots = validate_source(manifest, cfg)
     vision_meta = {"status": "not_executed", "synthetic_only": True}
     vision_brief = ""
+    destination.mkdir(parents=True,exist_ok=True)
     if mode == "multimodal":
-        # Reuse the independently proven V4.2 synthetic-only vision adapter.
-        # It constructs its own test drawings; it cannot open guest paths/URLs.
-        sys.path.insert(0, str(ROOT / "experiments" / "reel-engine-v4_2"))
-        from synthetic_multimodel import call_gemini
-        vision_brief, vision_meta = describe_synthetic_vision(call_gemini())
+        # All frames are synthetic, and are later used as exact render sources.
+        synthetic_frames=destination/"groq-only-synthetic-frames"
+        vision_brief, vision_meta = describe_synthetic_vision(
+            observe_synthetic_frames(cfg,synthetic_frames))
         vision_meta["status"] = "live_synthetic_observation"
     if mode in ("live", "multimodal"):
         required_clearance(manifest, external=True)
@@ -171,7 +226,7 @@ def execute(mode, destination, profile, brief=""):
     destination.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(prefix="v5-synthetic-") as name:
         tmp = Path(name)
-        vision_images = (ROOT / "experiments" / "reel-engine-v4_2" / "synthetic_output"
+        vision_images = (destination/"groq-only-synthetic-frames"
                          if mode == "multimodal" else None)
         originals = create_synthetic_sources(tmp, shots, vision_images=vision_images)
         output = destination / "v5-synthetic-diagnostic.mp4"
@@ -192,7 +247,7 @@ def execute(mode, destination, profile, brief=""):
         "status": "SYNTHETIC_TECHNICAL_CERTIFICATION_ONLY",
         "mode": mode, "profile": profile, "queued_brief_applied": bool(brief) and mode in ("live", "multimodal"), "model_inference": mode in ("live", "multimodal"),
         "vision_analysis": vision_meta,
-        "synthetic_render_sources_match_gemini_frames": mode == "multimodal",
+        "synthetic_render_sources_match_groq_frames": mode == "multimodal",
         "director_planning_validated": True,
         "deferred_operations": ops["deferred_operations"],
         "unexecuted_operations": unexecuted,

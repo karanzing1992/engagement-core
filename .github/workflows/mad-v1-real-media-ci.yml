@@ -33,9 +33,11 @@ jobs:
           for(const [label,s,terms] of [
             ['owner',app,['MAD_OWNER_CODE_SHA256','MEDIA_KV','source', 'sha256','external_ai_approved','people_consent','rights_confirmed','review_ready','/v1/media/','X-Chunk-SHA256']],
             ['signed-bridge',bridge,['media-claim','media-source','media-output','media-complete','verify(request)','MEDIA_KV','claim_id','review_ready','RS256']],
-            ['private-runner',runner,['source_sha256','GEMINI_API_KEY','GROQ_API_KEY','render_multiple','PRIVATE_REAL_MEDIA_TECHNICAL_DRAFT','public_release_certified']]]){
+            ['private-runner',runner,['source_sha256','GROQ_API_KEY','groq_vision_caption','render_multiple','PRIVATE_REAL_MEDIA_TECHNICAL_DRAFT','public_release_certified']]]){
             for(const term of terms)if(!s.includes(term))throw Error(label+': required gate missing '+term);
           }
+          if(/GEMINI_API_KEY|generativelanguage\\.googleapis\\.com|gemini_caption/.test(runner))throw Error('V5 real-media must be Groq-only');
+          if(/GEMINI_API_KEY/.test(fs.readFileSync('.github/workflows/mad-v5-cloudflare-bridge.yml','utf8')))throw Error('Signed runner must not inject Gemini secret');
           if(/upload-artifact/.test(runner))throw Error('No guest media in artifacts');
           console.log('MAD_V1_REAL_MEDIA_SOURCE_GATES_PASS');
           JS

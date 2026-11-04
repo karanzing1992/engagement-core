@@ -29,6 +29,9 @@ jobs:
           const fs=require('node:fs');
           const w=fs.readFileSync('.github/workflows/mad-v5-cloudflare-bridge.yml','utf8');
           for(const required of [
+            "id: groq_model_gate",
+            "python3 experiments/reel-engine-v5/groq_models_preflight.py",
+            "if: always() && steps.groq_model_gate.outcome == 'success'",
             "id: media_claim",
             "if: always()",
             "id: media_install",
