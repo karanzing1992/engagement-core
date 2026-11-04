@@ -1,0 +1,77 @@
+name: MAD V5 | Cloudflare OIDC GitHub Model Runner
+on:
+  issues:
+    types: [opened, edited, labeled]
+  workflow_dispatch:
+  schedule:
+    - cron: '16,46 * * * *'
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: mad-v5-cloudflare-oidc-queue
+  cancel-in-progress: false
+jobs:
+  bridge:
+    if: github.event_name != 'issues' || (github.event.issue.user.login == github.repository_owner && startsWith(github.event.issue.title, '[MAD-V5-CF] '))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Enqueue owner-issued synthetic prompt in Cloudflare D1
+        if: github.event_name == 'issues'
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: python3 services/reel-engine/cloudflare_bridge_runner.py enqueue --event "$GITHUB_EVENT_PATH"
+      - name: Lease one Cloudflare job using signed GitHub OIDC
+        if: success()
+        id: claim
+        run: python3 services/reel-engine/cloudflare_bridge_runner.py claim --claim-file "$RUNNER_TEMP/claim.json"
+      - name: Install FFmpeg and pinned Python SDKs only for accepted jobs
+        if: steps.claim.outputs.has_job == '1'
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+          python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
+      - name: Execute canonical MAD V5 director and guarded synthetic render
+        id: render
+        if: steps.claim.outputs.has_job == '1'
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os,json,pathlib,subprocess
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])
+          job=json.loads((root/"claim.json").read_text())
+          subprocess.run(["python3","experiments/reel-engine-v5/git_cloud_runner.py",
+            "--mode",job["mode"],"--profile",job["profile"],"--brief",job["prompt"],
+            "--out-dir",str(root/"v5-cf-output")],check=True)
+          receipt=json.loads((root/"v5-cf-output"/"v5-technical-receipt.json").read_text())
+          assert receipt["status"]=="SYNTHETIC_TECHNICAL_CERTIFICATION_ONLY"
+          assert receipt["video"]["decoded"] and receipt["real_footage_certified"] is False
+          assert receipt["published"] is False
+          print("CLOUDFLARE_V5_SYNTHETIC_RENDER_COMPLETE",job["job_id"])
+          PY
+      - name: Commit owner-scoped Cloudflare queue receipt, including failures
+        if: always() && steps.claim.outputs.has_job == '1'
+        env:
+          RENDER_OUTCOME: ${{ steps.render.outcome }}
+        run: |
+          python3 services/reel-engine/cloudflare_bridge_runner.py complete \
+            --claim-file "$RUNNER_TEMP/claim.json" \
+            --receipt "$RUNNER_TEMP/v5-cf-output/v5-technical-receipt.json" \
+            --render-outcome "$RENDER_OUTCOME"
+      - name: Archive synthetic only MP4/technical receipt for seven days
+        if: success() && steps.claim.outputs.has_job == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mad-v5-cloudflare-synthetic-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/v5-cf-output/v5-synthetic-diagnostic.mp4
+            ${{ runner.temp }}/v5-cf-output/v5-technical-receipt.json
+          retention-days: 7
+          if-no-files-found: error
