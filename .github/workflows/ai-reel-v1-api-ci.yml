@@ -1,0 +1,38 @@
+name: AI Reel Engine V1 owner PWA API contract
+on:
+  pull_request:
+    paths:
+      - 'services/reel-engine/ai-reel-api-v1/**'
+      - 'services/reel-engine/cloudflare_bridge_runner.py'
+      - 'experiments/reel-engine-v5/cloudflare-oidc/worker.mjs'
+      - '.github/workflows/ai-reel-v1-api-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse and verify owner-scoped API authorization gates
+        run: |
+          set -euo pipefail
+          node --check services/reel-engine/ai-reel-api-v1/worker.mjs
+          node --check experiments/reel-engine-v5/cloudflare-oidc/worker.mjs
+          python3 -m py_compile services/reel-engine/cloudflare_bridge_runner.py
+          node - <<'JS'
+          const fs = require('node:fs');
+          const w=fs.readFileSync('services/reel-engine/ai-reel-api-v1/worker.mjs','utf8');
+          const g=fs.readFileSync('experiments/reel-engine-v5/cloudflare-oidc/worker.mjs','utf8');
+          const runner=fs.readFileSync('services/reel-engine/cloudflare_bridge_runner.py','utf8');
+          for(const k of ['MAD_OWNER_CODE_SHA256','Bearer nk-','madapp-','cleanPrompt','https://reel.delulutech.in','https://delulutech-ai-reel-engine-v1.pages.dev','real_media_enabled:false'])
+            if(!w.includes(k))throw Error('Owner API required guard missing: '+k);
+          if(w.includes('GROQ_API_KEY')||w.includes('GEMINI_API_KEY')||w.includes('GITHUB_TOKEN'))throw Error('Provider token name in browser API');
+          if(!runner.includes('madapp-')||!g.includes('madapp-'))throw Error('GitHub signed workload bridge missing app ID support');
+          if(!g.includes("redirect:'manual'"))throw Error('Cloudflare JWKS verification regressed');
+          console.log('MAD_V1_SYNTHETIC_OWNER_GATES_SOURCE_PASS');
+          JS
