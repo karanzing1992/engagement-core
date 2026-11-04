@@ -6,6 +6,7 @@ on:
       - 'services/reel-engine/cloudflare_bridge_runner.py'
       - 'experiments/reel-engine-v5/cloudflare-oidc/worker.mjs'
       - '.github/workflows/ai-reel-v1-api-ci.yml'
+      - '.github/workflows/mad-v5-cloudflare-bridge.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +23,24 @@ jobs:
         run: |
           python3 services/reel-engine/ai-reel-api-v1/test_serialized_queue.py -v
           echo MAD_V1_SERIALIZED_QUEUE_REGRESSION_PASS
+      - name: Assert real-media workflow does not inherit synthetic failure
+        run: |
+          node - <<'JS'
+          const fs=require('node:fs');
+          const w=fs.readFileSync('.github/workflows/mad-v5-cloudflare-bridge.yml','utf8');
+          for(const required of [
+            "id: media_claim",
+            "if: always()",
+            "id: media_install",
+            "if: always() && steps.media_claim.outputs.has_media == '1'",
+            "if: always() && steps.media_claim.outputs.has_media == '1' && steps.media_install.outcome == 'success'"
+          ]) {
+            if(!w.includes(required))throw Error('Real-media workflow safety gate missing: '+required);
+          }
+          if(/name: Download verified private source[^\n]*\n\s*if: steps\.media_claim/.test(w))
+            throw Error('Real-media renderer has implicit success dependency');
+          console.log('REAL_MEDIA_INDEPENDENT_GATE_PASS');
+          JS
       - name: Parse and verify owner-scoped API authorization gates
         run: |
           set -euo pipefail
