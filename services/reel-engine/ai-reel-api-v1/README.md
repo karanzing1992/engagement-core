@@ -1,0 +1,11 @@
+# DeluluTech AI Reel Engine 1.0 — owner PWA API
+
+Cloudflare Worker source: `worker.mjs`. Deploy isolated Worker `delulutech-ai-reel-api-v1` with D1 binding `DB` to existing `mad-v5-bridge-queue` and a **secret** binding `MAD_OWNER_CODE_SHA256` (SHA-256 of strong owner access code, never commit the code or digest to GitHub). Public health endpoint is metadata-only. POST `/v1/chat/completions` is OpenAI-compatible and SSE-compatible with NextChat's existing client, but it enqueues bounded **synthetic** FFmpeg jobs rather than streaming conversational LLM completions. GET `/v1/models` exposes `mad-v5`. Commands `status` and `status madapp-<uuid>` query D1. Never store raw video or third-party keys here.
+
+Allowlisted Origin: `https://reel.delulutech.in` or the named Pages production host. Authenticated request `Authorization: Bearer nk-<owner-code>`; WebCrypto SHA256 match performed only in Cloudflare Worker. User code is entered manually into NextChat's Access Code setting, not shipped in static HTML/source. This is **one-owner personal pilot**, not certified multi-user OAuth. Phase 2 must introduce individual accounts/tenant isolation/fair queue/ETA before external users.
+
+D1 guard migration `schema.sql` enforces at most one active owner job and avoids duplicate concurrent expensive work. Separate GitHub Actions workload OIDC route remains protected; browser Worker only inserts D1 jobs and reads their status. The canonical GitHub worker validates owner `madapp-UUID` IDs, processes one job per scheduled sweep, and signs completion receipt back to existing OIDC bridge.
+
+**Important:** Current renderer uses synthetic-only fixtures. No external media upload/guest videos, rights approval, commercial video production, social publishing, generic Groq conversation or prompt-suggesting model in Phase 1. Job pickup is schedule-dependent; do not claim short wait times. MIT NextChat PWA source is in `aarondash5-star/delulutech`, branch `feature/ai-reel-engine-v1-nextchat-20261104` with upstream LICENSE.
+
+Rollback: disable Worker custom domain and Pages custom domain, leaving original `delulutech.in` and existing `mad-reel-v5-oidc-bridge` untouched. Remove D1 partial index after all owner jobs drain if reverting Phase 1. Owner code must be rotated if leaked.
