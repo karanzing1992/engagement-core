@@ -22,8 +22,10 @@ jobs:
         run: python3 experiments/reel-engine-v5/groq_models_preflight.py
       - name: Install bounded synthetic renderer dependencies
         run: |
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+          if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+          fi
           python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
       - name: Minimal real Groq inference, no prompts or replies in logs
         run: |
