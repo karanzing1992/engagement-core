@@ -30,7 +30,33 @@ def call(action,data):
         data=json.dumps(data,separators=(",",":")).encode(),headers={
         "Authorization":"Bearer "+token(),"Content-Type":"application/json","Accept":"application/json",
         "User-Agent":"MAD-V5-GitHub-OIDC-Bridge/1"})
-    with urllib.request.urlopen(req,timeout=35) as res:return json.loads(res.read(8192))
+    try:
+        with urllib.request.urlopen(req,timeout=35) as res:return json.loads(res.read(8192))
+    except urllib.error.HTTPError as exc:
+        if exc.code==401:
+            import base64,sys
+            claims={}
+            try:
+                t=token().split(".")[1]
+                claims=json.loads(base64.urlsafe_b64decode(t+"==="))
+            except (ValueError,KeyError,IndexError):pass
+            expected="karanzing1992/engagement-core/.github/workflows/mad-v5-cloudflare-bridge.yml@refs/heads/main"
+            checks={
+              "issuer":claims.get("iss")=="https://token.actions.githubusercontent.com",
+              "audience":claims.get("aud")==AUDIENCE,
+              "repository":claims.get("repository")==REPO,
+              "repository_id":str(claims.get("repository_id"))=="1403281267",
+              "repository_owner_id":str(claims.get("repository_owner_id"))=="30191163",
+              "ref":claims.get("ref")=="refs/heads/main",
+              "workflow_ref":claims.get("workflow_ref")==expected,
+              "github_hosted":claims.get("runner_environment")=="github-hosted",
+              "owner_actor":str(claims.get("actor_id"))=="30191163",
+              "event_is_issue":claims.get("event_name")=="issues",
+              "nbf_present":isinstance(claims.get("nbf"),int),
+              "run_id_present":bool(claims.get("run_id"))
+            }
+            print("GITHUB_OIDC_NONSECRET_CLAIM_CHECKS "+json.dumps(checks,sort_keys=True),file=sys.stderr)
+        raise
 
 def parse_issue(path):
     event=json.loads(path.read_text(encoding="utf-8"))
