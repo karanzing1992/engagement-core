@@ -107,7 +107,27 @@ async function mediaBridge(req,env,url,claims){
      if(x.n!==a.chunks||x.bytes!==a.bytes)return json({error:'Incomplete output'},409);
      const rec=a.receipt;
      if(!rec||typeof rec!=='object'||rec.status!=='PRIVATE_REAL_MEDIA_TECHNICAL_DRAFT'||rec.video?.full_decode!==true||rec.video?.sha256!==a.sha256||rec.music_rights_certified!==false||rec.public_release_certified!==false)return json({error:'Invalid private review receipt'},400);
-     const safe={status:rec.status,video:rec.video,creative_model_called:rec.creative_model_called===true,music_rights_certified:false,artistic_quality_certified:false,public_release_certified:false,shot_count:rec.shot_count||0,toolchain:rec.toolchain||'V5 FFmpeg'};
+     const safe={
+      status:rec.status,video:rec.video,
+      creative_model_called:rec.creative_model_called===true,
+      creative_plan_applied:rec.creative_plan_applied===true,
+      planning_mode:['groq_v5_unapproved','source_only_fallback'].includes(rec.planning_mode)?rec.planning_mode:'unknown',
+      creative_fallback_reason:[
+        'director_auth_rejected','director_rate_limited','director_request_rejected',
+        'director_plan_invalid','director_response_invalid','director_provider_failure',
+        'director_credential_missing'
+      ].includes(rec.creative_fallback_reason)?rec.creative_fallback_reason:null,
+      director_attempts:Number.isInteger(rec.director_attempts)?Math.max(0,Math.min(3,rec.director_attempts)):0,
+      vision_frames_sampled:Number.isInteger(rec.vision_frames_sampled)?Math.max(0,Math.min(8,rec.vision_frames_sampled)):0,
+      vision_frames_captioned:Number.isInteger(rec.vision_frames_captioned)?Math.max(0,Math.min(8,rec.vision_frames_captioned)):0,
+      vision_status:['no_vision_credential','no_vision_descriptions','descriptions_unreviewed'].includes(rec.vision_status)?rec.vision_status:'unknown',
+      proposed_effects_not_executed:Number.isInteger(rec.proposed_effects_not_executed)?Math.max(0,Math.min(1600,rec.proposed_effects_not_executed)):0,
+      applied_operations:['source_trim','concat','scale_crop','fade','static_opening_title'],
+      soundtrack_source:'authorized_source_audio_only',
+      music_rights_certified:false,artistic_quality_certified:false,public_release_certified:false,
+      shot_count:rec.shot_count||0,
+      toolchain:rec.creative_plan_applied===true?'V5 Groq edit plan + FFmpeg':'V5 FFmpeg fallback'
+     };
      const x2=await env.DB.prepare("UPDATE mad_v1_media_jobs SET state='review_ready',result_bytes=?,result_sha256=?,result_chunks=?,result_receipt=?,updated_at=? WHERE job_id=? AND claim_id=? AND state='claimed'").bind(a.bytes,a.sha256,a.chunks,JSON.stringify(safe),now,a.job_id,a.claim_id).run();
      return json({accepted:!!x2.meta?.changes,state:'review_ready'});
    }
