@@ -4,7 +4,7 @@ No private media in repository, CI logs or public Actions artifacts.
 This produces an UNAPPROVED REVIEW DRAFT, never an artistic/music-rights certification.
 """
 from __future__ import annotations
-import argparse,base64,hashlib,json,math,os,re,subprocess,sys,urllib.request,urllib.error,textwrap
+import argparse,base64,hashlib,json,math,os,re,subprocess,sys,urllib.request,urllib.error,textwrap,time
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[3]
@@ -125,17 +125,27 @@ def design(job,src,probe,work):
            "creative_plan_applied":False,"creative_fallback_reason":None,
            "proposed_effects_not_executed":0}
     vision=models_for_task(cfg,"shot_visual_analysis")[0]
+    free_vision=cfg["task_routing"]["shot_visual_analysis"]
+    batch_size=free_vision["images_per_free_tier_batch"]
+    max_captions=free_vision["max_captioned_frames_per_job"]
+    batch_cooldown=free_vision["batch_cooldown_seconds"]
+    vision_requests=0
     shots={}
     for k,(t,frame) in enumerate(frames):
         start=max(0.,min(t-.45,probe["duration"]-.8))
         length=min(3.8,probe["duration"]-start-.1)
         if length<.4:continue
         description=None
-        if k<6 and os.getenv("GROQ_API_KEY",""):
+        if k<max_captions and os.getenv("GROQ_API_KEY",""):
+            # Provider free tier allows 8K tokens/minute for Qwen. Each image
+            # costs 2048 tokens; spread six shots across two admission windows.
+            if vision_requests and vision_requests%batch_size==0:
+                time.sleep(batch_cooldown)
+            vision_requests+=1
             try:
                 description=groq_vision_caption(frame,cfg)
             except Exception:
-                # No guest frames/prompts/provider responses may leak into logs.
+                # Never log guest frames, private prompts, provider bodies or keys.
                 audit["vision_failures"]+=1
             if description:
                 audit["vision_frames_captioned"]+=1
