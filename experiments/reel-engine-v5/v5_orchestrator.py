@@ -35,8 +35,25 @@ def load_system(config_path, registry_path):
     gate=cfg.get("provider_policy",{})
     if gate.get("allowed")!=["groq"] or gate.get("fallback")!="same_provider_only":
         raise Rejected("V5 only permits the configured Groq API")
-    if cfg.get("routing_revision")!="groq_only_task_routing_20261104":
+    if cfg.get("routing_revision")!="groq_free_tier_task_routing_20261104":
         raise Rejected("Groq-only task routing revision mismatch")
+    if gate.get("plan")!="free_only" or gate.get("allow_paid_inference") is not False:
+        raise Rejected("Paid Groq inference not authorized")
+    free=cfg.get("budget",{}).get("groq_free_tier",{})
+    limits=free.get("models",{})
+    if free.get("inference_charges_allowed") is not False:
+        raise Rejected("Paid model quota forbidden")
+    expected={"openai/gpt-oss-120b","openai/gpt-oss-20b","qwen/qwen3.8-27b"}
+    if set(limits)!=expected:
+        raise Rejected("Only documented Groq free-tier models permitted")
+    for model,limit in limits.items():
+        if limit.get("tpm")!=8000 or limit.get("rpd")!=1000 or limit.get("rpm")!=30:
+            raise Rejected("Unexpected Groq free tier quota; review before release")
+    visual=cfg.get("task_routing",{}).get("shot_visual_analysis",{})
+    if (visual.get("images_per_free_tier_batch")!=3
+            or visual.get("max_captioned_frames_per_job")!=6
+            or visual.get("batch_cooldown_seconds",0)<60):
+        raise Rejected("Free-tier Groq vision batching policy missing")
     models = cfg.get("models", {})
     for role in ("creative", "vision", "execution", "critique"):
         if not models.get(role):
@@ -46,6 +63,10 @@ def load_system(config_path, registry_path):
                 raise Rejected("Only Groq-hosted model IDs are permitted for " + role)
             if entry.get("credential_env")!="GROQ_API_KEY":
                 raise Rejected("Groq-only key mapping required for " + role)
+            if entry["model"] not in limits:
+                raise Rejected("Only documented Groq free-tier model is permitted for "+role)
+            if entry.get("max_completion_tokens",0)<=0 or entry["max_completion_tokens"]>5000:
+                raise Rejected("Excessive per-call Groq free-tier completion allowance")
             t = entry.get("temperature")
             if t is not None and not (0 <= t <= 2):
                 raise Rejected("Model creativity temperature outside API profile")
