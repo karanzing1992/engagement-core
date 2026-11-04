@@ -22,8 +22,11 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
         run: python3 experiments/reel-engine-v5/groq_minimal_inference.py
-      - name: Verify runner FFmpeg and install pinned Python dependencies
+      - name: Install FFmpeg from cached package indexes and pinned Python packages
         run: |
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 install -y -qq ffmpeg
+          fi
           command -v ffmpeg
           command -v ffprobe
           python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
