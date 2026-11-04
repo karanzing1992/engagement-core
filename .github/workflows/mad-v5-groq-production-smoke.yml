@@ -30,12 +30,12 @@ jobs:
           command -v ffmpeg
           command -v ffprobe
           python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
-      - name: Render and verify an isolated synthetic-only V5 diagnostic
+      - name: Render and verify an isolated fixture-only V5 diagnostic (no provider planning)
         env:
           GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
         run: |
           python3 experiments/reel-engine-v5/git_cloud_runner.py \
-            --mode live --profile synthetic_test \
+            --mode fixture --profile synthetic_test \
             --brief "Synthetic-only quality-control demonstration; never use guest images or publish." \
             --out-dir "$RUNNER_TEMP/mad-v5-synthetic-privacy-smoke"
           python3 - <<'PY'
