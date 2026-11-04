@@ -33,7 +33,7 @@ async function run(){
   try {
   const db=await mf.getD1Database('DB');
   for(const file of ['002_media.sql','003_chunks.sql','010_serialized_queue.sql']){
-    await db.exec(readFileSync(join(parent,file),'utf8'));
+    await db.exec(readFileSync(join(parent,file),'utf8').replace(/^--.*$/gm,'').trim());
   }
   const kv=await mf.getKVNamespace('MEDIA_KV');
   const headers=(auth=true,orig=origin)=>({
