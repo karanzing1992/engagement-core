@@ -295,7 +295,7 @@ def call_groq_vision(cfg, frame_path, prompt, key, model=None, client=None):
     out=client.chat.completions.create(**payload)
     message=(out.choices[0].message.content or "").strip()
     if len(message)<8:raise Rejected("Groq vision produced no grounded description")
-    return re.sub(r"[\\r\\n]+"," ",message)[:300]
+    return " ".join(message.split())[:300]
 
 
 def call_groq(cfg, prompt, key, model=None, client=None):
