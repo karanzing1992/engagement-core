@@ -9,7 +9,7 @@ permissions:
   contents: read
   id-token: write
 concurrency:
-  group: mad-v5-cloudflare-oidc-queue
+  group: mad-v5-cloudflare-oidc-queue-post-apt-recovery-20261104
   cancel-in-progress: false
 jobs:
   bridge:
