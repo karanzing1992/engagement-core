@@ -41,6 +41,12 @@ jobs:
             throw Error('Real-media renderer has implicit success dependency');
           console.log('REAL_MEDIA_INDEPENDENT_GATE_PASS');
           JS
+      - name: Run synthetic-only V5 creative failure and title regressions
+        run: |
+          python3 -m unittest discover -s services/reel-engine/ai-reel-api-v1 -p 'test_creative_audit.py' -v
+          python3 -m py_compile services/reel-engine/ai-reel-api-v1/media_runner.py
+          node --check experiments/reel-engine-v5/cloudflare-oidc/worker.mjs
+          echo PRIVATE_V5_CREATIVE_AUDIT_PASS
       - name: Parse and verify owner-scoped API authorization gates
         run: |
           set -euo pipefail
