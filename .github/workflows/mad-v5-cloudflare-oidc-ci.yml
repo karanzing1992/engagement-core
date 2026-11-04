@@ -26,6 +26,13 @@ jobs:
         run: |
           set -euo pipefail
           node --check experiments/reel-engine-v5/cloudflare-oidc/worker.mjs
+          node - <<'JS'
+          const fs=require('node:fs');
+          const source=fs.readFileSync('experiments/reel-engine-v5/cloudflare-oidc/worker.mjs','utf8');
+          if(!source.includes("redirect:'manual'")||!source.includes('r.status!==200')||source.includes("redirect:'error'"))throw Error('Unsupported Cloudflare JWKS redirect policy');
+          if(source.includes('x-mad-oidc-stage'))throw Error('Temporary authentication diagnostic still exposed');
+          console.log('CLOUDFLARE_JWKS_MANUAL_REDIRECT_FAIL_CLOSED_PASS');
+          JS
           python3 -m py_compile services/reel-engine/cloudflare_bridge_runner.py experiments/reel-engine-v5/git_cloud_runner.py
           python3 - <<'PY'
           import importlib.util, json, pathlib, tempfile
