@@ -21,20 +21,20 @@
         "model": "openai/gpt-oss-120b",
         "role": "cinematic_director",
         "temperature": 0.85,
-        "max_completion_tokens": 6500,
+        "max_completion_tokens": 4400,
         "reasoning_effort": "high",
         "credential_env": "GROQ_API_KEY",
-        "availability": "catalog_listed;account_permission_pending"
+        "availability": "official_Groq_free_tier_production;account_access_unverified"
       },
       {
         "provider": "groq",
-        "model": "qwen/qwen3.8-27b",
+        "model": "openai/gpt-oss-20b",
         "role": "alternate_director",
-        "temperature": 0.7,
-        "max_completion_tokens": 5500,
+        "temperature": 0.6,
+        "max_completion_tokens": 2800,
         "reasoning_effort": "medium",
         "credential_env": "GROQ_API_KEY",
-        "availability": "preview_catalog;account_permission_pending"
+        "availability": "official_Groq_free_tier_production;account_access_unverified"
       }
     ],
     "vision": [
@@ -43,10 +43,10 @@
         "model": "qwen/qwen3.8-27b",
         "role": "visual_shot_analyst",
         "temperature": 0.2,
-        "max_completion_tokens": 350,
+        "max_completion_tokens": 240,
         "reasoning_effort": "none",
         "credential_env": "GROQ_API_KEY",
-        "availability": "preview_catalog;account_permission_pending"
+        "availability": "official_Groq_free_tier_preview;account_access_unverified"
       }
     ],
     "execution": [
@@ -55,20 +55,20 @@
         "model": "openai/gpt-oss-120b",
         "role": "complex_timeline_and_tool_planner",
         "temperature": 0.25,
-        "max_completion_tokens": 2700,
+        "max_completion_tokens": 2500,
         "reasoning_effort": "medium",
         "credential_env": "GROQ_API_KEY",
-        "availability": "catalog_listed;account_permission_pending"
+        "availability": "official_Groq_free_tier_production;account_access_unverified"
       },
       {
         "provider": "groq",
         "model": "openai/gpt-oss-20b",
         "role": "quick_edit_validation",
         "temperature": 0.1,
-        "max_completion_tokens": 1200,
+        "max_completion_tokens": 1000,
         "reasoning_effort": "low",
         "credential_env": "GROQ_API_KEY",
-        "availability": "catalog_listed;account_permission_pending"
+        "availability": "official_Groq_free_tier_production;account_access_unverified"
       }
     ],
     "critique": [
@@ -77,10 +77,10 @@
         "model": "openai/gpt-oss-120b",
         "role": "cinematic_art_director_review",
         "temperature": 0.45,
-        "max_completion_tokens": 3500,
+        "max_completion_tokens": 3100,
         "reasoning_effort": "high",
         "credential_env": "GROQ_API_KEY",
-        "availability": "catalog_listed;account_permission_pending"
+        "availability": "official_Groq_free_tier_production;account_access_unverified"
       }
     ]
   },
@@ -165,7 +165,36 @@
     "max_render_seconds_total_per_job": 600,
     "max_external_calls_per_job": 15,
     "fee_policy": "free_or_free_tier_only_with_provider_account_verified",
-    "resource_caps_not_creative_style_limits": true
+    "resource_caps_not_creative_style_limits": true,
+    "groq_free_tier": {
+      "plan": "free",
+      "inference_charges_allowed": false,
+      "limits_source": "https://console.groq.com/docs/rate-limits",
+      "models": {
+        "openai/gpt-oss-120b": {
+          "rpm": 30,
+          "rpd": 1000,
+          "tpm": 8000,
+          "tpd": 200000
+        },
+        "openai/gpt-oss-20b": {
+          "rpm": 30,
+          "rpd": 1000,
+          "tpm": 8000,
+          "tpd": 200000
+        },
+        "qwen/qwen3.8-27b": {
+          "rpm": 30,
+          "rpd": 1000,
+          "tpm": 8000,
+          "tpd": 200000,
+          "image_input_tokens": 2048,
+          "preview_only": true
+        }
+      },
+      "account_limits_must_be_checked": true,
+      "per_job_parallel_model_calls": 1
+    }
   },
   "governance": {
     "production_social_publishing": false,
@@ -175,7 +204,9 @@
     "secret_egress_prohibited": true,
     "provider_lock": "groq_only",
     "live_model_availability": "must_verify_from_authenticated_Groq_model_listing",
-    "no_paid_upgrade_approved": true
+    "no_paid_upgrade_approved": true,
+    "free_tier_only": true,
+    "paid_plan_autoupgrade": false
   },
   "music": {
     "mode": "third_party_existing_licensed_tracks_only",
@@ -223,7 +254,7 @@
   "default_for_new_video_jobs": true,
   "real_media_production_certified": false,
   "existing_jobs_unchanged": true,
-  "routing_revision": "groq_only_task_routing_20261104",
+  "routing_revision": "groq_free_tier_task_routing_20261104",
   "provider_policy": {
     "allowed": [
       "groq"
@@ -233,17 +264,23 @@
     "server_side_key_only": true,
     "default_provider": "groq",
     "account_model_permissions_required": true,
-    "never_fall_back_to_other_api": true
+    "never_fall_back_to_other_api": true,
+    "plan": "free_only",
+    "allow_paid_inference": false,
+    "model_catalog_verified_at": "2026-11-04",
+    "free_tier_gate": "authenticated_Groq_model_list_required",
+    "preview_model_policy": "private_pilot_only"
   },
   "task_routing": {
     "cinematic_direction": {
       "role": "creative",
       "candidate_models": [
         "openai/gpt-oss-120b",
-        "qwen/qwen3.8-27b"
+        "openai/gpt-oss-20b"
       ],
       "cost_policy": "existing_Groq_free_tier_only",
-      "missing_access": "fail_or_document_fallback"
+      "missing_access": "fail_or_document_fallback",
+      "fallback_policy": "production_text_model_only"
     },
     "shot_visual_analysis": {
       "role": "vision",
@@ -252,7 +289,11 @@
       ],
       "modality": "image_text",
       "max_images_per_request": 3,
-      "privacy": "rights_gate_before_external_frames"
+      "privacy": "rights_gate_before_external_frames",
+      "images_per_free_tier_batch": 3,
+      "batch_cooldown_seconds": 63,
+      "max_captioned_frames_per_job": 6,
+      "production_eligibility": "private_preview_only_until_vision_certified"
     },
     "complex_edit_decision": {
       "role": "execution",
