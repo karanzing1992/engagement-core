@@ -10,13 +10,15 @@ export const PROJECTS = new Set(["moksha_wellness","andaz_vibe_stay","delulutech
 const fail = message => { throw new Error(message); };
 export function validateJob(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) fail("Job must be object");
-  const {job_id, project_id, prompt, source_sha256, source_bytes, chunk_count, rights} = data;
+  const {job_id, project_id, prompt, source_sha256, source_bytes, chunk_count, rights, verified_shots, verified_brand} = data;
   if (typeof job_id !== "string" || !ID_RE.test(job_id)) fail("Invalid job_id");
   if (!PROJECTS.has(project_id)) fail("Unregistered project");
   if (typeof prompt !== "string" || prompt.trim().length < 10 || prompt.length > 4000) fail("Creative prompt must be 10–4000 characters");
   if (typeof source_sha256 !== "string" || !SHA_RE.test(source_sha256)) fail("Source SHA-256 required");
   if (!Number.isSafeInteger(source_bytes) || source_bytes < 1024 || source_bytes > MAX_SOURCE) fail("Invalid source size");
   if (!Number.isSafeInteger(chunk_count) || chunk_count < 1 || chunk_count > MAX_CHUNKS || source_bytes > chunk_count * CHUNK_LIMIT || (chunk_count - 1) * CHUNK_LIMIT >= source_bytes) fail("Invalid chunk count");
+  if (verified_shots !== undefined && (typeof verified_shots !== "object" || verified_shots === null || verified_shots.provenance !== "human_reviewed" || !Array.isArray(verified_shots.shots) || verified_shots.shots.length < 1 || verified_shots.shots.length > 1000)) fail("Human-reviewed shot metadata malformed");
+  if (verified_brand !== undefined && (typeof verified_brand !== "string" || verified_brand.length < 25 || verified_brand.length > 8000)) fail("Invalid production brand context");
   if (!rights || rights.source_rights_confirmed !== true || rights.people_consent_confirmed !== true) fail("Explicit source and recognizable-person rights confirmations required");
   if (typeof rights.external_ai_processing_approved !== "boolean") fail("External model consent decision required");
   return {
@@ -27,6 +29,8 @@ export function validateJob(data) {
       people_consent_confirmed: true,
       external_ai_processing_approved: rights.external_ai_processing_approved
     },
+    ...(verified_shots === undefined ? {} : {verified_shots}),
+    ...(verified_brand === undefined ? {} : {verified_brand}),
     state: "awaiting_upload", created_at: new Date().toISOString()
   };
 }
