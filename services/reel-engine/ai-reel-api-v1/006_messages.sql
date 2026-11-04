@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS mad_v1_project_messages (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL);
