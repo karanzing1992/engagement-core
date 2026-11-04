@@ -159,7 +159,7 @@ async function doMedia(request,env,url){
 export default {
  async fetch(request,env){
   const url=new URL(request.url),origin=request.headers.get("origin")||"";
-  if(url.pathname==="/health"&&request.method==="GET")return j({service:"AI Reel Engine 1.0 by DeluluTech",ready:Boolean(env.DB&&env.MAD_OWNER_CODE_SHA256),mode:"owner-only synthetic pilot",real_media_enabled:false,model_secrets:"GitHub Actions only"});
+  if(url.pathname==="/health"&&request.method==="GET")return j({service:"AI Reel Engine 1.0 by DeluluTech",ready:Boolean(env.DB&&env.MAD_OWNER_CODE_SHA256),mode:"owner-private-video-draft",real_media_enabled:false,private_review_upload_ready:Boolean(env.MEDIA_KV),model_secrets:"GitHub Actions only"});
   const headers=cors(origin);
   if(request.method==="OPTIONS")return ALLOWED_ORIGINS.has(origin)?new Response(null,{status:204,headers}):j({error:"Forbidden origin"},403);
   if(!env.DB)return j({error:"Database unavailable"},503,headers);
