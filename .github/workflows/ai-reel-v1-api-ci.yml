@@ -19,6 +19,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify event-driven owner media wake with no live GitHub call
+        run: |
+          node --check services/reel-engine/ai-reel-api-v1/media_event_wake.mjs
+          node --check services/reel-engine/ai-reel-api-v1/project_render.mjs
+          node --check services/reel-engine/ai-reel-api-v1/worker.mjs
+          node services/reel-engine/ai-reel-api-v1/test_media_event_wake.mjs
+          python3 - <<'PY'
+          import sqlite3,pathlib
+          db=sqlite3.connect(':memory:')
+          db.execute('CREATE TABLE mad_v1_media_jobs(job_id TEXT PRIMARY KEY)')
+          db.executescript(pathlib.Path('services/reel-engine/ai-reel-api-v1/011_event_wake.sql').read_text())
+          db.execute('INSERT INTO mad_v1_media_jobs(job_id) VALUES (?)',('madmedia-synthetic-canary',))
+          db.execute("INSERT INTO mad_v1_media_wakes(job_id,state,attempts,created_at,updated_at) VALUES (?,'pending',0,0,0)",('madmedia-synthetic-canary',))
+          row=db.execute('SELECT state,attempts FROM mad_v1_media_wakes').fetchone()
+          assert row==('pending',0),row
+          print('WAKE_D1_MIGRATION_PASS')
+          PY
       - name: Verify serialized V1 render queue migration
         run: |
           python3 services/reel-engine/ai-reel-api-v1/test_serialized_queue.py -v
