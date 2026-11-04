@@ -4,7 +4,7 @@ No private media in repository, CI logs or public Actions artifacts.
 This produces an UNAPPROVED REVIEW DRAFT, never an artistic/music-rights certification.
 """
 from __future__ import annotations
-import argparse,base64,hashlib,json,math,os,re,subprocess,sys,urllib.request,urllib.error
+import argparse,base64,hashlib,json,math,os,re,subprocess,sys,urllib.request,urllib.error,textwrap
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[3]
@@ -12,7 +12,7 @@ sys.path.insert(0,str(ROOT/"services"/"reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments"/"reel-engine-v5"))
 from cloudflare_bridge_runner import token, ENDPOINT
 from multi_renderer import probe_media,render_multiple
-from v5_orchestrator import load_system,build_director_prompt,call_groq,validate_plan
+from v5_orchestrator import Rejected,load_system,build_director_prompt,call_groq,validate_plan
 
 CHUNK=4*1024*1024
 def sha(path):
@@ -94,62 +94,108 @@ def gemini_caption(frame):
         return re.sub(r"[\r\n]+"," ",text)[:300] if len(text)>=8 else None
     except (OSError,ValueError,KeyError,IndexError):return None
 
+
+def director_failure_code(exc):
+    """Categorize director failures without exposing private prompts or provider bodies."""
+    status=getattr(exc,"status_code",None)
+    if status in (401,403):return "director_auth_rejected"
+    if status==429:return "director_rate_limited"
+    if status in (400,404,422):return "director_request_rejected"
+    if isinstance(exc,Rejected):return "director_plan_invalid"
+    if isinstance(exc,(ValueError,TypeError,KeyError,IndexError)):return "director_response_invalid"
+    return "director_provider_failure"
+
+
+def renderable_plan(plan,source_duration):
+    items=plan.get("segments",[])
+    if not 1<=len(items)<=16:raise ValueError("unsupported_section_count")
+    cuts=[]
+    for item in items:
+        start,seconds=item["source_start_seconds"],item["duration_seconds"]
+        if not (.4<=seconds<=120 and 0<=start<source_duration-.2
+                and start+seconds<=source_duration+.02):
+            raise ValueError("unsupported_section_timing")
+        cuts.append({"source_index":0,"start":round(start,3),
+                     "seconds":round(seconds,3),"loop":False})
+    total=sum(x["seconds"] for x in cuts)
+    if not 3<=total<=45:raise ValueError("unsupported_timeline_duration")
+    return cuts,total
+
+
 def design(job,src,probe,work):
     cfg,registry=load_system(ROOT/"experiments"/"reel-engine-v5"/"v5_config.json",
                              ROOT/"experiments"/"reel-engine-v5"/"capability_registry.json")
     target=min(30.,max(3.,probe["duration"] if probe["duration"]<30 else 30))
     frames=sample_frames(src,work,probe)
+    audit={"vision_frames_sampled":len(frames),"vision_frames_captioned":0,
+           "director_attempts":0,"director_response_received":False,
+           "creative_plan_applied":False,"creative_fallback_reason":None,
+           "proposed_effects_not_executed":0}
     shots={}
     for k,(t,frame) in enumerate(frames):
         start=max(0.,min(t-.45,probe["duration"]-.8))
         length=min(3.8,probe["duration"]-start-.1)
         if length<.4:continue
         description=gemini_caption(frame) if k<6 else None
-        # Never pretend an AI-observed frame has been human reviewed.
+        if description:audit["vision_frames_captioned"]+=1
         shots["f%02d"%k]={"id":"f%02d"%k,"start_seconds":round(start,2),
-           "duration_seconds":round(length,2),"visible_description":
-           description or ("Unreviewed frame sample from original footage at %.1f seconds; no visual claim"%t)}
+             "duration_seconds":round(length,2),"visible_description":
+             description or ("Unreviewed frame sample from original footage at %.1f seconds; no visual claim"%t)}
     if not shots:raise ValueError("No usable source shots extracted")
+    if not os.getenv("GEMINI_API_KEY",""):
+        audit["vision_status"]="no_vision_credential"
+    elif audit["vision_frames_captioned"]==0:
+        audit["vision_status"]="no_vision_descriptions"
+    else:
+        audit["vision_status"]="descriptions_unreviewed"
     brand=("DeluluTech AI Reel Engine V5; owner's authorized original footage, "
-      "genuine cinematic vertical story, no invented venue, names, activities, logo, "
-      "medical claims, third-party media or music. This is a private review draft.")
-    planned=None;director_called=False
-    try:
-        key=os.getenv("GROQ_API_KEY","")
-        if not key:raise ValueError("Groq API unavailable")
-        director=build_director_prompt(cfg,shots,brand,job["prompt"],1,"instagram_reel")
-        ans=call_groq(cfg,director,key)
-        director_called=True
-        planned=validate_plan(ans,shots,1,cfg)[0]
-    except Exception:
-        # Continue with a truthful source-only editor, do not mislabel as AI selection.
-        planned=None
-    if planned:
-        cuts=[{"source_index":0,"start":round(c["source_start_seconds"],3),
-                "seconds":round(c["duration_seconds"],3),"loop":False}
-               for c in planned["segments"][:16] if c["duration_seconds"]>=.4]
-        total=sum(c["seconds"] for c in cuts)
-        if not (3<=total<=45) or len(cuts)==0:planned=None
-    if not planned:
-        n=max(1,min(10,math.floor(target/2.5)))
-        seconds=target/n;cuts=[]
-        for i in range(n):
-            start=max(0.,min(probe["duration"]-seconds-.03,
+       "genuine cinematic vertical story, no invented venue, names, activities, logo, "
+       "medical claims, third-party media or music. This is a private review draft.")
+    key=os.getenv("GROQ_API_KEY","")
+    if not key:
+        audit["creative_fallback_reason"]="director_credential_missing"
+    else:
+        prompt=build_director_prompt(cfg,shots,brand,job["prompt"],1,"instagram_reel")
+        for candidate in cfg["models"]["creative"]:
+            if candidate.get("provider")!="groq":continue
+            audit["director_attempts"]+=1
+            try:
+                response=call_groq(cfg,prompt,key,model=candidate)
+                audit["director_response_received"]=True
+                proposed=validate_plan(response,shots,1,cfg)[0]
+                cuts,total=renderable_plan(proposed,probe["duration"])
+                audit["creative_plan_applied"]=True
+                audit["creative_fallback_reason"]=None
+                audit["proposed_effects_not_executed"]=sum(
+                    len(x.get("proposed_operations",[])) for x in proposed["segments"])
+                return cuts,total,proposed,audit
+            except Exception as exc:
+                audit["creative_fallback_reason"]=director_failure_code(exc)
+    n=max(1,min(10,math.floor(target/2.5)))
+    seconds=target/n;cuts=[]
+    for i in range(n):
+        start=max(0.,min(probe["duration"]-seconds-.03,
                   (probe["duration"]-seconds)*i/max(1,n-1)))
-            cuts.append({"source_index":0,"start":round(start,3),
-                         "seconds":round(seconds,3),"loop":False})
-        # Correct float rounding error at final section.
-        cuts[-1]["seconds"]=round(target-sum(c["seconds"] for c in cuts[:-1]),3)
-        for x in cuts:
-            x["seconds"]=min(x["seconds"],probe["duration"]-x["start"])
-        target=sum(x["seconds"] for x in cuts)
-        if target<3:raise ValueError("Insufficient continuous source for safe reel")
-    else:target=total
-    return cuts,target,planned,False,director_called
+        cuts.append({"source_index":0,"start":round(start,3),
+                     "seconds":round(seconds,3),"loop":False})
+    cuts[-1]["seconds"]=round(target-sum(c["seconds"] for c in cuts[:-1]),3)
+    for item in cuts:
+        item["seconds"]=min(item["seconds"],probe["duration"]-item["start"])
+    target=sum(x["seconds"] for x in cuts)
+    if target<3:raise ValueError("Insufficient continuous source for safe reel")
+    return cuts,target,None,audit
+
+
+def display_title(hook):
+    """Wrap only an actual creative hook or neutral safe title on two mobile-safe lines."""
+    clean=" ".join(re.sub(r"[\x00-\x1f]"," ",hook or "").split()) or "A MOMENT WORTH FEELING"
+    return "\n".join(textwrap.wrap(clean,width=23,max_lines=2,placeholder="…",
+                                  break_long_words=True,break_on_hyphens=False))
+
 
 def postprocess(draft,out,work,hook):
     # Typography is owner-supplied / grounded creative brief only, not a fabricated quote.
-    text=re.sub(r"[\x00-\x1f]"," ",hook).strip()[:72] or "A MOMENT WORTH FEELING"
+    text=display_title(hook)
     # Text is placed in a file, never passed as an untrusted FFmpeg filter expression.
     label=work/"hook.txt";label.write_text(text,encoding="utf-8")
     font="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
@@ -181,12 +227,19 @@ def render(job,root):
     print("PRIVATE_MEDIA_RENDER_STAGE","SOURCE_VERIFY",flush=True)
     probe=source(job,src)
     print("PRIVATE_MEDIA_RENDER_STAGE","PLAN",flush=True)
-    cuts,target,planned,vision,groq=design(job,src,probe,root)
+    cuts,target,planned,audit=design(job,src,probe,root)
+    print("PRIVATE_MEDIA_CREATIVE_REPORT",
+          "attempts",audit["director_attempts"],
+          "plan_applied",int(audit["creative_plan_applied"]),
+          "reason",audit["creative_fallback_reason"] or "none",
+          "vision_captioned",audit["vision_frames_captioned"],
+          "vision_sampled",audit["vision_frames_sampled"],
+          "unapplied_effects",audit["proposed_effects_not_executed"],flush=True)
     base=root/"unapproved-base.mp4"
     print("PRIVATE_MEDIA_RENDER_STAGE","FFMPEG_RENDER",flush=True)
     render_multiple([src],base,{"target_seconds":target,"width":1080,"height":1920,
          "fps":30,"clip_plan":cuts,"crf":25},root/"edit")
-    hook=planned["hook"] if planned and planned.get("hook") else job["prompt"]
+    hook=planned["hook"] if planned and planned.get("hook") else "A MOMENT WORTH FEELING"
     out=root/"private-review.mp4"
     print("PRIVATE_MEDIA_RENDER_STAGE","TYPOGRAPHY",flush=True)
     postprocess(base,out,root,hook)
@@ -194,12 +247,21 @@ def render(job,root):
     info=verify(out)
     if info["bytes"]>80*1024*1024:raise ValueError("Render over free storage limit")
     receipt={"status":"PRIVATE_REAL_MEDIA_TECHNICAL_DRAFT","video":info,
-      "creative_model_called":bool(groq),"visual_frames_human_reviewed":False,
+      "creative_model_called":audit["director_response_received"],
+      "director_attempts":audit["director_attempts"],
+      "creative_plan_applied":audit["creative_plan_applied"],
+      "creative_fallback_reason":audit["creative_fallback_reason"],
+      "vision_frames_sampled":audit["vision_frames_sampled"],
+      "vision_frames_captioned":audit["vision_frames_captioned"],
+      "vision_status":audit["vision_status"],
+      "proposed_effects_not_executed":audit["proposed_effects_not_executed"],
+      "applied_operations":["source_trim","concat","scale_crop","fade","static_opening_title"],
+      "visual_frames_human_reviewed":False,
       "source_sha256":job["source_sha256"],"shot_count":len(cuts),
       "planning_mode":"groq_v5_unapproved" if planned else "source_only_fallback",
       "soundtrack_source":"authorized_source_audio_only",
       "music_rights_certified":False,"artistic_quality_certified":False,
-      "public_release_certified":False,"published":False,"toolchain":"V5 Groq + FFmpeg" if planned else "V5 FFmpeg fallback"}
+      "public_release_certified":False,"published":False,"toolchain":"V5 Groq edit plan + FFmpeg" if planned else "V5 FFmpeg fallback"}
     (root/"receipt.json").write_text(json.dumps(receipt))
     print("PRIVATE_MEDIA_RENDER_STAGE","OUTPUT_UPLOAD",flush=True)
     with out.open("rb") as f:
