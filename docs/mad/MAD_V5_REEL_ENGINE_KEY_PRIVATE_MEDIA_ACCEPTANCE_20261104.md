@@ -41,7 +41,7 @@ Revert only the workflow credential reference if the verified key fails in pinne
 - An earlier combined `--mode live` 120B creative-planning smoke **FAILED**: Groq returned `400 json_validate_failed`, max completion tokens exhausted before a valid JSON document (run https://github.com/karanzing1992/engagement-core/actions/runs/41886189737). This failure remains an explicit blocker to full model-directed media certification.
 - The minimal Groq inference and private fixture render pass are **independent**; no claim of Groq creative plan being applied to synthetic footage.
 
-## Signed production synthetic end-to-end acceptance — 2026-11-04
+## Signed production synthetic end-to-end acceptance — 2026-11-05 00:04 IST
 **Result: PASS for signed synthetic-only scope; NOT real-media creative/release certification.**
 - Credentials: GitHub Actions `secrets.REEL_ENGINE_KEY` mapped only into process-local `GROQ_API_KEY` in `.github/workflows/mad-v5-cloudflare-bridge.yml` at three call sites. Owner key never printed or migrated to Cloudflare.
 - Production mapping merged PR #148 (squash `816b7285da31fa70b368fb1dbd53c14bfff964e7`).
