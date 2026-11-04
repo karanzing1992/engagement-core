@@ -46,18 +46,27 @@
       "limitations": "Full advertised commands not certified by V4.2 or V5. Only validated method allowlists may execute."
     },
     {
-      "id": "gemini_vision",
+      "id": "groq_qwen38_vision",
       "kind": "vision",
-      "status": "proven_v4_2_synthetic_3_6",
+      "status": "implemented_synthetic_regression_live_account_gate_pending",
       "capabilities": [
         "image_frame_describe",
-        "shot_log"
+        "shot_log",
+        "consent_gated_real_frames",
+        "synthetic_frame_source_parity",
+        "task_routed_qwen3_8_27b"
       ],
       "potential": [
         "video_timecode_batches",
         "dialogue_analysis"
       ],
-      "limitations": "Real footage restricted until rights, privacy and data-use approval; 3.8 generation 503/timeout in prior run."
+      "limitations": "Preview model; provider account permission, free-tier quota and actual real-footage visual quality require separate live certification. No Gemini fallback.",
+      "model": "qwen/qwen3.8-27b",
+      "provider": "groq",
+      "installed_in": [
+        "github_actions_owner_v5_real_media",
+        "github_actions_synthetic_v5"
+      ]
     },
     {
       "id": "groq_director",
