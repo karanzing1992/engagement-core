@@ -23,7 +23,7 @@ jobs:
           node --check services/reel-engine/ai-reel-api-v1/worker.mjs
           node --check experiments/reel-engine-v5/cloudflare-oidc/worker.mjs
           python3 -m py_compile services/reel-engine/ai-reel-api-v1/media_runner.py
-      - name: Fail closed: owner access, consent, private media, SHA and protected preview
+      - name: 'Fail closed - owner access, consent, private media, SHA and protected preview'
         run: |
           node - <<'JS'
           const fs=require('node:fs');
