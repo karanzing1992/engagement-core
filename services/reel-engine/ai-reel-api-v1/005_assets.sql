@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS mad_v1_project_assets (project_id TEXT NOT NULL, upload_id TEXT PRIMARY KEY, rights_confirmed INTEGER NOT NULL, people_consent INTEGER NOT NULL, external_ai_approved INTEGER NOT NULL, created_at INTEGER NOT NULL);
