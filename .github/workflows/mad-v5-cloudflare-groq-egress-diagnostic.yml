@@ -5,11 +5,14 @@ on:
     paths:
       - .github/workflows/mad-v5-cloudflare-groq-egress-diagnostic.yml
   workflow_dispatch:
+  issues:
+    types: [opened]
 permissions:
   contents: read
   id-token: write
 jobs:
   cloudflare-groq-credential-diagnostic:
+    if: github.event_name != 'issues' || (github.event.issue.user.login == github.repository_owner && startsWith(github.event.issue.title, '[MAD-GROQ-TEST]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
