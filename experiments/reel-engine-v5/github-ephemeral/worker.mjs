@@ -147,15 +147,25 @@ async function acknowledge(env,args) {
   const meta=parseMetadata(release);
   if(!outputAssets(release.assets).ready && args.force!==true) throw Error("Cannot acknowledge incomplete output without force");
   await gh(env,"/releases/"+release.id,{method:"DELETE"});
-  try { await gh(env,"/git/refs/tags/"+jobTag(meta.job_id),{method:"DELETE"}); }
-  catch(e) { throw Error("Assets deleted; tag cleanup pending: "+safeError(e)); }
-  return {job_id:meta.job_id,deleted_release:true,deleted_tag:true,
+  let tagState="absent";
+  const tagRef="/git/ref/tags/"+jobTag(meta.job_id);
+  try { await gh(env,tagRef); tagState="present"; }
+  catch(e) {
+    if(!String(e.message).includes("GitHub API 404 on GET") &&
+       !String(e.message).includes("GitHub API 422 on GET")) throw e;
+  }
+  if(tagState==="present") {
+    await gh(env,"/git/refs/tags/"+jobTag(meta.job_id),{method:"DELETE"});
+    tagState="deleted";
+  }
+  return {job_id:meta.job_id,deleted_release:true,tag_ref_status:tagState,
     warning:"GitHub backup/CDN physical erasure is not guaranteed instantaneous"};
 }
 const toolSpecs=[
   {name:"reel_create_job",description:"Create private temporary source intake for an approved V5 creative prompt.",
     inputSchema:{type:"object",required:["job_id","project_id","prompt","source_sha256","source_bytes","chunk_count","rights"],
     properties:{job_id:{type:"string"},project_id:{type:"string"},prompt:{type:"string"},source_sha256:{type:"string"},source_bytes:{type:"integer"},chunk_count:{type:"integer"},
+      verified_shots:{type:"object"},verified_brand:{type:"string"},
       rights:{type:"object",properties:{source_rights_confirmed:{type:"boolean"},people_consent_confirmed:{type:"boolean"},external_ai_processing_approved:{type:"boolean"}}}}}},
   {name:"reel_submit_prompt",description:"Dispatch a fully uploaded private-source V5 job to GitHub Actions, not publish.",inputSchema:{type:"object",required:["job_id"],properties:{job_id:{type:"string"}}}},
   {name:"reel_status",description:"Read private V5 job state and render availability.",inputSchema:{type:"object",required:["job_id"],properties:{job_id:{type:"string"}}}},
