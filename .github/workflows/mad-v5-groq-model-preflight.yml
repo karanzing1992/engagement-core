@@ -22,5 +22,5 @@ jobs:
           python-version: '3.12'
       - name: Read-only Groq model list for this existing owner account
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
         run: python3 experiments/reel-engine-v5/groq_models_preflight.py
