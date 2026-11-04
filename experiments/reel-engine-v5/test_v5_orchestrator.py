@@ -42,7 +42,31 @@ class V5ContractTests(TestCase):
         self.assertEqual(c["models"]["vision"][0]["model"],"qwen/qwen3.8-27b")
         self.assertTrue(all(m["provider"]=="groq" for group in c["models"].values() for m in group))
         self.assertEqual(c["provider_policy"]["allowed"],["groq"])
+        self.assertEqual(c["provider_policy"]["plan"],"free_only")
+        self.assertIs(c["provider_policy"]["allow_paid_inference"],False)
+        self.assertEqual(c["models"]["creative"][1]["model"],"openai/gpt-oss-20b")
+        self.assertTrue(all(m["model"] in c["budget"]["groq_free_tier"]["models"]
+                            for group in c["models"].values() for m in group))
+        self.assertEqual(c["task_routing"]["shot_visual_analysis"]["max_captioned_frames_per_job"],6)
+        self.assertEqual(c["task_routing"]["shot_visual_analysis"]["images_per_free_tier_batch"],3)
         self.assertTrue(c["creative"]["allow_model_generated_tool_suggestions"])
+
+    def test_groq_free_tier_limits_cannot_be_silently_relaxed(self):
+        c,_=system()
+        import tempfile
+        c["budget"]["groq_free_tier"]["models"]["qwen/qwen3.8-27b"]["tpm"]=9999
+        with tempfile.TemporaryDirectory() as t:
+            f=Path(t)/"not_free.json"
+            f.write_text(json.dumps(c))
+            with self.assertRaisesRegex(v5.Rejected,"free tier quota"):
+                v5.load_system(f,HERE/"capability_registry.json")
+
+    def test_only_production_text_models_for_director_fallback(self):
+        c,_=system()
+        route=v5.models_for_task(c,"cinematic_direction")
+        self.assertEqual([m["model"] for m in route],
+                         ["openai/gpt-oss-120b","openai/gpt-oss-20b"])
+        self.assertNotIn("qwen/qwen3.8-27b",[m["model"] for m in route])
 
     def test_model_routing_fallback(self):
         c,_=system()

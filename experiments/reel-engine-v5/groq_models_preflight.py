@@ -7,6 +7,10 @@ cfg=json.loads((HERE/"v5_config.json").read_text())
 required={"openai/gpt-oss-120b","openai/gpt-oss-20b","qwen/qwen3.8-27b"}
 routed={m for v in cfg["task_routing"].values() for m in v["candidate_models"]}
 if required!=routed:raise SystemExit("V5 route model set does not match expected high-capability Groq models")
+if required!=set(cfg["budget"]["groq_free_tier"]["models"]):
+ raise SystemExit("Documented free-tier model list mismatches routes")
+if cfg["provider_policy"]["plan"]!="free_only" or cfg["budget"]["groq_free_tier"]["inference_charges_allowed"] is not False:
+ raise SystemExit("Paid Groq usage gate not enabled")
 key=os.environ.get("GROQ_API_KEY","")
 if not key:
  print("GROQ_MODEL_PREFLIGHT_BLOCKED missing_secret")
@@ -18,7 +22,18 @@ try:
   if resp.status!=200:raise RuntimeError("not_http_200")
   data=json.load(resp)
 except urllib.error.HTTPError as exc:
- print("GROQ_MODEL_PREFLIGHT_BLOCKED status",exc.code)
+ # Never log provider response bodies, bearer secrets or raw headers.
+ reason="unknown_provider_permission"
+ if exc.code==403:
+  try:
+   item=json.loads(exc.read(2048)).get("error",{})
+   candidate=item.get("code")
+   if candidate in ("model_permission_blocked_org","model_permission_blocked_project",
+                    "permission_denied","insufficient_permissions"):
+    reason=candidate
+  except (ValueError,TypeError,AttributeError):
+   pass
+ print("GROQ_MODEL_PREFLIGHT_BLOCKED status",exc.code,"reason",reason)
  sys.exit(3)
 except Exception as exc:
  print("GROQ_MODEL_PREFLIGHT_BLOCKED transport",type(exc).__name__)

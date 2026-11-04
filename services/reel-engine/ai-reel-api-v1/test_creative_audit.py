@@ -65,6 +65,26 @@ class PrivateCreativeMisfireTests(TestCase):
         self.assertAlmostEqual(seconds,3.3)
         self.assertEqual(runner.creative_title(planned),"FEEL THE MOMENT")
 
+    def test_six_vision_frames_are_paced_in_two_free_tier_windows(self):
+        frames=[(float(k*4),Path("synthetic-frame-%d.jpg"%k)) for k in range(7)]
+        with mock.patch.dict(os.environ,{"GROQ_API_KEY":"dummy-test-key"}):
+            with mock.patch.object(runner,"sample_frames",return_value=frames):
+                with mock.patch.object(runner,"groq_vision_caption",
+                                       return_value="Synthetic forest green foliage.") as vision:
+                    with mock.patch.object(runner,"call_groq",
+                                           side_effect=runner.Rejected("invalid synthetic plan")) as creative:
+                        with mock.patch.object(runner.time,"sleep") as cooldown:
+                            cuts,total,planned,report=runner.design(
+                                JOB,Path("synthetic.mp4"),PROBE,Path("/tmp"))
+        self.assertIsNone(planned)
+        self.assertEqual(vision.call_count,6)
+        cooldown.assert_called_once_with(63)
+        self.assertEqual(report["vision_frames_sampled"],7)
+        self.assertEqual(report["vision_frames_captioned"],6)
+        self.assertEqual(creative.call_count,2)
+        ids=[x.kwargs["model"]["model"] for x in creative.call_args_list]
+        self.assertEqual(ids,["openai/gpt-oss-120b","openai/gpt-oss-20b"])
+
     def test_unsupported_timeline_does_not_masquerade_as_rendered_edit(self):
         bad=dict(VALID["versions"][0])
         bad["segments"]=VALID["versions"][0]["segments"]*7
