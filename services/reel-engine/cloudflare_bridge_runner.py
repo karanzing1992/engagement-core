@@ -66,7 +66,7 @@ def main():
     elif a.action=="claim":
         result=call("claim",{});job=result.get("job")
         if not job:output("has_job","0");print("CLOUDFLARE_BRIDGE_QUEUE_IDLE");return
-        if not str(job.get("job_id","")).startswith("madcf-") or job.get("project_id")!="moksha_wellness":
+        if not re.fullmatch(r"(?:madcf-[1-9][0-9]{0,8}|madapp-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})",str(job.get("job_id",""))) or job.get("project_id")!="moksha_wellness":
             raise RuntimeError("Queue job identity mismatch")
         if job.get("mode") not in ("fixture","live","multimodal") or job.get("profile") not in ("synthetic_test","instagram_reel"):
             raise RuntimeError("Unexpected remote mode/profile")

@@ -40,14 +40,14 @@ function validJob(a){
 async function enqueue(db,a){const now=Math.floor(Date.now()/1000),id='madcf-'+a.issue_number;const res=await db.prepare('INSERT INTO mad_v5_jobs (job_id,project_id,prompt,mode,profile,state,created_at,updated_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT (job_id) DO NOTHING').bind(id,a.project_id,a.prompt,a.mode,a.profile,'queued',now,now,now+86400).run();return {job_id:id,queued:!!res.meta?.changes,synthetic_only:true}}
 async function claim(db){const n=Math.floor(Date.now()/1000),claim=crypto.randomUUID();const sql="UPDATE mad_v5_jobs SET state='claimed',claim_id=?,claimed_at=?,updated_at=?,attempts=attempts+1 WHERE job_id=(SELECT job_id FROM mad_v5_jobs WHERE (state='queued' OR (state='claimed' AND claimed_at < ?)) AND attempts<3 AND expires_at > ? ORDER BY created_at LIMIT 1) RETURNING job_id,project_id,prompt,mode,profile,claim_id,attempts";const row=await db.prepare(sql).bind(claim,n,n,n-2700,n).first();return {job:row||null,synthetic_only:true}}
 async function complete(db,a,c){
- if(typeof a.job_id!=='string'||!/^madcf-[1-9][0-9]{0,8}$/.test(a.job_id)||!/^[a-f0-9-]{36}$/.test(a.claim_id||'')||!['passed','failed'].includes(a.status))throw Error('Invalid result');
+ if(typeof a.job_id!=='string'||!/^(?:madcf-[1-9][0-9]{0,8}|madapp-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$/.test(a.job_id)||!/^[a-f0-9-]{36}$/.test(a.claim_id||'')||!['passed','failed'].includes(a.status))throw Error('Invalid result');
  if(a.status==='passed'&&!/^[a-f0-9]{64}$/.test(a.sha256||''))throw Error('Missing hash');
  const now=Math.floor(Date.now()/1000);
  const sql="UPDATE mad_v5_jobs SET state=?,result_sha256=?,result_run=?,last_error=?,updated_at=? WHERE job_id=? AND claim_id=? AND state='claimed' AND claimed_at>? AND expires_at>?";
  const r=await db.prepare(sql).bind(a.status,a.status==='passed'?a.sha256:null,'https://github.com/'+REPO+'/actions/runs/'+c.run_id,a.status==='failed'?'REMOTE_SYNTHETIC_FAILURE':null,now,a.job_id,a.claim_id,now-2700,now).run();
  return {accepted:!!r.meta?.changes,job_id:a.job_id,synthetic_only:true};
 }
-async function status(db,id){if(!/^madcf-[1-9][0-9]{0,8}$/.test(id))return null;return db.prepare('SELECT job_id,project_id,mode,profile,state,attempts,result_sha256,result_run,created_at,updated_at,expires_at FROM mad_v5_jobs WHERE job_id=?').bind(id).first()}
+async function status(db,id){if(!/^(?:madcf-[1-9][0-9]{0,8}|madapp-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$/.test(id))return null;return db.prepare('SELECT job_id,project_id,mode,profile,state,attempts,result_sha256,result_run,created_at,updated_at,expires_at FROM mad_v5_jobs WHERE job_id=?').bind(id).first()}
 export default {async fetch(request,env){
  const u=new URL(request.url);
  if(u.pathname==='/health'&&request.method==='GET')return json({service:'MAD V5 Cloudflare OIDC GitHub Bridge',status:'staging',mode:'synthetic_only',database_bound:!!env.DB,github_auth:'oidc_rs256_pinned_workflow',model_credentials:'remain_in_github_actions',real_guest_media_enabled:false});
