@@ -1,0 +1,11 @@
+name = "mad-reel-v5-oidc-bridge"
+main = "worker.mjs"
+compatibility_date = "2026-11-04"
+workers_dev = true
+
+# Owner Cloudflare account; dedicated synthetic-only D1 queue.
+# No Cloudflare Groq/Gemini credentials or GitHub PAT.
+[[d1_databases]]
+binding = "DB"
+database_name = "mad-v5-bridge-queue"
+database_id = "d754e19b-4767-4b80-ad12-f1e70d6ff2e8"
