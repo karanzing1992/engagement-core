@@ -119,7 +119,7 @@ async function run(){
         width:180,height:320,codec:'h264',audio_codec:'aac'},
       creative_model_called:false,artistic_quality_certified:false,
       public_release_certified:false,music_rights_certified:false,published:false};
-    await kv.put('private/mad-v1/output/'+job_id+'/0',source,{expirationTtl:172800});
+    await kv.put('private/mad-v1/output/'+job_id+'/0',Uint8Array.from(source).buffer,{expirationTtl:172800});
     await db.prepare('UPDATE mad_v1_media_jobs SET state=?,result_bytes=?,result_sha256=?,result_chunks=?,result_receipt=? WHERE job_id=?')
       .bind('review_ready',source.byteLength,hash(source),1,JSON.stringify(receipt),job_id).run();
     console.log('GATE_05_BEGIN_PREVIEW_REQUEST');
