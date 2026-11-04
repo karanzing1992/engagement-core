@@ -98,14 +98,25 @@ async function doMedia(request,env,url){
    if(p.length===6&&p[4]==="chunks"&&request.method==="PUT"){
      if(rec.state!=="uploading")return mediaError("Upload finalized",409);
      const i=Number(p[5]);if(!Number.isInteger(i)||i<0||i>=rec.chunk_count)return mediaError("Invalid chunk index");
-     const expected=Math.min(MAD_CHUNK,rec.bytes-i*MAD_CHUNK),declared=Number(request.headers.get("content-length"));
-     if(!Number.isInteger(declared)||declared!==expected)return mediaError("Invalid Content-Length",413);
+     const expected=Math.min(MAD_CHUNK,rec.bytes-i*MAD_CHUNK),rawLength=request.headers.get("content-length");
+     const declared=rawLength===null?null:Number(rawLength);
+     if(declared!==null&&(!Number.isInteger(declared)||declared!==expected))return mediaError("Invalid Content-Length",413);
      const expectedHash=request.headers.get("x-chunk-sha256")||"";
      if(!/^[a-f0-9]{64}$/.test(expectedHash))return mediaError("Missing SHA256",422);
      const existing=await env.DB.prepare("SELECT sha256 FROM mad_v1_source_chunks WHERE upload_id=? AND chunk_index=?").bind(upload,i).first();
      if(existing)return existing.sha256===expectedHash?j({chunk_index:i,already_received:true}):mediaError("Chunk conflict",409);
-     const bytes=await request.arrayBuffer();
-     if(bytes.byteLength!==expected)return mediaError("Chunk size mismatch",413);
+     const reader=request.body?.getReader();
+     if(!reader)return mediaError("Missing chunk body",400);
+     const parts=[];let received=0;
+     while(true){
+       const part=await reader.read();if(part.done)break;
+       received+=part.value.byteLength;
+       if(received>expected){await reader.cancel();return mediaError("Chunk exceeds declared size",413)}
+       parts.push(part.value);
+     }
+     if(received!==expected)return mediaError("Chunk size mismatch",413);
+     const bytes=new Uint8Array(expected);let at=0;
+     for(const part of parts){bytes.set(part,at);at+=part.byteLength}
      const sha=await hashBytes(bytes);
      if(sha!==expectedHash)return mediaError("Chunk integrity check failed",422);
      await env.MEDIA_KV.put(privateKey("source",upload,i),bytes,{expirationTtl:MAD_TTL});
