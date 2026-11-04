@@ -26,6 +26,8 @@ jobs:
         run: |
           node --test core.test.mjs worker.test.mjs
           node --check worker.mjs
+          node build-worker.mjs
+          node --check dist/main.mjs
           python3 -m py_compile private_runner.py
       - name: Install open source FFmpeg
         run: |
