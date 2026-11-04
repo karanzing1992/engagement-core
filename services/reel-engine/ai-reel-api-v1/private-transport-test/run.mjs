@@ -28,7 +28,6 @@ const mf=new Miniflare({
   d1Databases:{DB:'private-transport-test-db'},
   kvNamespaces:{MEDIA_KV:'private-transport-test-kv'},
   bindings:{MAD_OWNER_CODE_SHA256:hash(ownerCode)},
-  log: { level: 'ERROR' },
 });
 async function run(){
   const db=await mf.getD1Database('DB');
