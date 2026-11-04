@@ -127,7 +127,9 @@ def describe_synthetic_vision(result):
                    "synthetic_only": True, "real_guest_data_sent": False}
 
 
-def execute(mode, destination, profile):
+def execute(mode, destination, profile, brief=""):
+    if not isinstance(brief, str) or len(brief)>600 or (brief and len(brief)<12) or any(x in brief.lower() for x in ("http://", "https://", "github_pat_", "data:video/")):
+        raise Rejected("Invalid synthetic-only Cloudflare brief")
     if mode not in ("fixture", "live", "multimodal") or profile not in ("synthetic_test", "instagram_reel"):
         raise Rejected("Only bounded synthetic certification jobs are accepted")
     manifest = read_json(HERE / "synthetic_shots.json")
@@ -148,7 +150,7 @@ def execute(mode, destination, profile):
         required_clearance(manifest, external=True)
         prompt = build_director_prompt(cfg, shots,
             (HERE / "fixture_brand.txt").read_text(encoding="utf-8"),
-            "One synthetic-only edit of 3 short segments. "
+            "Synthetic-only owner brief: " + (brief or "Creative diagnostic") + ". One synthetic-only edit of 3 short segments. "
             "Proposed effects without an executor will be audited as unexecuted. "
             + vision_brief,
             1, profile)
@@ -188,7 +190,7 @@ def execute(mode, destination, profile):
         video = verify_video(output, width, height, fps)
     report = {"engine": "MAD Reel Engine", "version": "5.0.0",
         "status": "SYNTHETIC_TECHNICAL_CERTIFICATION_ONLY",
-        "mode": mode, "profile": profile, "model_inference": mode in ("live", "multimodal"),
+        "mode": mode, "profile": profile, "queued_brief_applied": bool(brief) and mode in ("live", "multimodal"), "model_inference": mode in ("live", "multimodal"),
         "vision_analysis": vision_meta,
         "synthetic_render_sources_match_gemini_frames": mode == "multimodal",
         "director_planning_validated": True,
@@ -211,8 +213,9 @@ def main():
     p.add_argument("--profile", choices=("synthetic_test", "instagram_reel"),
                    default="synthetic_test")
     p.add_argument("--out-dir", type=Path, required=True)
+    p.add_argument("--brief", default="", help="Synthetic-only owner creative brief; no media paths or URLs")
     opts = p.parse_args()
-    result = execute(opts.mode, opts.out_dir, opts.profile)
+    result = execute(opts.mode, opts.out_dir, opts.profile, opts.brief)
     print(json.dumps({"status": result["status"],
         "sha256": result["video"]["sha256"], "bytes": result["video"]["bytes"]}))
 
