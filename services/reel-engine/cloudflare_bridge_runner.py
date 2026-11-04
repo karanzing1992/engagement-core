@@ -30,56 +30,7 @@ def call(action,data):
         data=json.dumps(data,separators=(",",":")).encode(),headers={
         "Authorization":"Bearer "+token(),"Content-Type":"application/json","Accept":"application/json",
         "User-Agent":"MAD-V5-GitHub-OIDC-Bridge/1"})
-    try:
-        with urllib.request.urlopen(req,timeout=35) as res:return json.loads(res.read(8192))
-    except urllib.error.HTTPError as exc:
-        if exc.code==401:
-            import base64,sys
-            stage=exc.headers.get('x-mad-oidc-stage','unknown')
-            if re.fullmatch(r'[a-z0-9_]{1,64}',stage):print('CLOUDFLARE_OIDC_VERIFY_STAGE '+stage,file=sys.stderr)
-            claims={}
-            try:
-                signed=token()
-                parts=signed.split(".")
-                t=parts[1]
-                claims=json.loads(base64.urlsafe_b64decode(t+"==="))
-                header=json.loads(base64.urlsafe_b64decode(parts[0]+"==="))
-            except (ValueError,KeyError,IndexError):pass
-            expected="karanzing1992/engagement-core/.github/workflows/mad-v5-cloudflare-bridge.yml@refs/heads/main"
-            checks={
-              "issuer":claims.get("iss")=="https://token.actions.githubusercontent.com",
-              "audience":claims.get("aud")==AUDIENCE,
-              "repository":claims.get("repository")==REPO,
-              "repository_id":str(claims.get("repository_id"))=="1403281267",
-              "repository_owner_id":str(claims.get("repository_owner_id"))=="30191163",
-              "ref":claims.get("ref")=="refs/heads/main",
-              "workflow_ref":claims.get("workflow_ref")==expected,
-              "github_hosted":claims.get("runner_environment")=="github-hosted",
-              "owner_actor":str(claims.get("actor_id"))=="30191163",
-              "event_is_issue":claims.get("event_name")=="issues",
-              "nbf_present":isinstance(claims.get("nbf"),int),
-              "run_id_present":bool(claims.get("run_id"))
-            }
-            try:
-                import time
-                now=int(time.time())
-                checks.update({
-                  "jwt_length_ok":len(signed)<8500,
-                  "header_rs256":header.get("alg")=="RS256",
-                  "header_kid_regex":bool(re.fullmatch(r"[A-Za-z0-9_.-]{1,128}",str(header.get("kid","")))),
-                  "iat_valid":isinstance(claims.get("iat"),int) and now-1200<=claims["iat"]<=now+30,
-                  "nbf_valid":isinstance(claims.get("nbf"),int) and claims["nbf"]<=now+30,
-                  "exp_future":isinstance(claims.get("exp"),int) and claims["exp"]>now,
-                  "ttl_lte_1200":isinstance(claims.get("exp"),int) and isinstance(claims.get("iat"),int) and claims["exp"]-claims["iat"]<=1200
-                })
-                reqjwks=urllib.request.Request("https://token.actions.githubusercontent.com/.well-known/jwks",headers={"Accept":"application/json"})
-                with urllib.request.urlopen(reqjwks,timeout=12) as jr:
-                    keys=json.loads(jr.read(32768)).get("keys",[])
-                checks["public_jwks_kid_found"]=any(x.get("kid")==header.get("kid") and x.get("kty")=="RSA" for x in keys)
-            except Exception:
-                checks["extended_diagnostic_unavailable"]=True
-            print("GITHUB_OIDC_NONSECRET_CLAIM_CHECKS "+json.dumps(checks,sort_keys=True),file=sys.stderr)
-        raise
+    with urllib.request.urlopen(req,timeout=35) as res:return json.loads(res.read(8192))
 
 def parse_issue(path):
     event=json.loads(path.read_text(encoding="utf-8"))
