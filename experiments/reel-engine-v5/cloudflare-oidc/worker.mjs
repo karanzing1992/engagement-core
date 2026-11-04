@@ -10,24 +10,34 @@ function json(v,status=200){return new Response(JSON.stringify(v),{status,header
 function b64(s){if(typeof s!=='string'||!/^[A-Za-z0-9_-]+$/.test(s)||s.length>8192)throw Error('Invalid JWT');return Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-s.length%4)%4)),c=>c.charCodeAt(0))}
 function part(s){return JSON.parse(dec.decode(b64(s)))}
 function validClaims(c){const n=Math.floor(Date.now()/1000);return !!c&&c.iss===ISSUER&&c.aud===AUDIENCE&&c.repository===REPO&&String(c.repository_id)===REPO_ID&&String(c.repository_owner_id)===OWNER_ID&&c.ref===REF&&c.workflow_ref===WORKFLOW_REF&&c.runner_environment==='github-hosted'&&['schedule','workflow_dispatch','issues'].includes(c.event_name)&&Number.isFinite(c.iat)&&Number.isFinite(c.exp)&&Number.isFinite(c.nbf)&&c.iat<=n+30&&c.nbf<=n+30&&c.exp>n&&c.exp-c.iat<=1200&&c.iat>=n-1200&&/^\d{5,15}$/.test(String(c.run_id))}
-async function verify(request){
+async function verify(request,trace){
+ trace.stage='authorization_format';
  const a=request.headers.get('authorization')||'';
  if(a.length>9000||!/^Bearer [A-Za-z0-9_.-]+$/.test(a))return null;
  const s=a.slice(7).split('.');if(s.length!==3||a.length>8507)return null;
+ trace.stage='jwt_decode';
  try{
   const h=part(s[0]),c=part(s[1]);
+  trace.stage='signed_claims';
   if(h.alg!=='RS256'||typeof h.kid!=='string'||!/^[\w.-]{1,128}$/.test(h.kid)||!validClaims(c))return null;
   if(c.event_name==='issues'&&String(c.actor_id)!==OWNER_ID)return null;
+  trace.stage='jwks_fetch';
   const r=await fetch(JWKS,{headers:{accept:'application/json'},redirect:'error'});
+  trace.stage='jwks_status_'+r.status;
   if(!r.ok)return null;
   const keys=(await r.json()).keys;
+  trace.stage='jwks_keys';
   if(!Array.isArray(keys))return null;
   const k=keys.find(k=>k.kid===h.kid&&k.kty==='RSA'&&(!k.alg||k.alg==='RS256')&&k.n&&k.e);
+  trace.stage='matching_public_key';
   if(!k)return null;
+  trace.stage='import_rs256_key';
   const key=await crypto.subtle.importKey('jwk',{kty:'RSA',n:k.n,e:k.e,alg:'RS256',ext:true},{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
+  trace.stage='signature_verify';
   if(!await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,b64(s[2]),enc.encode(s[0]+'.'+s[1])))return null;
+  trace.stage='signature_valid';
   return c;
- }catch{return null}
+ }catch{trace.stage='exception_at_'+trace.stage;return null}
 }
 async function parseBody(req){if((Number(req.headers.get('content-length'))||0)>4096)throw Error('Large body');const s=await req.text();if(s.length>4096)throw Error('Large body');const data=JSON.parse(s);if(!data||typeof data!=='object'||Array.isArray(data))throw Error('Malformed body');return data}
 function validJob(a){
@@ -56,7 +66,8 @@ export default {async fetch(request,env){
  if(request.method!=='POST')return json({error:'Method not allowed'},405);
  const action=u.pathname.slice('/bridge/v1/'.length);
  if(!['enqueue','claim','complete','status'].includes(action))return json({error:'Not found'},404);
- const c=await verify(request);if(!c)return json({error:'Unauthorized'},401);
+ const trace={stage:'unstarted'};
+ const c=await verify(request,trace);if(!c){const response=json({error:'Unauthorized'},401);response.headers.set('x-mad-oidc-stage',trace.stage);return response;}
  if(action==='enqueue'&&c.event_name!=='issues')return json({error:'Unauthorized'},401);
  try{
   const a=await parseBody(request);
