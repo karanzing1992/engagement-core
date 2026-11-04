@@ -34,3 +34,32 @@ test("preview cannot be retrieved without valid short-lived signature",async()=>
   const r=await worker.fetch(new Request("https://mcp.example.invalid/preview/moksha-guest-review-001?expires=1&asset=1&sig=none"),env);
   assert.equal(r.status,400);
 });
+
+test("draft release acknowledgement tolerates absent Git tag ref",async()=>{
+  const originalFetch=globalThis.fetch;
+  const jobId="moksha-guest-review-001";
+  const calls=[];
+  globalThis.fetch=async(url,opt={})=>{
+    const p=String(url);calls.push({url:p,method:opt.method||"GET"});
+    if(p.endsWith("/repos/karanzing1992/Matrix-House"))
+      return new Response(JSON.stringify({private:true}),{status:200});
+    if(p.includes("/releases?"))
+      return new Response(JSON.stringify([{id:77,draft:true,tag_name:"mad-v5-tmp-"+jobId,
+        body:JSON.stringify({schema:1,job_id:jobId}),assets:[]}]),{status:200});
+    if(p.endsWith("/releases/77") && opt.method==="DELETE")
+      return new Response(null,{status:204});
+    if(p.includes("/git/ref/tags/"))
+      return new Response(JSON.stringify({message:"Not Found"}),{status:404});
+    throw new Error("Unexpected GitHub mock request");
+  };
+  try {
+    const r=await post({jsonrpc:"2.0",id:10,method:"tools/call",
+      params:{name:"reel_acknowledge_and_delete",arguments:{job_id:jobId,force:true}}});
+    const data=await r.json();
+    assert.equal(data.result.isError,undefined);
+    const receipt=JSON.parse(data.result.content[0].text);
+    assert.equal(receipt.deleted_release,true);
+    assert.equal(receipt.tag_ref_status,"absent");
+    assert.equal(calls.filter(c=>c.method==="DELETE").length,1);
+  } finally { globalThis.fetch=originalFetch; }
+});
