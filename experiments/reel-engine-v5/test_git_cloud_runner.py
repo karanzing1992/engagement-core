@@ -40,7 +40,7 @@ class GitCloudTests(unittest.TestCase):
         self.assertEqual(len(subject.compile_edl(clean, ["S1", "S2", "S3"])), 3)
 
     def test_vision_response_requires_synthetic_identity(self):
-        ok = {"shots": [{"id": "S1", "visible": "blue water"}],
+        ok = {"shots": [{"id": "S"+str(i), "visible": "blue water synthetic frame "+str(i)} for i in range(1,6)],
               "_meta": {"synthetic_only": True, "model_used": "qwen/qwen3.8-27b", "provider":"groq", "real_guest_data_sent":False}}
         brief, proof = subject.describe_synthetic_vision(ok)
         self.assertIn("blue water", brief)
