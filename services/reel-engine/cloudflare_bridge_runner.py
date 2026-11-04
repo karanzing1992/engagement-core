@@ -37,8 +37,11 @@ def call(action,data):
             import base64,sys
             claims={}
             try:
-                t=token().split(".")[1]
+                signed=token()
+                parts=signed.split(".")
+                t=parts[1]
                 claims=json.loads(base64.urlsafe_b64decode(t+"==="))
+                header=json.loads(base64.urlsafe_b64decode(parts[0]+"==="))
             except (ValueError,KeyError,IndexError):pass
             expected="karanzing1992/engagement-core/.github/workflows/mad-v5-cloudflare-bridge.yml@refs/heads/main"
             checks={
@@ -55,6 +58,24 @@ def call(action,data):
               "nbf_present":isinstance(claims.get("nbf"),int),
               "run_id_present":bool(claims.get("run_id"))
             }
+            try:
+                import time
+                now=int(time.time())
+                checks.update({
+                  "jwt_length_ok":len(signed)<8500,
+                  "header_rs256":header.get("alg")=="RS256",
+                  "header_kid_regex":bool(re.fullmatch(r"[A-Za-z0-9_.-]{1,128}",str(header.get("kid","")))),
+                  "iat_valid":isinstance(claims.get("iat"),int) and now-1200<=claims["iat"]<=now+30,
+                  "nbf_valid":isinstance(claims.get("nbf"),int) and claims["nbf"]<=now+30,
+                  "exp_future":isinstance(claims.get("exp"),int) and claims["exp"]>now,
+                  "ttl_lte_1200":isinstance(claims.get("exp"),int) and isinstance(claims.get("iat"),int) and claims["exp"]-claims["iat"]<=1200
+                })
+                reqjwks=urllib.request.Request("https://token.actions.githubusercontent.com/.well-known/jwks",headers={"Accept":"application/json"})
+                with urllib.request.urlopen(reqjwks,timeout=12) as jr:
+                    keys=json.loads(jr.read(32768)).get("keys",[])
+                checks["public_jwks_kid_found"]=any(x.get("kid")==header.get("kid") and x.get("kty")=="RSA" for x in keys)
+            except Exception:
+                checks["extended_diagnostic_unavailable"]=True
             print("GITHUB_OIDC_NONSECRET_CLAIM_CHECKS "+json.dumps(checks,sort_keys=True),file=sys.stderr)
         raise
 
