@@ -30,6 +30,7 @@ const mf=new Miniflare({
   bindings:{MAD_OWNER_CODE_SHA256:hash(ownerCode)},
 });
 async function run(){
+  try {
   const db=await mf.getD1Database('DB');
   for(const file of ['002_media.sql','003_chunks.sql','010_serialized_queue.sql']){
     await db.exec(readFileSync(join(parent,file),'utf8'));
@@ -48,7 +49,6 @@ async function run(){
     call(method,path,{...opts,body:JSON.stringify(data),
       extra:{'Content-Type':'application/json',...(opts.extra||{})}});
   const equalStatus=(res,code,label)=>assert.equal(res.status,code,label);
-  try{
     const health=await call('GET','/health',{auth:false});
     equalStatus(health,200,'health');
     const alive=await health.json();
