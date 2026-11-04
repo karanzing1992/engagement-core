@@ -12,7 +12,7 @@ sys.path.insert(0,str(ROOT/"services"/"reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments"/"reel-engine-v5"))
 from cloudflare_bridge_runner import token, ENDPOINT
 from multi_renderer import probe_media,render_multiple
-from v5_orchestrator import Rejected,load_system,build_director_prompt,call_groq,validate_plan
+from v5_orchestrator import Rejected,load_system,build_director_prompt,call_groq,validate_plan,models_for_task
 
 CHUNK=4*1024*1024
 def sha(path):
@@ -78,21 +78,30 @@ def sample_frames(input_path,work,probe):
             frames.append((at,frame))
     return frames
 
-def gemini_caption(frame):
-    key=os.getenv("GEMINI_API_KEY","")
+def groq_vision_caption(frame, model, client=None):
+    """A consent-cleared owner frame is described only through Groq's vision API."""
+    key=os.getenv("GROQ_API_KEY","")
     if not key:return None
-    img=base64.b64encode(frame.read_bytes()).decode("ascii")
-    prompt="Describe visible setting, actions, composition and mood in this actual frame using 1 sentence. No identifying faces or invented activities. No marketing or medical claims."
-    data=json.dumps({"contents":[{"role":"user","parts":[{"text":prompt},{"inline_data":{"mime_type":"image/jpeg","data":img}}]}],"generationConfig":{"temperature":0.15,"maxOutputTokens":130}}).encode()
-    model="gemini-3.6-flash"
-    req=urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent",
-        data=data,headers={"Content-Type":"application/json","x-goog-api-key":key},method="POST")
-    try:
-        with urllib.request.urlopen(req,timeout=25) as r:
-            obj=json.load(r)
-        text=obj["candidates"][0]["content"]["parts"][0]["text"].strip()
-        return re.sub(r"[\r\n]+"," ",text)[:300] if len(text)>=8 else None
-    except (OSError,ValueError,KeyError,IndexError):return None
+    if model.get("provider")!="groq" or model.get("model")!="qwen/qwen3.8-27b":
+        raise ValueError("Unapproved vision model")
+    if client is None:
+        from groq import Groq
+        client=Groq(api_key=key,timeout=35,max_retries=0)
+    data="data:image/jpeg;base64,"+base64.b64encode(frame.read_bytes()).decode("ascii")
+    prompt=("Describe ONLY visually observable setting, composition, action, movement "
+        "and mood in this actual frame in one sentence. Never identify people, "
+        "infer medical effects, invent off-frame moments, or assert venue names.")
+    req={"model":model["model"],"messages":[{"role":"user","content":[
+       {"type":"text","text":prompt},
+       {"type":"image_url","image_url":{"url":data}}]}],
+       "temperature":model.get("temperature",0.2),
+       "max_completion_tokens":model.get("max_completion_tokens",350)}
+    if model.get("reasoning_effort"):
+        req["reasoning_effort"]=model["reasoning_effort"]
+    response=client.chat.completions.create(**req)
+    desc=(response.choices[0].message.content or "").strip()
+    cleaned=re.sub(r"[\\r\\n]+"," ",desc)
+    return cleaned[:300] if len(cleaned)>=8 else None
 
 
 def director_failure_code(exc):
@@ -128,21 +137,31 @@ def design(job,src,probe,work):
     target=min(30.,max(3.,probe["duration"] if probe["duration"]<30 else 30))
     frames=sample_frames(src,work,probe)
     audit={"vision_frames_sampled":len(frames),"vision_frames_captioned":0,
+           "vision_model_used":None,"vision_failures":0,
            "director_attempts":0,"director_response_received":False,
            "creative_plan_applied":False,"creative_fallback_reason":None,
            "proposed_effects_not_executed":0}
+    vision=models_for_task(cfg,"shot_visual_analysis")[0]
     shots={}
     for k,(t,frame) in enumerate(frames):
         start=max(0.,min(t-.45,probe["duration"]-.8))
         length=min(3.8,probe["duration"]-start-.1)
         if length<.4:continue
-        description=gemini_caption(frame) if k<6 else None
-        if description:audit["vision_frames_captioned"]+=1
+        description=None
+        if k<6 and os.getenv("GROQ_API_KEY",""):
+            try:
+                description=groq_vision_caption(frame,vision)
+            except Exception:
+                # No guest frames/prompts/provider responses may leak into logs.
+                audit["vision_failures"]+=1
+            if description:
+                audit["vision_frames_captioned"]+=1
+                audit["vision_model_used"]=vision["model"]
         shots["f%02d"%k]={"id":"f%02d"%k,"start_seconds":round(start,2),
              "duration_seconds":round(length,2),"visible_description":
              description or ("Unreviewed frame sample from original footage at %.1f seconds; no visual claim"%t)}
     if not shots:raise ValueError("No usable source shots extracted")
-    if not os.getenv("GEMINI_API_KEY",""):
+    if not os.getenv("GROQ_API_KEY",""):
         audit["vision_status"]="no_vision_credential"
     elif audit["vision_frames_captioned"]==0:
         audit["vision_status"]="no_vision_descriptions"
@@ -156,8 +175,7 @@ def design(job,src,probe,work):
         audit["creative_fallback_reason"]="director_credential_missing"
     else:
         prompt=build_director_prompt(cfg,shots,brand,job["prompt"],1,"instagram_reel")
-        for candidate in cfg["models"]["creative"]:
-            if candidate.get("provider")!="groq":continue
+        for candidate in models_for_task(cfg,"cinematic_direction"):
             audit["director_attempts"]+=1
             try:
                 response=call_groq(cfg,prompt,key,model=candidate)
@@ -238,6 +256,7 @@ def render(job,root):
           "reason",audit["creative_fallback_reason"] or "none",
           "vision_captioned",audit["vision_frames_captioned"],
           "vision_sampled",audit["vision_frames_sampled"],
+          "vision_failures",audit["vision_failures"],
           "unapplied_effects",audit["proposed_effects_not_executed"],flush=True)
     base=root/"unapproved-base.mp4"
     print("PRIVATE_MEDIA_RENDER_STAGE","FFMPEG_RENDER",flush=True)
@@ -257,6 +276,8 @@ def render(job,root):
       "creative_fallback_reason":audit["creative_fallback_reason"],
       "vision_frames_sampled":audit["vision_frames_sampled"],
       "vision_frames_captioned":audit["vision_frames_captioned"],
+      "vision_model_used":audit["vision_model_used"],
+      "vision_failures":audit["vision_failures"],
       "vision_status":audit["vision_status"],
       "proposed_effects_not_executed":audit["proposed_effects_not_executed"],
       "applied_operations":["source_trim","concat","scale_crop","fade","static_opening_title"],
