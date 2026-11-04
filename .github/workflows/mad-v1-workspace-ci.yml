@@ -1,0 +1,59 @@
+name: MAD Reel Workspace - owner projects and API gates
+on:
+  pull_request:
+    paths:
+      - 'services/reel-engine/ai-reel-api-v1/**'
+      - '.github/workflows/mad-v1-workspace-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  workspace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Parse all workspace modules
+        run: |
+          set -euo pipefail
+          for f in reel_project_worker project_api project_write project_render; do
+            node --check "services/reel-engine/ai-reel-api-v1/$f.mjs"
+          done
+      - name: Verify durable schema and version association
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sqlite3
+          base=Path('services/reel-engine/ai-reel-api-v1')
+          db=sqlite3.connect(':memory:')
+          for n in ('002_media.sql','003_chunks.sql','004_workspace.sql','005_assets.sql','006_messages.sql','007_render_versions.sql','009_version_records.sql'):
+              db.executescript((base/n).read_text())
+          now=1
+          db.execute("INSERT INTO mad_v1_projects(id,name,created_at,updated_at) VALUES ('reel-test','Test project',?,?)",(now,now))
+          db.execute("INSERT INTO mad_v1_project_messages(id,project_id,role,content,created_at) VALUES ('message-1','reel-test','user','Cinematic intro',?)",(now,))
+          assert db.execute("SELECT content FROM mad_v1_project_messages WHERE project_id='reel-test'").fetchone()[0]=='Cinematic intro'
+          db.execute("INSERT INTO mad_v1_versions(version_id,project_id,created_at) VALUES ('render-1','reel-test',?)",(now,))
+          assert db.execute("SELECT COUNT(*) FROM mad_v1_versions WHERE project_id='reel-test'").fetchone()[0]==1
+          print('WORKSPACE_SCHEMA_AND_VERSION_HISTORY_PASS')
+          PY
+      - name: Check anonymous isolation and authorized owner project listing
+        run: |
+          node --input-type=module <<'JS'
+          import crypto from 'node:crypto';
+          import assert from 'node:assert/strict';
+          import Worker from './services/reel-engine/ai-reel-api-v1/reel_project_worker.mjs';
+          const code='test-synthetic-owner-code-0123456789abcdef';
+          const hash=crypto.createHash('sha256').update(code).digest('hex');
+          const env={DB:{prepare(sql){return {all:async()=>({results:[]})}}},MAD_OWNER_CODE_SHA256:hash};
+          const request=(origin,authorization)=>new Request('https://reel-projects.delulutech.in/v1/projects',{headers:{Origin:origin,...(authorization?{Authorization:authorization}:{})}});
+          assert.equal((await Worker.fetch(request('https://evil.invalid'),env)).status,403);
+          assert.equal((await Worker.fetch(request('https://reel.delulutech.in'),env)).status,401);
+          const r=await Worker.fetch(request('https://reel.delulutech.in','Bearer nk-'+code),env);
+          assert.equal(r.status,200);assert.deepEqual((await r.json()).projects,[]);
+          assert.equal(r.headers.get('access-control-allow-origin'),'https://reel.delulutech.in');
+          console.log('OWNER_PROJECT_API_AUTH_AND_ORIGIN_PASS');
+          JS
