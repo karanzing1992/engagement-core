@@ -24,7 +24,7 @@ jobs:
       - name: Verify Groq model availability before claiming any owner jobs
         id: groq_model_gate
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
         run: python3 experiments/reel-engine-v5/groq_models_preflight.py
       - name: Enqueue owner-issued synthetic prompt in Cloudflare D1
         if: github.event_name == 'issues'
@@ -45,7 +45,7 @@ jobs:
         id: render
         if: steps.claim.outputs.has_job == '1'
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
         run: |
           python3 - <<'PY'
           import os,json,pathlib,subprocess
@@ -98,7 +98,7 @@ jobs:
         if: always() && steps.media_claim.outputs.has_media == '1' && steps.media_install.outcome == 'success'
         id: media_render
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
         run: |
           python3 services/reel-engine/ai-reel-api-v1/media_runner.py render \
             --claim "$RUNNER_TEMP/media-v1-claim.json" --out "$RUNNER_TEMP/private-v1"
