@@ -6,6 +6,7 @@ unrestricted shell access. This module plans/reports capabilities; it does not
 render, import third-party footage, publish or change existing manager services.
 """
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
@@ -261,6 +262,37 @@ def plan_operations(validated, registry):
     return {"verified_operation_proposals":accepted,"deferred_operations":deferred,
             "execution_ready":len(deferred)==0,
             "shell_commands_executed":0,"rendered":False,"published":False}
+
+
+def call_groq_vision(cfg, frame_path, prompt, key, model=None, client=None):
+    """Groq-only multimodal frame caption: never log images, keys or model output."""
+    if not key:raise Rejected("Missing Groq key")
+    m=model or models_for_task(cfg,"shot_visual_analysis")[0]
+    if m.get("provider")!="groq" or m.get("model")!="qwen/qwen3.8-27b":
+        raise Rejected("Unapproved Groq vision model")
+    frame=Path(frame_path)
+    if not frame.is_file() or not 100<=frame.stat().st_size<=250000:
+        raise Rejected("Invalid or oversized private vision frame")
+    if not isinstance(prompt,str) or not 10<=len(prompt)<=1500:
+        raise Rejected("Invalid bounded vision prompt")
+    if client is None:
+        from groq import Groq
+        client=Groq(api_key=key,timeout=40,max_retries=0)
+    payload={
+       "model":m["model"],
+       "messages":[{"role":"user","content":[
+          {"type":"text","text":prompt},
+          {"type":"image_url","image_url":{"url":"data:image/jpeg;base64,"+base64.b64encode(frame.read_bytes()).decode("ascii")}}
+       ]}],
+       "temperature":m.get("temperature",0.2),
+       "max_completion_tokens":m.get("max_completion_tokens",350)
+    }
+    if m.get("reasoning_effort"):
+        payload["reasoning_effort"]=m["reasoning_effort"]
+    out=client.chat.completions.create(**payload)
+    message=(out.choices[0].message.content or "").strip()
+    if len(message)<8:raise Rejected("Groq vision produced no grounded description")
+    return re.sub(r"[\\r\\n]+"," ",message)[:300]
 
 
 def call_groq(cfg, prompt, key, model=None, client=None):
