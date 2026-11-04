@@ -1,0 +1,69 @@
+name: MAD V5 | GitHub Ephemeral Media and MCP Contracts
+on:
+  push:
+    branches:
+      - feature/mad-v5-github-ephemeral-mcp-20261104
+    paths:
+      - 'experiments/reel-engine-v5/github-ephemeral/**'
+      - '.github/workflows/mad-v5-ephemeral-ci.yml'
+  pull_request:
+    paths:
+      - 'experiments/reel-engine-v5/github-ephemeral/**'
+      - '.github/workflows/mad-v5-ephemeral-ci.yml'
+permissions:
+  contents: read
+jobs:
+  contract-and-synthetic-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Private source gate and authenticated MCP module tests
+        working-directory: experiments/reel-engine-v5/github-ephemeral
+        run: |
+          node --test core.test.mjs
+          node --check worker.mjs
+          python3 -m py_compile private_runner.py
+      - name: Install open source FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Generate zero-customer synthetic video and verified job manifest
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mad-v5-e2e
+          ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'color=c=0x18382F:s=320x180:r=15' -f lavfi -i 'anullsrc=channel_layout=stereo:sample_rate=48000' -t 4.2 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac -shortest /tmp/mad-v5-e2e/source.mp4
+          python3 - <<'PY'
+          import pathlib,hashlib,json
+          p=pathlib.Path('/tmp/mad-v5-e2e/source.mp4')
+          d={"schema":1,"job_id":"synthetic-ci-github-test","project_id":"moksha_wellness","prompt":"Test private GitHub technical pipeline on synthetic media only",
+             "source_sha256":hashlib.sha256(p.read_bytes()).hexdigest(),"source_bytes":p.stat().st_size,
+             "synthetic_selftest":True,"rights":{"source_rights_confirmed":True,"people_consent_confirmed":True,"external_ai_processing_approved":False}}
+          pathlib.Path('/tmp/mad-v5-e2e/metadata.json').write_text(json.dumps(d))
+          PY
+      - name: Run owned V5 private renderer and independently verify output
+        run: |
+          set -euo pipefail
+          python3 experiments/reel-engine-v5/github-ephemeral/private_runner.py \
+            --source /tmp/mad-v5-e2e/source.mp4 --metadata /tmp/mad-v5-e2e/metadata.json \
+            --output-dir /tmp/mad-v5-e2e/output
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/mad-v5-e2e/output/v5-receipt.json'))
+          assert d['status']=='SYNTHETIC_PRIVATE_STORAGE_E2E'
+          assert d['video']['full_decode'] and d['video']['width']==360 and d['video']['height']==640
+          assert not d['published'] and not d['artistic_quality_certified']
+          print('SYNTHETIC_FFMPEG_TECHNICAL_PASS',d['video']['sha256'])
+          PY
+      - name: Archive synthetic-only diagnostic for seven days
+        uses: actions/upload-artifact@v4
+        with:
+          name: mad-v5-ephemeral-synthetic
+          path: |
+            /tmp/mad-v5-e2e/output/v5-output.mp4
+            /tmp/mad-v5-e2e/output/v5-receipt.json
+          retention-days: 7
+          if-no-files-found: error
