@@ -90,7 +90,7 @@ jobs:
 
       - name: Claim one private real-media draft job via signed GitHub OIDC
         id: media_claim
-        if: always() && steps.groq_model_gate.outcome == 'success'
+        if: always() && steps.groq_model_gate.outcome == 'success' && github.event_name != 'issues'
         run: |
           python3 services/reel-engine/ai-reel-api-v1/media_runner.py claim \
             --claim "$RUNNER_TEMP/media-v1-claim.json" --out "$RUNNER_TEMP/private-v1"
