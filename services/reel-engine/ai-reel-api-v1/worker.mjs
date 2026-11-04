@@ -1,5 +1,5 @@
 // DeluluTech AI Reel Engine owner-only PWA API.
-import {wakeMediaJob,readMediaWake} from './media_event_wake.mjs';
+import {wakeMediaJob,readMediaWake,recoverPendingWakes} from './media_event_wake.mjs';
 const ALLOWED_ORIGINS=new Set(["https://reel.delulutech.in","https://delulutech-ai-reel-engine-v1.pages.dev"]);
 const CODE_PREFIX="Bearer nk-";
 function j(v,status=200,h={}){return new Response(JSON.stringify(v),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer",...h}})}
@@ -72,7 +72,7 @@ function digestHex(b){return hex(new Uint8Array(b))}
 async function hashBytes(b){return digestHex(await crypto.subtle.digest("SHA-256",b))}
 function privateKey(part,id,index){return "private/mad-v1/"+part+"/"+id+"/"+index}
 function mediaError(message,status=400){return j({error:{message}},status)}
-async function doMedia(request,env,url){
+async function doMedia(request,env,url,ctx){
  const p=url.pathname.split("/").filter(Boolean);
  if(p[0]!=="v1"||p[1]!=="media")return mediaError("Route not found",404);
  if(!env.MEDIA_KV)return mediaError("Private media storage unavailable",503);
@@ -141,9 +141,13 @@ async function doMedia(request,env,url){
    try{
      await env.DB.prepare("INSERT INTO mad_v1_media_jobs(job_id,upload_id,prompt,rights_confirmed,people_consent,external_ai_approved,state,created_at,updated_at,expires_at) VALUES (?,?,?,1,1,1,'queued',?,?,?)").bind(id,q.upload_id,q.prompt.trim(),now,now,now+MAD_TTL).run();
    }catch{return mediaError("Another render is currently active; wait for it to finish",409)}
-   let wake;
-   try{wake=await wakeMediaJob(env,id)}catch{wake={state:'failed',last_error_code:'WAKE_STATE_UNAVAILABLE'}}
-   return j({job_id:id,state:"queued",wake,review_only:true,video_output:"1080x1920 h264/aac",note:"Owner-only render queued; GitHub wake acknowledgement does not certify render success"},201);
+   let wake={state:'pending',attempts:0};
+   if(ctx?.waitUntil){
+     ctx.waitUntil(wakeMediaJob(env,id).catch(()=>{}));
+   }else{
+     try{wake=await wakeMediaJob(env,id)}catch{wake={state:'failed',last_error_code:'WAKE_STATE_UNAVAILABLE'}}
+   }
+   return j({job_id:id,state:"queued",wake,review_only:true,video_output:"1080x1920 h264/aac",note:"Queued for event-driven GitHub pickup; wake acknowledgement is not a render completion"},201);
  }
  if(p[2]==="jobs"&&validMediaId(p[3],"madmedia-")){
    const id=p[3];
@@ -178,7 +182,7 @@ async function doMedia(request,env,url){
 }
 
 export default {
- async fetch(request,env){
+ async fetch(request,env,ctx){
   const url=new URL(request.url),origin=request.headers.get("origin")||"";
   if(url.pathname==="/health"&&request.method==="GET")return j({service:"AI Reel Engine 1.0 by DeluluTech",ready:Boolean(env.DB&&env.MAD_OWNER_CODE_SHA256),mode:"owner-private-video-draft",real_media_enabled:false,private_review_upload_ready:Boolean(env.MEDIA_KV),model_secrets:"GitHub Actions only"});
   const headers=cors(origin);
@@ -188,12 +192,17 @@ export default {
   if(!await authorized(request,env))return j({error:{message:"Invalid access code"}},401,headers);
   try{
    let response;
-   if(url.pathname.startsWith("/v1/media/"))response=await doMedia(request,env,url);
+   if(url.pathname.startsWith("/v1/media/"))response=await doMedia(request,env,url,ctx);
    else if(url.pathname==="/v1/chat/completions"&&request.method==="POST")response=await handleChat(request,env);
    else if(url.pathname==="/v1/models"&&request.method==="GET")response=j({object:"list",data:[{id:"mad-v5",object:"model",owned_by:"delulutech"}]});
    else response=j({error:{message:"Not found"}},404);
    for(const [k,v] of Object.entries(headers))response.headers.set(k,v);
    return response;
   }catch{return j({error:{message:"Service unavailable"}},503,headers)}
+ },
+ async scheduled(_event,env,ctx){
+   if(!env.DB)return;
+   const run=recoverPendingWakes(env,2).catch(()=>{});
+   if(ctx?.waitUntil)ctx.waitUntil(run);else await run;
  }
 };
