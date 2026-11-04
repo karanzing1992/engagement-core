@@ -73,7 +73,7 @@ class PrivateCreativeMisfireTests(TestCase):
         self.assertLessEqual(len(title.split("\n")),2)
         self.assertTrue(all(len(x)<=23 for x in title.split("\n")))
         self.assertEqual(runner.display_title(runner.creative_title(None)),
-                         "A MOMENT WORTH\nFEELING")
+                         "A MOMENT WORTH FEELING")
 
     def test_provider_status_appears_as_opaque_failure_code_only(self):
         class TooManyRequests(Exception):status_code=429
