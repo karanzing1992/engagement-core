@@ -22,13 +22,18 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
         run: python3 experiments/reel-engine-v5/groq_minimal_inference.py
-      - name: Install FFmpeg from cached package indexes and pinned Python packages
+      - name: Install pinned synthetic-only FFmpeg binaries and Python packages
         run: |
-          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
-            sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 install -y -qq ffmpeg
-          fi
-          command -v ffmpeg
-          command -v ffprobe
+          set -euo pipefail
+          timeout 120 npm install --prefix "$RUNNER_TEMP/mad-synthetic-tools" --no-save --ignore-scripts --no-audit --no-fund \
+            '@ffmpeg-installer/linux-x64@4.1.0' '@ffprobe-installer/linux-x64@5.2.0'
+          mkdir -p "$RUNNER_TEMP/mad-synthetic-tools/bin"
+          cp "$RUNNER_TEMP/mad-synthetic-tools/node_modules/@ffmpeg-installer/linux-x64/ffmpeg" "$RUNNER_TEMP/mad-synthetic-tools/bin/ffmpeg"
+          cp "$RUNNER_TEMP/mad-synthetic-tools/node_modules/@ffprobe-installer/linux-x64/ffprobe" "$RUNNER_TEMP/mad-synthetic-tools/bin/ffprobe"
+          chmod 700 "$RUNNER_TEMP/mad-synthetic-tools/bin/ffmpeg" "$RUNNER_TEMP/mad-synthetic-tools/bin/ffprobe"
+          "$RUNNER_TEMP/mad-synthetic-tools/bin/ffmpeg" -version | head -1
+          "$RUNNER_TEMP/mad-synthetic-tools/bin/ffprobe" -version | head -1
+          echo "$RUNNER_TEMP/mad-synthetic-tools/bin" >> "$GITHUB_PATH"
           python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
       - name: Render and verify an isolated fixture-only V5 diagnostic (no provider planning)
         env:
