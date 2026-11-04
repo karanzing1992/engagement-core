@@ -35,11 +35,19 @@ jobs:
         if: success()
         id: claim
         run: python3 services/reel-engine/cloudflare_bridge_runner.py claim --claim-file "$RUNNER_TEMP/claim.json"
-      - name: Install FFmpeg and pinned Python SDKs only for accepted jobs
+      - name: Install pinned FFmpeg test binaries and Python SDKs for synthetic-only jobs
         if: steps.claim.outputs.has_job == '1'
         run: |
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+          set -euo pipefail
+          timeout 120 npm install --prefix "$RUNNER_TEMP/mad-v5-synthetic-tools" --no-save --ignore-scripts --no-audit --no-fund \
+            '@ffmpeg-installer/linux-x64@4.1.0' '@ffprobe-installer/linux-x64@5.2.0'
+          mkdir -p "$RUNNER_TEMP/mad-v5-synthetic-tools/bin"
+          cp "$RUNNER_TEMP/mad-v5-synthetic-tools/node_modules/@ffmpeg-installer/linux-x64/ffmpeg" "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffmpeg"
+          cp "$RUNNER_TEMP/mad-v5-synthetic-tools/node_modules/@ffprobe-installer/linux-x64/ffprobe" "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffprobe"
+          chmod 700 "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffmpeg" "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffprobe"
+          "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffmpeg" -version | head -1
+          "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffprobe" -version | head -1
+          echo "$RUNNER_TEMP/mad-v5-synthetic-tools/bin" >> "$GITHUB_PATH"
           python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
       - name: Execute canonical MAD V5 director and guarded synthetic render
         id: render
