@@ -15,7 +15,7 @@ jobs:
   bridge:
     if: github.event_name != 'issues' || (github.event.issue.user.login == github.repository_owner && startsWith(github.event.issue.title, '[MAD-V5-CF] '))
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -75,3 +75,31 @@ jobs:
             ${{ runner.temp }}/v5-cf-output/v5-technical-receipt.json
           retention-days: 7
           if-no-files-found: error
+
+      - name: Claim one private real-media draft job via signed GitHub OIDC
+        id: media_claim
+        if: always()
+        run: |
+          python3 services/reel-engine/ai-reel-api-v1/media_runner.py claim \
+            --claim "$RUNNER_TEMP/media-v1-claim.json" --out "$RUNNER_TEMP/private-v1"
+      - name: Install render dependencies for accepted real-media owner job
+        if: steps.media_claim.outputs.has_media == '1'
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg fonts-dejavu-core
+          python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
+      - name: Download verified private source, create original V5 reel and return private chunks
+        if: steps.media_claim.outputs.has_media == '1'
+        id: media_render
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python3 services/reel-engine/ai-reel-api-v1/media_runner.py render \
+            --claim "$RUNNER_TEMP/media-v1-claim.json" --out "$RUNNER_TEMP/private-v1"
+      - name: Record private real-media draft completion or explicit failure
+        if: always() && steps.media_claim.outputs.has_media == '1'
+        run: |
+          python3 services/reel-engine/ai-reel-api-v1/media_runner.py complete \
+            --claim "$RUNNER_TEMP/media-v1-claim.json" --out "$RUNNER_TEMP/private-v1"
+      # No public Actions artifact of original or generated real-media bytes.
