@@ -41,3 +41,16 @@ Once workflow changes are on `main`, the owner may create exactly one GitHub iss
 - No source video or private render output in GitHub issues/artifacts or public URLs.
 - No new external provider, fee, credential exposure, or public release.
 - Preserve previous successful synthetic credential and model certificates (PR #149 and run #41888905082), and existing private-media data.
+
+
+## 2026-11-05 live owner issue wake acceptance
+
+- PR #156 merged to `main` as `71d3bb612c688c0d59943c7963ce4444a2632c20`.
+- Owner-only issue event: https://github.com/karanzing1992/engagement-core/issues/157
+- Signed GitHub workflow run: https://github.com/karanzing1992/engagement-core/actions/runs/41896468977 **SUCCESS**.
+- D1 original queued job `madmedia-ede1549f-049a-4efe-b198-a73473a9e6a2`: `queued` (attempts 0) -> `claimed` (attempts 1) -> `review_ready` (attempts 1), error null.
+- Actual private upload 9,749,020 bytes / 3 chunks. **Rendered output 22,430,716 bytes / 6 chunks, 1080x1920, 30fps AAC, full_decode=true**, SHA256 `e0e0955d16c0514321fa57fb9ec9fe323980e45545db4fc5a6f048834492f676`.
+- D1 output chunk receipts independently summed to 22,430,716 bytes. Preview availability and full decode certified by runner receipt; browser click/download remain owner UX QA.
+- **Important quality boundary:** `creative_model_called=true`, but `creative_plan_applied=false`: Groq director plan rejected twice (`director_plan_invalid`); source-only fallback FFmpeg render, ten cuts. Vision 8 sampled/4 captioned, unreviewed. Music rights / artistic quality / publication not certified.
+- Applied production D1 migration `011_event_wake.sql` and independently verified new `mad_v1_media_wakes` table plus `mad_v1_media_wakes_retry` index.
+- **Production automatic dispatch still NOT enabled:** both owner API and Projects Workers lack `MAD_GITHUB_ACTIONS_DISPATCH_TOKEN`; updated Worker source has not been deployed. Owner-only issue wake was a certified manual one-off. The new user submission path must receive scoped GitHub dispatch credential and independent live verification before claiming event-driven automatic certification.
