@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS mad_v1_project_jobs (job_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, requested_at INTEGER NOT NULL);
