@@ -39,6 +39,16 @@ Free-tier model selection:
 
 **Release gates:** Genuine model availability requires owner GitHub secret/account permission restoration and read-only preflight HTTP 200; never disable the gate to process private guest media. The production preview remains private and full artistic/music certifications are separately required.
 
+## 2026-11-04 verified Groq HTTP 403 root cause and cross-cloud evidence
+
+Independent owner-isolated Cloudflare Worker and GitHub OIDC probe used existing GitHub `REEL_ENGINE_KEY`, delivered over TLS only in process memory without logging or persisting the secret. [Read-only Cloudflare run 41882545387](https://github.com/karanzing1992/engagement-core/actions/runs/41882545387) received authenticated HTTP 200 listing GPT-OSS 120B, GPT-OSS 20B, and preview Qwen3.8 27B. No inference/media usage occurred.
+
+Same GitHub runner, **same secret**, official `GET https://api.groq.com/openai/v1/models`: [controlled A/B run 41883206723](https://github.com/karanzing1992/engagement-core/actions/runs/41883206723) returned HTTP 403 with the default `Python-urllib` User-Agent, HTTP 200 with an explicit Groq SDK-style User-Agent, and HTTP 200 through Cloudflare. This identifies the default HTTP client fingerprint, not a bad key or disabled models, as the cause of the original preflight 403. Independent public reproduction: https://github.com/devinilabs/claude-watch/issues/2 and https://github.com/cheaper-inference/OmniRoute/issues/13225.
+
+Preflight now explicitly identifies itself as `MAD-V5-Groq-Model-Preflight/1.0`; account-side validation of the **new** User-Agent is required before declaring this code path fixed. The private signed real-media runner remains bound to the original GitHub `GROQ_API_KEY` unless separately changed; read-only preflight uses owner `REEL_ENGINE_KEY`. Keep signed admission and consent checks, paid-plan restrictions and no publishing. Authenticated model listing is **not** a full creative inference or FFmpeg render acceptance.
+
+The temporary Cloudflare diagnostic endpoint and one-time workflow are slated for removal after source-validation; they must never become a persistent credential-forwarding proxy.
+
 ## Validation and release gates
 1. Synthetic-only Python tests: `test_v5_orchestrator.py`, `test_git_cloud_runner.py`, `test_creative_audit.py`; GitHub workflow contracts and source security checks.
 2. Read-only model availability script `groq_models_preflight.py` uses `GET https://api.groq.com/openai/v1/models` with existing masked owner secret and logs only IDs/availability. It does not perform inference or certify paid/free limits.
