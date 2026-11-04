@@ -1,0 +1,60 @@
+name: MAD V1 real-media owner-only static and security contracts
+on:
+  pull_request:
+    paths:
+      - 'services/reel-engine/ai-reel-api-v1/**'
+      - 'experiments/reel-engine-v5/cloudflare-oidc/worker.mjs'
+      - '.github/workflows/mad-v5-cloudflare-bridge.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static-gates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Parse Cloudflare and private GitHub code
+        run: |
+          node --check services/reel-engine/ai-reel-api-v1/worker.mjs
+          node --check experiments/reel-engine-v5/cloudflare-oidc/worker.mjs
+          python3 -m py_compile services/reel-engine/ai-reel-api-v1/media_runner.py
+      - name: Fail closed: owner access, consent, private media, SHA and protected preview
+        run: |
+          node - <<'JS'
+          const fs=require('node:fs');
+          const app=fs.readFileSync('services/reel-engine/ai-reel-api-v1/worker.mjs','utf8');
+          const bridge=fs.readFileSync('experiments/reel-engine-v5/cloudflare-oidc/worker.mjs','utf8');
+          const runner=fs.readFileSync('services/reel-engine/ai-reel-api-v1/media_runner.py','utf8');
+          for(const [label,s,terms] of [
+            ['owner',app,['MAD_OWNER_CODE_SHA256','MEDIA_KV','source', 'sha256','external_ai_approved','people_consent','rights_confirmed','review_ready','/v1/media/','X-Chunk-SHA256']],
+            ['signed-bridge',bridge,['media-claim','media-source','media-output','media-complete','verify(request)','MEDIA_KV','claim_id','review_ready','RS256']],
+            ['private-runner',runner,['source_sha256','GEMINI_API_KEY','GROQ_API_KEY','render_multiple','PRIVATE_REAL_MEDIA_TECHNICAL_DRAFT','public_release_certified']]]){
+            for(const term of terms)if(!s.includes(term))throw Error(label+': required gate missing '+term);
+          }
+          if(/upload-artifact/.test(runner))throw Error('No guest media in artifacts');
+          console.log('MAD_V1_REAL_MEDIA_SOURCE_GATES_PASS');
+          JS
+      - name: Test owner API rejects anonymous requests and disallowed origins
+        run: |
+          node --input-type=module <<'JS'
+          import Worker from './services/reel-engine/ai-reel-api-v1/worker.mjs';
+          import assert from 'node:assert/strict';
+          const env={DB:{},MEDIA_KV:{}};
+          const request=(origin,authorization='')=>new Request('https://reel-api.delulutech.in/v1/media/uploads',{
+            method:'POST',headers:{origin,'Authorization':authorization,'Content-Type':'application/json'},
+            body:'{}'});
+          const denied=await Worker.fetch(request('https://reel.delulutech.in'),env);
+          assert.equal(denied.status,401);
+          const foreign=await Worker.fetch(request('https://attacker.invalid'),env);
+          assert.equal(foreign.status,403);
+          const preflight=await Worker.fetch(new Request('https://reel-api.delulutech.in/v1/media/uploads',{
+            method:'OPTIONS',headers:{Origin:'https://reel.delulutech.in'}}),env);
+          assert.equal(preflight.status,204);
+          assert.match(preflight.headers.get('access-control-allow-headers'),/X-Chunk-SHA256/);
+          console.log('MAD_V1_PUBLIC_API_NEGATIVE_AUTH_PASS');
+          JS
