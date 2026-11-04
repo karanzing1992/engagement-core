@@ -16,7 +16,10 @@ if not key:
  print("GROQ_MODEL_PREFLIGHT_BLOCKED missing_secret")
  sys.exit(2)
 url="https://api.groq.com/openai/v1/models"
-req=urllib.request.Request(url,headers={"Authorization":"Bearer "+key,"Accept":"application/json"},method="GET")
+# Groq's edge rejects the default Python-urllib User-Agent (403/1010) even
+# for an authorized key; identify this client honestly, without SDK spoofing.
+req=urllib.request.Request(url,headers={"Authorization":"Bearer "+key,
+    "Accept":"application/json","User-Agent":"MAD-V5-Groq-Model-Preflight/1.0"},method="GET")
 try:
  with urllib.request.urlopen(req,timeout=15) as resp:
   if resp.status!=200:raise RuntimeError("not_http_200")
