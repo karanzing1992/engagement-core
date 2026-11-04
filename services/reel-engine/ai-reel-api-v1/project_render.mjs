@@ -1,6 +1,6 @@
 import {wakeMediaJob} from './media_event_wake.mjs';
 const respond=(o,status=200)=>new Response(JSON.stringify(o),{status,headers:{"content-type":"application/json","cache-control":"no-store"}});
-export async function projectRender(req,env,url){
+export async function projectRender(req,env,url,ctx){
  const p=url.pathname.split("/").filter(Boolean),id=p[2],db=env.DB,now=Math.floor(Date.now()/1000);
  if(!/^reel-[a-f0-9-]{36}$/.test(id||""))return respond({error:{message:"Invalid project"}},404);
  const project=await db.prepare("SELECT id FROM mad_v1_projects WHERE id=?").bind(id).first();
@@ -17,6 +17,8 @@ export async function projectRender(req,env,url){
   db.prepare("INSERT INTO mad_v1_versions(version_id,project_id,created_at) VALUES (?,?,?)").bind(job,id,now),
   db.prepare("UPDATE mad_v1_projects SET updated_at=? WHERE id=?").bind(now,id)]);
  }catch{return respond({error:{message:"Another render is active; see Renders and retry"}},409)}
- let wake;try{wake=await wakeMediaJob(env,job)}catch{wake={state:'failed',last_error_code:'WAKE_STATE_UNAVAILABLE'}}
+ let wake={state:'pending',attempts:0};
+ if(ctx?.waitUntil){ctx.waitUntil(wakeMediaJob(env,job).catch(()=>{}))}
+ else{try{wake=await wakeMediaJob(env,job)}catch{wake={state:'failed',last_error_code:'WAKE_STATE_UNAVAILABLE'}}}
  return respond({job_id:job,project_id:id,state:"queued",wake,review_only:true},201);
 }
