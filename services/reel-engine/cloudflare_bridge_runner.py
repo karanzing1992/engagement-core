@@ -35,6 +35,8 @@ def call(action,data):
     except urllib.error.HTTPError as exc:
         if exc.code==401:
             import base64,sys
+            stage=exc.headers.get('x-mad-oidc-stage','unknown')
+            if re.fullmatch(r'[a-z0-9_]{1,64}',stage):print('CLOUDFLARE_OIDC_VERIFY_STAGE '+stage,file=sys.stderr)
             claims={}
             try:
                 signed=token()
