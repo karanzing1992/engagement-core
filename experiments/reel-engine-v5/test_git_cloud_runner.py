@@ -41,11 +41,13 @@ class GitCloudTests(unittest.TestCase):
 
     def test_vision_response_requires_synthetic_identity(self):
         ok = {"shots": [{"id": "S1", "visible": "blue water"}],
-              "_meta": {"synthetic_only": True, "model_used": "gemini-3.6-flash"}}
+              "_meta": {"synthetic_only": True, "model_used": "qwen/qwen3.8-27b", "provider":"groq", "real_guest_data_sent":False}}
         brief, proof = subject.describe_synthetic_vision(ok)
         self.assertIn("blue water", brief)
         self.assertTrue(proof["synthetic_only"])
         self.assertFalse(proof["real_guest_data_sent"])
+        self.assertEqual(proof["provider"],"groq")
+        self.assertEqual(proof["model"],"qwen/qwen3.8-27b")
         for bad in [[], {"shots": []},
                     {"shots": ok["shots"], "_meta": {"synthetic_only": False,
                                                      "model_used": "gemini-3.6-flash"}},
@@ -58,9 +60,22 @@ class GitCloudTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             img_dir = Path(tmp) / "images"
             img_dir.mkdir()
-            with self.assertRaisesRegex(subject.Rejected, "Gemini input image missing"):
+            with self.assertRaisesRegex(subject.Rejected, "Groq input image missing"):
                 subject.create_synthetic_sources(Path(tmp), {
                     "S1": {"duration_seconds": 3}}, vision_images=img_dir)
+
+    def test_groq_synthetic_visual_fixture_matches_render_input(self):
+        with TemporaryDirectory() as t:
+            frames=subject.create_synthetic_frames(Path(t))
+            self.assertEqual(len(frames),5)
+            self.assertTrue(all(f.exists() and f.stat().st_size>100 for f in frames))
+            result={"shots":[{"id":"S"+str(i),"visible":"Synthetic source drawing number "+str(i)} for i in range(1,6)],
+                    "_meta":{"provider":"groq","model_used":"qwen/qwen3.8-27b",
+                             "synthetic_only":True,"real_guest_data_sent":False}}
+            brief,proof=subject.describe_synthetic_vision(result)
+            self.assertIn("Groq analysis",brief)
+            self.assertEqual(proof["shot_count"],5)
+            self.assertFalse(proof["real_guest_data_sent"])
 
     def test_reject_unrenderable_length(self):
         segments = subject.fixture_plan()["versions"][0]["segments"] * 6
