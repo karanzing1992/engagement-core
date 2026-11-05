@@ -3,7 +3,6 @@
 import importlib.util
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import hashlib
 import unittest
 
 HERE = Path(__file__).resolve().parent
@@ -59,7 +58,6 @@ class FilmCraftV6Tests(unittest.TestCase):
 
     def test_filmcraft_is_only_renderer_in_source(self):
         source = FILE.read_text(encoding="utf-8")
-        self.assertIn('["mcp"]', source.replace(',"mcp"',',"mcp"')) if False else None
         self.assertNotIn('subprocess.run(["ffmpeg"', source)
         self.assertNotIn('subprocess.run(["ffprobe"', source)
         self.assertIn('"creative_complete":False', source)
