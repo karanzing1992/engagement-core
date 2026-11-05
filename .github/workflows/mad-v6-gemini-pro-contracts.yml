@@ -1,0 +1,49 @@
+name: MAD Reel Engine V6 | Gemini Pro contracts and safe preflight
+on:
+  push:
+    branches:
+      - feature/reel-engine-v6-gemini-pro-filmcraft-20261106
+    paths:
+      - experiments/reel-engine-v6/**
+      - .github/workflows/mad-v6-gemini-pro-contracts.yml
+  pull_request:
+    paths:
+      - experiments/reel-engine-v6/**
+      - .github/workflows/mad-v6-gemini-pro-contracts.yml
+  workflow_dispatch:
+    inputs:
+      online_gemini_model_discovery:
+        description: Read-only Gemini model list; no inference, no media
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mad-v6-contracts-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Offline role, consent, effect completeness and rollback regression tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s experiments/reel-engine-v6 -p 'test_*.py' -v
+          python3 experiments/reel-engine-v6/v6_contract.py
+          python3 experiments/reel-engine-v6/gemini_pro_preflight.py
+      - name: Optional authenticated read-only Pro model discovery
+        if: github.event_name == 'workflow_dispatch' && inputs.online_gemini_model_discovery == true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 experiments/reel-engine-v6/gemini_pro_preflight.py --online-model-discovery --acknowledge-api-terms
