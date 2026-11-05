@@ -11,12 +11,18 @@ export async function projectRender(req,env,url,ctx){
  const brief=(notes.results||[]).reverse().map(x=>x.content).join(" | ");
  const prompt=("Create a cinematic vertical reel from this project's real source footage. "+(brief||"Start with a strong hook and edit with deliberate, polished pacing.")).slice(0,600);
  if(prompt.length<12)return respond({error:{message:"Creative brief too short"}},400);
+ const active=await db.prepare("SELECT job_id,state FROM mad_v1_media_jobs WHERE upload_id=? AND state IN ('queued','claimed') AND expires_at>? ORDER BY created_at DESC LIMIT 1").bind(asset.upload_id,now).first();
+ if(active)return respond({job_id:active.job_id,project_id:id,state:active.state,existing:true,review_only:true},202);
  const job="madmedia-"+crypto.randomUUID();
  try{await db.batch([
   db.prepare("INSERT INTO mad_v1_media_jobs(job_id,upload_id,prompt,rights_confirmed,people_consent,external_ai_approved,state,created_at,updated_at,expires_at) VALUES (?,?,?,1,1,1,'queued',?,?,?)").bind(job,asset.upload_id,prompt,now,now,now+172800),
   db.prepare("INSERT INTO mad_v1_versions(version_id,project_id,created_at) VALUES (?,?,?)").bind(job,id,now),
   db.prepare("UPDATE mad_v1_projects SET updated_at=? WHERE id=?").bind(now,id)]);
- }catch{return respond({error:{message:"Another render is active; see Renders and retry"}},409)}
+ }catch{
+  const active=await db.prepare("SELECT job_id,state FROM mad_v1_media_jobs WHERE upload_id=? AND state IN ('queued','claimed') AND expires_at>? ORDER BY created_at DESC LIMIT 1").bind(asset.upload_id,now).first().catch(()=>null);
+  if(active)return respond({job_id:active.job_id,project_id:id,state:active.state,existing:true,review_only:true},202);
+  return respond({error:{message:"Render queue unavailable; no new render was created"}},503);
+ }
  let wake={state:'pending',attempts:0};
  if(ctx?.waitUntil){ctx.waitUntil(wakeMediaJob(env,job).catch(()=>{}))}
  else{try{wake=await wakeMediaJob(env,job)}catch{wake={state:'failed',last_error_code:'WAKE_STATE_UNAVAILABLE'}}}
