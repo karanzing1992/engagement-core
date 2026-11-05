@@ -1,0 +1,51 @@
+{
+  "version": "6.0.0-dev",
+  "release_status": "source_only_no_production_switch",
+  "provider_policy": {
+    "mode": "gemini_plus_groq",
+    "gemini_auth": "GEMINI_API_KEY",
+    "gemini_account_note": "owner_reports_Gemini_Pro_API_key_entitlement_not_yet_verified",
+    "gemini_role": "research_and_source_visual_observations",
+    "gemini_model_selection": "highest_available_pro_generateContent_from_live_model_list",
+    "groq_auth": "REEL_ENGINE_KEY",
+    "allow_paid_inference": false,
+    "external_media_requires_explicit_owner_consent": true,
+    "cross_provider_fallback": false
+  },
+  "model_roles": {
+    "research": {
+      "provider": "gemini",
+      "model": "discover_pro_model_at_runtime",
+      "allow_flash_fallback": false
+    },
+    "creative_director": {
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b"
+    },
+    "editor_feasibility_reviewer": {
+      "provider": "groq",
+      "model": "openai/gpt-oss-20b"
+    }
+  },
+  "editor": {
+    "provider": "FilmCraft",
+    "version": "0.16.0",
+    "linux_x86_64_archive_sha256": "588390eee5d7e1634f05794c4f877ddf29494d9cf74405111d67c16cbe215ae9",
+    "no_ffmpeg_or_ffprobe": true,
+    "no_alternative_render_fallback": true,
+    "effect_receipts_required": true,
+    "zero_silent_effect_omissions": true,
+    "license": "MIT OR Apache-2.0"
+  },
+  "delivery": {
+    "private_only": true,
+    "publish_automatically": false,
+    "default_runtime_version": "v5",
+    "source_consent_required": true,
+    "music_mode": "verified_existing_recordings_only",
+    "output_profile": {
+      "width": 1080,
+      "height": 1920
+    }
+  }
+}
