@@ -61,3 +61,18 @@
 - **No V6 implementation source exists in production.**
 - **No Gemini/Groq API requests performed**, no model settings changed, no FilMcraft conversion in GitHub runner, no workflow trigger, no FFmpeg changes, no new media/job/project, no deployment, no publication.
 - Status to tell owner: **“V6 documented/initialized in Git; implementation not started; V5 still running Groq-only and FFmpeg; previous Gemini+Groq combination reinstated in the V6 target architecture only.”**
+
+## 6. V6 implementation kickoff — 2026-11-06, revised owner instruction
+
+The owner subsequently instructed: **"Start with reel engine v6 and gemini is pro account api key."** This supersedes the earlier **no execution** restriction for isolated V6 development, NOT for changing V5 production, using chargeable inference, real guest footage, automatic publishing, or declaring certification.
+
+**Account clarification:** Use the owner's existing Gemini Pro API key route `GEMINI_API_KEY`, not a presumption that Workspace/Business subscriptions convey API access. Model selection is from the key's live `models.list` response, Pro `generateContent` candidate first, never silently substitute Flash. API billing/privacy entitlement remains unverified until separately evidenced. Keep server-side secrets out of source/logs; no inference without the free/approved-cost gate.
+
+**Implementation branch:** `feature/reel-engine-v6-gemini-pro-filmcraft-20261106` (not merged; not deployed).
+- V6-01 **SOURCE_ONLY IMPLEMENTED, CI pending:** `experiments/reel-engine-v6/v6_config.json`, `v6_contract.py`, offline contract regression tests. Explicit `gemini_plus_groq` routing roles: Gemini Pro research, Groq 120B director, Groq 20B editor reviewer. V5 remains production default.
+- V6-02 **SOURCE_ONLY PARTIAL:** `gemini_pro_preflight.py` reuses existing V4.2 Gemini key-from-environment and allowlisted HTTPS REST, offers opt-in READ-ONLY Pro model discovery with no inference/media. No claim that Pro quota or billing status is verified.
+- V6-03 **CONTRACT ONLY:** distinct Groq model identities validated; live director/reviewer execution and evidence receipts not yet integrated.
+- V6-04–11 **OPEN:** FilmCraft experimental adapter not yet moved into signed V6 private queue; audio rights, full artistic effects parity and runtime preview/release remain gated.
+- `.github/workflows/mad-v6-gemini-pro-contracts.yml` introduced as isolated offline CI; optional authenticated model LISTING requires explicit manual opt-in. No keys, billed inference, real media, production workflow or customer data in these files.
+
+**Certification status:** source implementation only pending CI readback; not a V6 render or an owner's accepted reel. **Rollback:** close branch/draft PR, leave V5 runtime unchanged. Master Registry final sync and consumer acknowledgements are pending a verified eligible default-branch change and required publication readback.
