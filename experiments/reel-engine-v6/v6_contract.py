@@ -84,7 +84,10 @@ def pro_models(list_models_response: dict) -> list[str]:
     # Prefer higher numeric family/version; previews remain candidates, not certified.
     def sortkey(model: str):
         numeric = tuple(int(x) for x in re.findall(r"\d+", model)[:3])
-        return (numeric, "preview" not in model, model)
+        # Prefer general-purpose Pro over specialized customtools/image/audio models.
+        specialized = any(s in model for s in
+                          ("customtools", "image", "audio", "tts", "robotics", "embedding"))
+        return (not specialized, numeric, "preview" not in model, model)
     return sorted(set(models), key=sortkey, reverse=True)
 
 
