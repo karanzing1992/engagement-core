@@ -45,8 +45,10 @@ class V6ContractTests(unittest.TestCase):
             {"name": "models/gemini-3.6-pro", "supportedGenerationMethods": ["generateContent"]},
             {"name": "models/gemini-3.8-pro", "supportedGenerationMethods": ["generateContent"]},
             {"name": "models/gemini-3.9-pro", "supportedGenerationMethods": ["embedContent"]},
+            {"name": "models/gemini-3.8-pro-preview-customtools", "supportedGenerationMethods": ["generateContent"]},
         ]}
         self.assertEqual(select_pro_model(models), "gemini-3.8-pro")
+        self.assertNotEqual(select_pro_model(models), "gemini-3.8-pro-preview-customtools")
         self.assertEqual(select_pro_model(models, approved_model="gemini-3.6-pro"),
                          "gemini-3.6-pro")
         with self.assertRaises(V6Blocked):
