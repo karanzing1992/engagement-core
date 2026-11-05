@@ -21,7 +21,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Resolve FFmpeg without Ubuntu apt mirror
+        run: |
+          set -euo pipefail
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            timeout 120 npm install --prefix "$RUNNER_TEMP/reel-ci-tools" --no-save --ignore-scripts --no-audit --no-fund \
+              '@ffmpeg-installer/linux-x64@4.1.0' '@ffprobe-installer/linux-x64@5.2.0'
+            mkdir -p "$RUNNER_TEMP/reel-ci-tools/bin"
+            cp "$RUNNER_TEMP/reel-ci-tools/node_modules/@ffmpeg-installer/linux-x64/ffmpeg" "$RUNNER_TEMP/reel-ci-tools/bin/ffmpeg"
+            cp "$RUNNER_TEMP/reel-ci-tools/node_modules/@ffprobe-installer/linux-x64/ffprobe" "$RUNNER_TEMP/reel-ci-tools/bin/ffprobe"
+            chmod 700 "$RUNNER_TEMP/reel-ci-tools/bin/"*
+            echo "$RUNNER_TEMP/reel-ci-tools/bin" >> "$GITHUB_PATH"
+            export PATH="$RUNNER_TEMP/reel-ci-tools/bin:$PATH"
+          fi
+          ffmpeg -hide_banner -version | head -n 1
+          ffprobe -hide_banner -version | head -n 1
       - run: pip install pytest requests fastapi==0.115.6 httpx==0.28.1 pydantic==2.10.4 python-multipart==0.0.20
       - run: pytest -q test_quality.py test_social_publishers.py
       - run: python -m unittest -q test_verified_logo.py test_geo_policy.py test_chunked_ingest.py test_multiclip.py test_private_api.py
