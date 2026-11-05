@@ -68,7 +68,7 @@ try{
     assert.equal(url,'https://api.github.com/repos/karanzing1992/engagement-core/actions/workflows/mad-v5-cloudflare-bridge.yml/dispatches');
     assert.equal(opts.method,'POST');
     assert.equal(opts.headers.Authorization,'Bearer '+'X'.repeat(35));
-    assert.equal(opts.redirect,'error');
+    assert.equal(opts.redirect,'manual');
     const data=JSON.parse(opts.body);
     assert.deepEqual(data,{ref:'main',inputs:{media_job_id:id}});
     assert(!opts.body.includes('footage')&&!opts.body.includes('prompt'));
@@ -108,6 +108,20 @@ try{
   assert.equal(result.state,'dispatched');assert.equal(result.attempts,2);
   assert.equal(called,2);
   console.log('WAKE_03_DENIAL_RETRY_AFTER_COOLDOWN_PASS');
+
+  // Cloudflare fetch uses manual redirect; a 302 must not be followed or accepted.
+  const dbRedirect=new Database();
+  globalThis.fetch=async()=>({status:302});
+  result=await wakeMediaJob({DB:dbRedirect,MAD_GITHUB_ACTIONS_DISPATCH_TOKEN:'X'.repeat(35)},id);
+  assert.equal(result.state,'failed');
+  assert.equal(result.last_http_status,302);
+  assert.equal(result.last_error_code,'GITHUB_DISPATCH_UNEXPECTED_REDIRECT');
+  const dbTypeError=new Database();
+  globalThis.fetch=async()=>{throw new TypeError('Fetch failed')};
+  result=await wakeMediaJob({DB:dbTypeError,MAD_GITHUB_ACTIONS_DISPATCH_TOKEN:'X'.repeat(35)},id);
+  assert.equal(result.last_http_status,null);
+  assert.equal(result.last_error_code,'GITHUB_DISPATCH_FETCH_TYPE_ERROR');
+  console.log('WAKE_06_REDIRECT_AND_SAFE_FETCH_ERROR_CLASSIFICATION_PASS');
 
   const dbClaimed=new Database();dbClaimed.job.state='claimed';
   result=await wakeMediaJob({DB:dbClaimed,MAD_GITHUB_ACTIONS_DISPATCH_TOKEN:'X'.repeat(35)},id);
