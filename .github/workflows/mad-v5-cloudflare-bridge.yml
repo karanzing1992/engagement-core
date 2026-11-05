@@ -114,9 +114,26 @@ jobs:
         # Synthetic diagnostics may fail, but that must not silently cancel real media.
         if: always() && steps.media_claim.outputs.has_media == '1'
         run: |
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg fonts-dejavu-core
-          python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
+          set -euo pipefail
+          # Ubuntu-hosted runners usually contain FFmpeg and DejaVu. Do not
+          # block owner renders on unreliable apt update/package mirrors.
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            echo "MAD_V5_MEDIA_FFMPEG_PINNED_FALLBACK"
+            timeout 120 npm install --prefix "$RUNNER_TEMP/mad-v5-private-tools" --no-save --ignore-scripts --no-audit --no-fund \
+              '@ffmpeg-installer/linux-x64@4.1.0' '@ffprobe-installer/linux-x64@5.2.0'
+            mkdir -p "$RUNNER_TEMP/mad-v5-private-tools/bin"
+            cp "$RUNNER_TEMP/mad-v5-private-tools/node_modules/@ffmpeg-installer/linux-x64/ffmpeg" "$RUNNER_TEMP/mad-v5-private-tools/bin/ffmpeg"
+            cp "$RUNNER_TEMP/mad-v5-private-tools/node_modules/@ffprobe-installer/linux-x64/ffprobe" "$RUNNER_TEMP/mad-v5-private-tools/bin/ffprobe"
+            chmod 700 "$RUNNER_TEMP/mad-v5-private-tools/bin/ffmpeg" "$RUNNER_TEMP/mad-v5-private-tools/bin/ffprobe"
+            echo "$RUNNER_TEMP/mad-v5-private-tools/bin" >> "$GITHUB_PATH"
+            export PATH="$RUNNER_TEMP/mad-v5-private-tools/bin:$PATH"
+          fi
+          test -f /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf || { echo "MAD_V5_MEDIA_FONT_MISSING"; exit 1; }
+          ffmpeg -hide_banner -version | head -n 1
+          ffprobe -hide_banner -version | head -n 1
+          ffmpeg -hide_banner -filters 2>/dev/null | grep -F 'drawtext'
+          ffmpeg -hide_banner -encoders 2>/dev/null | grep -F 'libx264'
+          timeout 120 python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
       - name: Download verified private source, create original V5 reel and return private chunks
         if: always() && steps.media_claim.outputs.has_media == '1' && steps.media_install.outcome == 'success'
         id: media_render
