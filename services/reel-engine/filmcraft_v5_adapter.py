@@ -133,7 +133,7 @@ def apply_operations(m:MCP,clip:int,ops:list[dict],timeline_start:float,total:fl
             m.cmd("graphics.newText",{"text":title,"size":max(25,min(110,int(v.get("size",75)))),
                 "seconds":min(float(v.get("seconds",2.6)),total-timeline_start),
                 "time":int(timeline_start*TICKS_PER_SECOND),"track":2,
-                "position":[70,380]})
+                "position":[max(20,int(total*0+70)),max(40,int(total*0+160))]})
             applied.append("filmcraft_text")
         elif name=="audio_gain":
             m.cmd("clip.audioGain",{"clips":[clip],"mode":"adjust",
