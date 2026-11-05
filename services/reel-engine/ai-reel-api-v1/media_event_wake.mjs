@@ -47,7 +47,7 @@ export async function wakeMediaJob(env,id){
   let http=null,error=null;
   try{
     const res=await fetch(WAKE_ENDPOINT,{
-      method:'POST',redirect:'error',
+      method:'POST',redirect:'manual',
       headers:{'Authorization':'Bearer '+env.MAD_GITHUB_ACTIONS_DISPATCH_TOKEN,
         'Accept':'application/vnd.github+json',
         'X-GitHub-Api-Version':'2022-11-28',
@@ -57,11 +57,17 @@ export async function wakeMediaJob(env,id){
       signal:AbortSignal.timeout(8000)
     });
     http=res.status;
-    if(http!==204)error=http===401||http===403?'GITHUB_DISPATCH_AUTH_REJECTED':
+    if(http!==204)error=http>=300&&http<400?'GITHUB_DISPATCH_UNEXPECTED_REDIRECT':
+      http===401||http===403?'GITHUB_DISPATCH_AUTH_REJECTED':
       http===404?'GITHUB_DISPATCH_WORKFLOW_NOT_FOUND':
       http===422?'GITHUB_DISPATCH_INVALID_INPUT':
       http===429?'GITHUB_DISPATCH_RATE_LIMITED':'GITHUB_DISPATCH_HTTP_ERROR';
-  }catch{error='GITHUB_DISPATCH_NETWORK_ERROR';}
+  }catch(e){
+    // Workers rejects redirect:'error' before network I/O. Never log exception
+    // messages: failed fetch details can carry sensitive request context.
+    error=e?.name==='TimeoutError'||e?.name==='AbortError'?'GITHUB_DISPATCH_TIMEOUT':
+      e?.name==='TypeError'?'GITHUB_DISPATCH_FETCH_TYPE_ERROR':'GITHUB_DISPATCH_NETWORK_ERROR';
+  }
   if(error){
     await db.prepare("UPDATE mad_v1_media_wakes SET state='failed',last_error_code=?,last_http_status=?,updated_at=? WHERE job_id=? AND state='dispatching' AND last_attempt_at=?")
       .bind(error,http,now,id,now).run();

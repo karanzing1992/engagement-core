@@ -62,6 +62,16 @@ class UserBetaContracts(unittest.TestCase):
         self.assertIn("const MAX_ATTEMPTS=4;",wake)
         self.assertNotIn("const MAX_ATTEMPTS=6;",wake)
 
+    def test_dispatch_uses_workers_supported_redirect_and_safe_error_classes(self):
+        wake=(DIR/"media_event_wake.mjs").read_text()
+        # Cloudflare Workers rejects redirect='error' *before* sending a request.
+        self.assertIn("redirect:'manual'", wake)
+        self.assertNotIn("method:'POST',redirect:'error'", wake)
+        self.assertIn("GITHUB_DISPATCH_UNEXPECTED_REDIRECT", wake)
+        self.assertIn("GITHUB_DISPATCH_FETCH_TYPE_ERROR", wake)
+        self.assertIn("GITHUB_DISPATCH_TIMEOUT", wake)
+        self.assertIn("const MAX_ATTEMPTS=4;", wake)
+
     def test_github_private_ffmpeg_install_is_bounded_without_apt(self):
         script=WORKFLOW.read_text()
         private=script.split("name: Install render dependencies for accepted real-media owner job",1)[1]
