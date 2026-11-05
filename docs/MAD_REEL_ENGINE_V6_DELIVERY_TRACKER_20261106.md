@@ -72,7 +72,21 @@ The owner subsequently instructed: **"Start with reel engine v6 and gemini is pr
 - V6-01 **SOURCE_ONLY IMPLEMENTED, CI pending:** `experiments/reel-engine-v6/v6_config.json`, `v6_contract.py`, offline contract regression tests. Explicit `gemini_plus_groq` routing roles: Gemini Pro research, Groq 120B director, Groq 20B editor reviewer. V5 remains production default.
 - V6-02 **SOURCE_ONLY PARTIAL:** `gemini_pro_preflight.py` reuses existing V4.2 Gemini key-from-environment and allowlisted HTTPS REST, offers opt-in READ-ONLY Pro model discovery with no inference/media. No claim that Pro quota or billing status is verified.
 - V6-03 **CONTRACT ONLY:** distinct Groq model identities validated; live director/reviewer execution and evidence receipts not yet integrated.
-- V6-04–11 **OPEN:** FilmCraft experimental adapter not yet moved into signed V6 private queue; audio rights, full artistic effects parity and runtime preview/release remain gated.
+- V6-04 **SOURCE_ONLY PARTIAL:** existing FilmCraft experimental adapter ported to `services/reel-engine/filmcraft_v6_adapter.py`; source SHA/consent and audio rights are checked before editor admission. Native command-accepted receipts remain visibly `output_unverified`, not `creative_complete`. GitHub signed private V6 queue/export still NOT INTEGRATED.
+- V6-05 **SOURCE_ONLY PARTIAL:** immutable effect IDs and 1:1 command receipt requirements; independent output verification pending.
+- V6-06–11 **OPEN:** FilmCraft music approval/mixing actual audio output, private queue, artistic and mobile positive-owner acceptance, and release remain blocked.
 - `.github/workflows/mad-v6-gemini-pro-contracts.yml` introduced as isolated offline CI; optional authenticated model LISTING requires explicit manual opt-in. No keys, billed inference, real media, production workflow or customer data in these files.
 
 **Certification status:** source implementation only pending CI readback; not a V6 render or an owner's accepted reel. **Rollback:** close branch/draft PR, leave V5 runtime unchanged. Master Registry final sync and consumer acknowledgements are pending a verified eligible default-branch change and required publication readback.
+
+## 7. Verified V6 branch-only kickoff readback (2026-11-06 IST)
+
+**Developed:** isolated source branch `feature/reel-engine-v6-gemini-pro-filmcraft-20261106`; [draft PR #165](https://github.com/karanzing1992/engagement-core/pull/165). Source commit at offline Dell certification: `9812d0709d7c0f7da19e186c7191eb115a6cf375`.
+
+**Dell independently executed tests:** 13/13 offline unit tests PASS and V6 Python modules compile, job receipt ID `b397d004151e4a198e05285a900e6d8a` on online `dell-linux`; isolated temporary checkout removed. Tests cover Gemini Pro general-purpose selector, Groq model-role constraints, strict FilmCraft-only config, effect IDs, omitted-effect rejection, source rights, SHA-256 and audio license admission. No real editor process or inference attempted.
+
+**GitHub Actions verification:** [V6 run 42104046740](https://github.com/karanzing1992/engagement-core/actions/runs/42104046740) finished **success**: source-contracts and `gemini-pro-key-metadata-probe`. Probe authenticated existing `GEMINI_API_KEY` with a GET-only models.list call, returned **7** eligible Pro generation model IDs, and selected generic-purpose `gemini-3.1-pro-preview` (not the specialized `-customtools` variant). This proves an API key can list supported models, NOT that Gemini Pro generation/vision requests are certified, billed API quota is free or subscription tier guarantees API entitlements. No media was transmitted and no inference performed. No key bytes were exposed.
+
+**Scope/release classification:** `SOURCE_ONLY_BRANCH_TESTED`; LIVE V5 unmodified. **Do not merge or promote V6 from a metadata preflight.** Next technical gate: implement independent full-model invocation and source-grounded observation on fully synthetic approved inputs with cost/privacy checks, then signed GitHub FilmCraft export with meaningful independently inspected output effects. Follow with licensed audio and user-private preview; real guest footage only after rights/consent.
+
+**Master Stack delivery:** branch-only change tracked in PR #165. Route A registry publication requires a verified eligible default-branch change and actual Google Doc readback; separate consumers NOT ACKNOWLEDGED. Do not assert `FULLY_SYNCED` for this draft PR.
