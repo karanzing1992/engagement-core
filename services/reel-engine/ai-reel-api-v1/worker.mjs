@@ -137,10 +137,16 @@ async function doMedia(request,env,url,ctx){
    if(!validMediaId(q?.upload_id,"upload-")||!cleanPrompt(q?.prompt)||q.rights_confirmed!==true||q.people_consent!==true||q.external_ai_approved!==true)return mediaError("Video ownership, recognizable-person consent, external AI approval, and a 12–600 character creative brief are required");
    const u=await env.DB.prepare("SELECT id FROM mad_v1_uploads WHERE id=? AND state='complete' AND expires_at>?").bind(q.upload_id,now).first();
    if(!u)return mediaError("Upload not finalized or expired",409);
+   const active=await env.DB.prepare("SELECT job_id,state FROM mad_v1_media_jobs WHERE upload_id=? AND state IN ('queued','claimed') AND expires_at>? ORDER BY created_at DESC LIMIT 1").bind(q.upload_id,now).first();
+   if(active)return j({job_id:active.job_id,state:active.state,existing:true,review_only:true},202);
    const id="madmedia-"+crypto.randomUUID();
    try{
      await env.DB.prepare("INSERT INTO mad_v1_media_jobs(job_id,upload_id,prompt,rights_confirmed,people_consent,external_ai_approved,state,created_at,updated_at,expires_at) VALUES (?,?,?,1,1,1,'queued',?,?,?)").bind(id,q.upload_id,q.prompt.trim(),now,now,now+MAD_TTL).run();
-   }catch{return mediaError("Another render is currently active; wait for it to finish",409)}
+   }catch{
+     const active=await env.DB.prepare("SELECT job_id,state FROM mad_v1_media_jobs WHERE upload_id=? AND state IN ('queued','claimed') AND expires_at>? ORDER BY created_at DESC LIMIT 1").bind(q.upload_id,now).first().catch(()=>null);
+     if(active)return j({job_id:active.job_id,state:active.state,existing:true,review_only:true},202);
+     return mediaError("Render queue unavailable; no new render was created",503);
+   }
    let wake={state:'pending',attempts:0};
    if(ctx?.waitUntil){
      ctx.waitUntil(wakeMediaJob(env,id).catch(()=>{}));
