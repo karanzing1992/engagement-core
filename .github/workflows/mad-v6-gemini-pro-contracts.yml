@@ -40,8 +40,18 @@ jobs:
           python3 -m unittest discover -s experiments/reel-engine-v6 -p 'test_*.py' -v
           python3 experiments/reel-engine-v6/v6_contract.py
           python3 experiments/reel-engine-v6/gemini_pro_preflight.py
-      - name: Optional authenticated read-only Pro model discovery
-        if: github.event_name == 'workflow_dispatch' && inputs.online_gemini_model_discovery == true
+
+  gemini-pro-key-metadata-probe:
+    needs: source-contracts
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.online_gemini_model_discovery == true)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Read-only Gemini Pro model discovery on existing owner API key
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
