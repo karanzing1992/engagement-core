@@ -152,6 +152,12 @@ def run(job_id,*,fixture=False):
     if result.get("stored") is not True:raise RuntimeError("Private result chunk not admitted")
   receipt={k:v for k,v in rec.items() if k not in ("output","project")}
   receipt["model_roles"]=plan["model_roles"]
+  receipt["vision_frames_sent"]=len(frames)
+  receipt["vision_frame_sha256"]=[f["sha256"] for f in frames]
+  receipt["audio_mode"]="original_cc0" if audio else "source_ambience_only"
+  receipt["audio_provenance"]={k:audio[k] for k in ("license","track_title","audio_sha256","original_source_url","original_license_url","attribution_required") if k in audio} if audio else None
+  receipt["music_native_probed"]=rec.get("music_native_probed",False)
+  receipt["independent_artistic_approval"]=False
   receipt["model_policy"]=plan.get("model_policy","gemini_free_flash_groq")
   receipt["source_sha256"]=claim["source_sha256"]
   receipt["published"]=False
