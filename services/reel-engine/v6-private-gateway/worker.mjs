@@ -258,7 +258,10 @@ export default {
    try{
      if(!e.DB)return httpError("Private D1 unavailable",503);
      const parts=url.pathname.split("/").filter(Boolean);
-     if(!token(e)&&!(parts[0]==="v1"&&parts[1]==="projects"))
+     // Owner project and open-audio discovery do not require the vault credential.
+     // All private media and render endpoints remain fail-closed.
+     if(!token(e)&&!((parts[0]==="v1"&&parts[1]==="projects")||
+             (parts[0]==="v6"&&parts[1]==="catalog"&&parts.length===2&&req.method==="GET")))
        return httpError("Private GitHub vault credential not configured",503);
      if(parts[0]==="v1"&&parts[1]==="projects")res=await proxyPrivateProjects(req,e,url);
      else if(parts[0]!=="v6")return httpError("V6 route not found",404);
