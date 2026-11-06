@@ -13,7 +13,7 @@ def extract(workdir,source,duration,*,count=3,consent=False,source_sha256=""):
  for index in range(count):
   second=min(duration-.1,duration*(index+.5)/count)
   argv=["ffmpeg","-hide_banner","-loglevel","error","-ss",str(second),"-i",str(path),
-        "-vf","scale=640:360:force_original_aspect_ratio=decrease:pad=640:360:(ow-iw)/2:(oh-ih)/2",
+        "-vf","scale=640:360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2",
         "-frames:v","1","-f","image2pipe","-vcodec","mjpeg","-q:v","5","-"]
   try:result=subprocess.run(argv,capture_output=True,check=True,timeout=25)
   except (OSError,subprocess.CalledProcessError,subprocess.TimeoutExpired):
