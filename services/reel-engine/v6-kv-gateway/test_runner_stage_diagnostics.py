@@ -2,7 +2,7 @@
 import contextlib
 import io
 import unittest
-from . import runner
+import runner
 
 class StageDiagnosticTests(unittest.TestCase):
     def setUp(self):
