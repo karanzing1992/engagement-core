@@ -12,7 +12,8 @@ sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
 import filmcraft_v6_adapter as filmcraft
 import multimodel_filmcraft_bridge as multimodel
 from native_frames import sample_video_frames
-from open_cc0_audio import verified_cc0_audio
+from open_cc0_audio import verified_cc0_audio, AudioRuntimeError
+from original_cc0_audio import original_cc0_soundtrack
 
 GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
