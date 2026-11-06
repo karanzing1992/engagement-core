@@ -130,12 +130,12 @@ async function dispatch(req,e,id){
     .bind(TIME(),id).run();
    return error("Existing GitHub Actions dispatch not ready",503);
  }
- return json({job_id:id,state:"dispatching",renderer:"FilmCraft",published:false},202);
+ return json({job_id:id,state:"dispatching",renderer:"GStreamer GES",published:false},202);
 }
 function publicState(j){
  const now=TIME(),expiry=j.ready_at?j.expires_at:null;
  const state=(expiry!==null&&now>=expiry)||j.state==="expired"?"expired":j.state;
- return {job_id:j.job_id,state,renderer:"FilmCraft",version:"v6-kv",
+ return {job_id:j.job_id,state,renderer:"GStreamer GES",version:"v6-kv",
          download_available:state==="review_ready"&&expiry>now,
          expiry_at:expiry,seconds_remaining:expiry===null?null:Math.max(0,expiry-now),
          output_sha256:state==="review_ready"?j.output_sha256:null,
@@ -252,8 +252,13 @@ async function internal(req,e,path){
      !SHA.test(body.sha256||"")||body.chunks<1||body.chunks>20||body.bytes<1024||body.bytes>MAX||
      arr.length!==body.chunks||arr.reduce((s,v)=>s+v.bytes,0)!==body.bytes||
      arr.some((v,i)=>v.idx!==i))return error("Verified final MP4 chunks/sha required",422);
-  if(body.receipt?.filmcraft_only!==true||body.receipt?.ffmpeg_invocations!==0||
-    body.receipt?.published!==false||body.receipt?.sha256!==body.sha256)return error("FilmCraft native signed receipt mismatch",422);
+  const visual=body.receipt?.visual_presence_check;
+  if(body.receipt?.engine!=="GStreamer Editing Services"||body.receipt?.gstreamer_only!==true||
+    body.receipt?.filmcraft_only!==false||body.receipt?.ffmpeg_invocations!==0||
+    body.receipt?.output_audio_verified!==true||visual?.visible!==true||
+    !Number.isInteger(visual?.frames_examined)||visual.frames_examined<3||
+    body.receipt?.published!==false||body.receipt?.sha256!==body.sha256)
+      return error("GStreamer video frames, audio or signed receipt not certified",422);
   const receipt=JSON.stringify(body.receipt);
   if(receipt.length>15000)return error("Private receipt too large",413);
   const result=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='review_ready',output_chunks=?,output_bytes=?,output_sha256=?,receipt_json=?,ready_at=?,expires_at=?,updated_at=? WHERE job_id=? AND claim_id=? AND state='rendering'")

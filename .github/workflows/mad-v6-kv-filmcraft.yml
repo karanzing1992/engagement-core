@@ -1,4 +1,4 @@
-name: MAD V6 KV FilmCraft Owner Runner
+name: MAD V6 KV GStreamer GES Owner Runner
 on:
   issues:
     types: [opened]
@@ -34,28 +34,21 @@ jobs:
       - name: Test isolated V6 KV gateway contract
         run: node --test services/reel-engine/v6-kv-gateway/test_kv_gateway.mjs
 
-      - name: Install native FilmCraft v0.16.0, checksum-pinned
+      # Workflow filename remains legacy for OIDC workflow_ref compatibility.
+      - name: Install native GStreamer Editing Services
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/filmcraft"
-          cd "$RUNNER_TEMP/filmcraft"
-          curl -fLsS --retry 2 --connect-timeout 12 --max-time 180 \
-            -o filmcraft.tar.gz 'https://github.com/storytold/filmcraft/releases/download/v0.16.0/filmcraft-0.16.0-linux-x86_64.tar.gz'
-          echo '588390eee5d7e1634f05794c4f877ddf29494d9cf74405111d67c16cbe215ae9  filmcraft.tar.gz' | sha256sum -c -
-          python3 - <<'PY'
-          import tarfile
-          with tarfile.open('filmcraft.tar.gz') as bundle:
-            for member in bundle.getmembers():
-              assert not member.name.startswith('/') and '..' not in member.name.split('/')
-              assert not (member.issym() or member.islnk() or member.isdev())
-          PY
-          tar -xzf filmcraft.tar.gz
-          cli="$RUNNER_TEMP/filmcraft/filmcraft-0.16.0-linux-x86_64/bin/filmcraft-cli"
-          test -x "$cli"
-          echo "FILMCRAFT_CLI=$cli" >> "$GITHUB_ENV"
-
-      - name: Execute owner-authorized FilmCraft-only private KV render
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gst-plugins-base-1.0 gir1.2-ges-1.0 python3-ges-1.0 ges1.0-tools gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
+          /usr/bin/python3 -c "import gi; gi.require_version('GES','1.0'); from gi.repository import GES; print('GES_NATIVE_READY')"
+      - name: Validate decoded video and native audio before private media claim
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 services/reel-engine/v6-kv-gateway/test_ges_v6_smoke.py
+          /usr/bin/python3 services/reel-engine/v6-kv-gateway/test_runner_stage_diagnostics.py
+      - name: Execute owner-authorized GStreamer GES private KV render
         shell: bash
         env:
           OWNER_JOB_ID: ${{ inputs.job_id }}
@@ -79,14 +72,14 @@ jobs:
           test -n "${REEL_ENGINE_KEY:-${GROQ_API_KEY:-}}"
           if [[ "$GITHUB_EVENT_NAME" == "issues" ]]; then
             if [[ "$QA_ISSUE_TITLE" == "[MAD-V6-LIVE-GROQ-AUDIO-QA] "* ]]; then
-              python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID" --groq-only
+              /usr/bin/python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID" --groq-only
             elif [[ "$QA_ISSUE_TITLE" == "[MAD-V6-LIVE-MULTIMODAL-AUDIO-QA] "* ]]; then
-              python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID" --live-models
+              /usr/bin/python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID" --live-models
             else
-              python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID"
+              /usr/bin/python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID"
             fi
           else
-            python3 services/reel-engine/v6-kv-gateway/runner.py --job-id "$OWNER_JOB_ID"
+            /usr/bin/python3 services/reel-engine/v6-kv-gateway/runner.py --job-id "$OWNER_JOB_ID"
           fi
       - name: No raw or finished videos enter GitHub Actions artifacts
         if: always()
