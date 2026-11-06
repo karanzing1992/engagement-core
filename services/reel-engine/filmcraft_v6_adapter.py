@@ -187,7 +187,7 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
             probe=m.cmd("mediaBrowser.probe",{"path":str(source.resolve())})
             info=probe.get("info",{})
             if not info.get("video"):raise FilmCraftError("FilmCraft failed video source probe")
-            source_has_audio=bool(info.get("audio"))
+            source_has_audio=bool(info.get("audio_streams") or info.get("audio"))
             duration=info.get("duration",0)/TICKS_PER_SECOND
             if not 3<=duration<=480:raise FilmCraftError("Source duration outside owner-beta admission")
         else:
@@ -238,7 +238,7 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
                 for part in iter(lambda:f.read(1024*1024),b""):mh.update(part)
             if mh.hexdigest()!=expect:raise FilmCraftError("Approved soundtrack SHA256 mismatch")
             music_info=m.cmd("mediaBrowser.probe",{"path":str(music.resolve())}).get("info",{})
-            if not music_info.get("audio"):raise FilmCraftError("FilmCraft native audio probe rejected soundtrack")
+            if not (music_info.get("audio_streams") or music_info.get("audio")):raise FilmCraftError("FilmCraft native audio probe rejected soundtrack")
             if music_info.get("duration",0)/TICKS_PER_SECOND < total:
                 raise FilmCraftError("Approved music shorter than timeline; no silent truncation")
             m.tool("media_import",{"paths":[str(music.resolve())]})
