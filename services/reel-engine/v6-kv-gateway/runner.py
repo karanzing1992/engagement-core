@@ -13,7 +13,8 @@ import filmcraft_v6_adapter as filmcraft
 import multimodel_filmcraft_bridge as multimodel
 
 GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
-AUD="mad-v6-cloudflare-kv/1",CHUNK=4*1024*1024
+AUD="mad-v6-cloudflare-kv/1"
+CHUNK=4*1024*1024
 def sha(p):
  h=hashlib.sha256()
  with p.open("rb") as f:
