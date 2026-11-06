@@ -76,13 +76,16 @@ async function createUpload(req,e){
  if(!Object.hasOwn(MIME,mime)||!name.endsWith(MIME[mime])||name.length>120||/[\/\\\x00-\x1f]/.test(name)||!Number.isInteger(bytes)||bytes<1024||bytes>MAX||!SHA.test(b.sha256||""))return httpError("Invalid source footage (MP4/MOV/WebM, max 80 MiB)");
  if(!/^reel-[a-f0-9-]{36}$/.test(b.project_id||""))return httpError("Project ID required");
  if(b.rights_confirmed!==true||b.people_consent!==true||b.external_ai_approved!==true)return httpError("Source rights and guest/AI processing consent required");
+ const description=(b.source_description||"").trim();
+ if(description.length<20||description.length>1000||/[\x00-\x1f]/.test(description))return httpError("Human-reviewed description of visible footage required (20-1000 characters)");
  if((b.audio_mode||"source_ambience_only")!=="source_ambience_only")return httpError("Licensed soundtrack upload awaits independent audio rights certification",422);
  const project=await e.DB.prepare("SELECT id FROM mad_v1_projects WHERE id=?").bind(b.project_id).first();
  if(!project)return httpError("Project not found",404);
  await assertPrivate(e);
  const id="v6job-"+crypto.randomUUID().replace(/-/g,""),now=Math.floor(Date.now()/1000);
  const meta={schema:"mad-v6-github-vault/1",job_id:id,state:"uploading",created_at:iso(now),fixture:false,source_sha256:b.sha256,
-             project_id:b.project_id,audio_mode:"source_ambience_only",owner_consent_confirmed:true};
+             project_id:b.project_id,audio_mode:"source_ambience_only",owner_consent_confirmed:true,
+             human_reviewed:true,source_description:description,source_bytes:bytes,source_chunks:Math.ceil(bytes/CHUNK)};
  const gh=await github(e,"POST","/releases",{tag_name:"mad-v6-tmp-"+id,name:"MAD V6 PRIVATE MEDIA "+id,draft:true,prerelease:true,target_commitish:"main",body:JSON.stringify(meta)});
  if(gh.status!==201||!gh.data.draft)return httpError("Private GitHub Release creation unavailable",503);
  const chunks=Math.ceil(bytes/CHUNK);
@@ -104,8 +107,8 @@ async function chunkUpload(req,e,r,index){
  if(!SHA.test(requestedHash))return httpError("Chunk SHA-256 missing");
  const existing=await e.DB.prepare("SELECT sha256 FROM mad_v6_vault_chunks WHERE job_id=? AND part_index=?").bind(r.job_id,i).first();
  if(existing)return existing.sha256===requestedHash?toJson({received:true,duplicate:true}):httpError("Chunk hash conflict",409);
- const declared=Number(req.headers.get("content-length"));
- if(!Number.isInteger(declared)||declared!==expected)return httpError("Chunk byte length invalid",413);
+ const declaredHeader=req.headers.get("content-length");
+ if(declaredHeader!==null&&(!Number.isInteger(Number(declaredHeader))||Number(declaredHeader)!==expected))return httpError("Chunk byte length invalid",413);
  const bytes=await req.arrayBuffer();
  if(bytes.byteLength!==expected||await digest(bytes)!==requestedHash)return httpError("Chunk SHA-256 mismatch",422);
  const url="https://uploads.github.com/repos/"+REPO+"/releases/"+r.release_id+"/assets?name=source-"+String(i).padStart(3,"0")+".part";
@@ -137,6 +140,11 @@ async function render(req,e,r){
  if(brief.length<12||brief.length>1200||/[\x00-\x1f]/.test(brief))return httpError("Creative direction must be 12–1200 characters");
  if(!token(e))return httpError("Private vault GitHub credential missing",503);
  const now=Math.floor(Date.now()/1000);
+ const releaseData=await release(e,r);
+ if(releaseData.meta.state!=="queued")return httpError("GitHub job manifest is not queued",409);
+ releaseData.meta.brief=brief;
+ const saved=await github(e,"PATCH","/releases/"+r.release_id,{body:JSON.stringify(releaseData.meta)});
+ if(saved.status!==200)return httpError("Could not save private creative direction",503);
  const gh=await github(e,"POST","/actions/workflows/"+WORKFLOW+"/dispatches",{ref:"main",inputs:{release_id:String(r.release_id)}});
  if(gh.status!==204)return httpError("V6 FilmCraft dispatch unavailable; job remains queued",503);
  await e.DB.prepare("UPDATE mad_v6_vault_jobs SET state='rendering',brief=?,updated_at=? WHERE job_id=?").bind(brief,now,r.job_id).run();
@@ -178,6 +186,8 @@ async function download(req,e,r,forDownload){
    media=await fetch(u.toString(),{headers:range?{Range:range}:{},redirect:"error"});
  }
  if(media.status!==200&&media.status!==206)return httpError("Private video not retrievable",503);
+ const responseType=(media.headers.get("content-type")||"").toLowerCase();
+ if(responseType.includes("json")||responseType.includes("html")||media.headers.get("content-length")==="0")return httpError("Private GitHub asset was metadata, not video",502);
  const out={"content-type":"video/mp4","cache-control":"private, no-store, max-age=0","x-content-type-options":"nosniff","content-disposition":(forDownload?"attachment":"inline")+'; filename="moksha-v6-private-reel.mp4"',"accept-ranges":"bytes"};
  for(const name of ["content-range","content-length"]){if(media.headers.get(name))out[name]=media.headers.get(name)}
  return new Response(media.body,{status:media.status,headers:out});
