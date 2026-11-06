@@ -28,7 +28,8 @@ rec=fc.render(cli=cli,workdir=root/"mixed",output=root/"mixed"/"output.mp4",
   hook="GENERIC PRODUCT",width=480,height=270,fps=24)
 assert rec["filmcraft_only"] and rec["ffmpeg_invocations"]==0
 assert rec["music_native_probed"] and rec["mixed_audio_stream_native_verified"],"Native FilmCraft output audio absent"
-assert rec["soundtrack_sha256"]==music["audio_sha256"] and rec["music_license_check"] if False else True
+assert rec["soundtrack_sha256"]==music["audio_sha256"]
+assert rec["soundtrack_license_method"]=="automatic_CC0_catalog"
 print("MAD_V6_NATIVE_CC0_AUDIO_FILMCRAFT_MIX_PASS",json.dumps({
  "output_bytes":rec["bytes"],"output_sha256":rec["sha256"],
  "audio_track_sha256":music["audio_sha256"],"license":music["license"],
