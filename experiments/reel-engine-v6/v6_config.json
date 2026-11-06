@@ -4,19 +4,30 @@
   "provider_policy": {
     "mode": "gemini_plus_groq",
     "gemini_auth": "GEMINI_API_KEY",
-    "gemini_account_note": "owner_reports_Gemini_Pro_API_key_entitlement_not_yet_verified",
+    "gemini_account_note": "Free tier model list published; API key project tier/billing must be verified separately",
     "gemini_role": "research_and_source_visual_observations",
-    "gemini_model_selection": "highest_available_pro_generateContent_from_live_model_list",
+    "gemini_model_selection": "highest_available_free_flash_generateContent_from_live_model_list",
     "groq_auth": "REEL_ENGINE_KEY",
     "allow_paid_inference": false,
     "external_media_requires_explicit_owner_consent": true,
-    "cross_provider_fallback": false
+    "cross_provider_fallback": false,
+    "gemini_free_tier_models": [
+      "gemini-3.8-flash",
+      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite"
+    ],
+    "require_verified_free_project": true,
+    "gemini_privacy": "free_tier_vendor_product_improvement_may_apply; source-grounded human-reviewed text only"
   },
   "model_roles": {
     "research": {
       "provider": "gemini",
-      "model": "discover_pro_model_at_runtime",
-      "allow_flash_fallback": false
+      "model": "discover_free_flash_model_at_runtime",
+      "allow_flash_fallback": true,
+      "require_no_private_video_upload": true
     },
     "creative_director": {
       "provider": "groq",
