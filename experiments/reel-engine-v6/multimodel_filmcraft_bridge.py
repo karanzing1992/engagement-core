@@ -280,11 +280,13 @@ def run(*,source,brief,brand,mode="fixture",audio_mode="source_ambience_only",
                 "No invented timecodes/people. FilmCraft only; no music invented.")
         proposal=groq_call("openai/gpt-oss-120b",prompt,temperature=0.7,max_tokens=1800)
         validate_director(source,proposal)
-        rp=("You are independent FilmCraft feasibility and rights reviewer. Review this exact"
-            " storyboard without changing or adding footage. Return JSON {\"approved\":true,"
-            "\"director_plan_sha256\":\""+sha_json(proposal)+"\","
-            "\"segment_decisions\":[{\"segment_index\":0,\"approved\":true}]}. "
-            "Reject invalid effects/timecodes. Original: "+json.dumps(proposal))
+        indices=[{"segment_index":i,"approved":True} for i in range(len(proposal["segments"]))]
+        rp=("Independently review this exact FilmCraft storyboard against source facts and timestamps. "
+            "Return a JSON object with keys approved (boolean), director_plan_sha256 (string), "
+            "segment_decisions (array with one entry for EACH segment index 0.."+str(len(indices)-1)+"). "
+            "If valid, copy EXACT SHA256 "+sha_json(proposal)+" and these index records: "+json.dumps(indices)+". "
+            "If anything violates source bounds or FilmCraft effect allowlist, set approved=false. "
+            "Never invent scenes or drop segments. Proposal: "+json.dumps(proposal))
         review=groq_call("openai/gpt-oss-20b",rp,temperature=0.15,max_tokens=1200)
     else:
         raise V6Blocked("Unknown V6 inference mode")
