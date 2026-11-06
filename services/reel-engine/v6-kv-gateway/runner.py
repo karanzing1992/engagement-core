@@ -37,6 +37,8 @@ SAFE_CAUSES={
  "Groq 20B review missing or director hash mismatch":"REVIEW_DIGEST_OR_APPROVAL_MISMATCH",
  "Independent reviewer rejected proposed edit":"REVIEW_REJECTED",
  "Strict reviewer response invalid":"REVIEW_SCHEMA_INVALID",
+ "Unsupported GStreamer effect requested":"GES_DIRECTOR_EFFECT_UNSUPPORTED",
+ "GStreamer title text invalid":"GES_TITLE_TEXT_INVALID",
  "Duplicate creative instruction identifier":"EDL_DUPLICATE_EFFECT_ID",
  "Director invented edit time outside reviewed footage":"DIRECTOR_TIMECODE_INVALID",
  "Gemini Flash returned no usable source observations":"GEMINI_OBSERVATIONS_INVALID",
@@ -132,7 +134,7 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
  prompt=("Act as a premium cinematic director. Return ONLY valid JSON with a non-empty "
          "hook (1-90 characters) and 1-4 verified source segments. Each segment must include "
          "shot_id, numeric start_seconds, numeric duration_seconds >= 0.4 and an effects list. "
-         "Allowed effect names: color_grade, motion, zoom, title, caption; each has a "
+         "Allowed effect names: color_grade, title, caption ONLY; each has a "
          "parameters object. Never invent unseen footage, people, dialogue, or off-screen "
          "activities. Timecodes must stay within the verified source. "
          "EXAMPLE JSON shape with concrete values: "+json.dumps(schema)+
