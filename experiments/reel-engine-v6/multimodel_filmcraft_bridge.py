@@ -121,7 +121,7 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
                      {"x-goog-api-key":key},
                      {"contents":[{"parts":parts}],
                       "generationConfig":{"responseMimeType":"application/json",
-                                          "temperature":0.2,"maxOutputTokens":1400}},timeout=65)
+                                          "temperature":0.2,"maxOutputTokens":1400}},timeout=30)
                 model=candidate
                 break
             except FreeModelTemporarilyUnavailable:
