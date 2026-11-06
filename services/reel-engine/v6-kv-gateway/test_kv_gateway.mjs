@@ -89,7 +89,7 @@ test("owner source upload -> signed OIDC GStreamer-output handoff -> range previ
   const stored=await sign("/internal/v6/jobs/"+id+"/output/0",{method:"PUT",claim:job.claim_id,
     headers:{"X-Chunk-SHA256":SHA(output)},body:output});
   assert.equal(stored.status,200);
-  const receipt={engine:"GStreamer Editing Services",gstreamer_only:true,filmcraft_only:false,output_audio_verified:true,visual_presence_check:{visible:true,frames_examined:3},ffmpeg_invocations:0,published:false,sha256:SHA(output)};
+  const receipt={engine:"MLT Framework + frei0r",mlt_only:true,frei0r_verified:true,gstreamer_only:false,filmcraft_only:false,output_audio_verified:true,visual_presence_check:{visible:true,frames_examined:3},ffmpeg_invocations:0,published:false,sha256:SHA(output)};
   const completed=await sign("/internal/v6/jobs/"+id+"/complete",{method:"POST",claim:job.claim_id,
    headers:{"Content-Type":"application/json"},
    body:toJSON({state:"review_ready",chunks:1,bytes:output.length,sha256:SHA(output),receipt})});
