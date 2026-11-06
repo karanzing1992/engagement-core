@@ -1,4 +1,4 @@
-name: MAD V6 KV GStreamer GES Owner Runner
+name: MAD V6 KV MLT frei0r Owner Runner
 on:
   issues:
     types: [opened]
@@ -35,20 +35,22 @@ jobs:
         run: node --test services/reel-engine/v6-kv-gateway/test_kv_gateway.mjs
 
       # Workflow filename remains legacy for OIDC workflow_ref compatibility.
-      - name: Install native GStreamer Editing Services
+      # Filename stays unchanged because owner OIDC workflow_ref is pinned.
+      - name: Install native MLT and frei0r editing library (Gst read-only QA)
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gst-plugins-base-1.0 gir1.2-ges-1.0 python3-ges-1.0 ges1.0-tools gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
-          /usr/bin/python3 -c "import gi; gi.require_version('GES','1.0'); from gi.repository import GES; print('GES_NATIVE_READY')"
-      - name: Validate decoded video and native audio before private media claim
+          sudo apt-get install -y --no-install-recommends melt frei0r-plugins libmlt7 libmlt-data python3-gi gir1.2-gst-plugins-base-1.0 gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
+          command -v melt
+          melt -query filters | grep 'frei0r.contrast0r'
+      - name: Verify video frames, original audio and real MLT templates before claim
         shell: bash
         run: |
           set -euo pipefail
-          /usr/bin/python3 services/reel-engine/v6-kv-gateway/test_ges_v6_smoke.py
+          /usr/bin/python3 services/reel-engine/v6-kv-gateway/test_mlt_v6_smoke.py
           /usr/bin/python3 services/reel-engine/v6-kv-gateway/test_runner_stage_diagnostics.py
-      - name: Execute owner-authorized GStreamer GES private KV render
+      - name: Execute owner-authorized MLT frei0r private KV render
         shell: bash
         env:
           OWNER_JOB_ID: ${{ inputs.job_id }}
