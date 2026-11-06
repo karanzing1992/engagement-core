@@ -19,7 +19,6 @@ jobs:
       REEL_ENGINE_KEY: ${{ secrets.REEL_ENGINE_KEY }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GEMINI_FREE_TIER_OWNER_ATTESTED: "true"
-      FILMCRAFT_CLI: ${{ runner.temp }}/filmcraft/filmcraft-0.16.0-linux-x86_64/bin/filmcraft-cli
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -35,7 +34,9 @@ jobs:
             'https://github.com/storytold/filmcraft/releases/download/v0.16.0/filmcraft-0.16.0-linux-x86_64.tar.gz'
           echo '588390eee5d7e1634f05794c4f877ddf29494d9cf74405111d67c16cbe215ae9  filmcraft.tar.gz' | sha256sum -c -
           tar -xzf filmcraft.tar.gz
-          test -x "$FILMCRAFT_CLI"
+          cli="$RUNNER_TEMP/filmcraft/filmcraft-0.16.0-linux-x86_64/bin/filmcraft-cli"
+          test -x "$cli"
+          echo "FILMCRAFT_CLI=$cli" >> "$GITHUB_ENV"
       - name: Live Gemini vision plus Groq 120B/20B; synthetic frames and generic brief only
         shell: bash
         run: |
