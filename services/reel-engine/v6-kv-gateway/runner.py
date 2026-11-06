@@ -72,7 +72,7 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
          "Act as premium cinematic director. No fabricated shot or off-screen activity. "
          "Actual reviewed source "+json.dumps(manifest["shots"])+
          " Brand "+brand+" Creative direction "+brief)
- director=multimodel.groq_call("openai/gpt-oss-120b",prompt,temperature=.65,max_tokens=1800)
+ director=multimodel.normalize_effect_shape(multimodel.groq_call("openai/gpt-oss-120b",prompt,temperature=.65,max_tokens=1800))
  multimodel.validate_director(manifest,director)
  review_prompt=("Independently reject invented timecodes/effects. Return strict JSON with approved boolean, "
    "director_plan_sha256 and segment_decisions: index+approved for all segments. "
