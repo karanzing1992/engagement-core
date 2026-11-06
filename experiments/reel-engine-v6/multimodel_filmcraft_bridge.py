@@ -276,7 +276,16 @@ def bind_strict_review_to_plan(proposal,raw_review):
             "strict_schema_verified":True}
 
 def groq_strict_review(source,proposal,*,on_stage=None):
+    validate_source_manifest(source,external_gemini_frames=False)
     validate_director(source,proposal)
+    for segment in proposal["segments"]:
+        for effect in segment["effects"]:
+            if effect["name"] not in ("color_grade","title","caption"):
+                raise V6Blocked("Unsupported GStreamer effect requested")
+            if effect["name"] in ("title","caption"):
+                line=effect.get("parameters",{}).get("text","")
+                if not isinstance(line,str) or not 1<=len(line.strip())<=90:
+                    raise V6Blocked("GStreamer title text invalid")
     if on_stage:on_stage("groq_reviewer")
     prompt=("Independently assess the exact immutable video edit plan for "
             "source-grounding, rights/consent, usable timecodes and actual "
@@ -288,7 +297,11 @@ def groq_strict_review(source,proposal,*,on_stage=None):
             "invent shots, or assume approval. The application binds decisions "
             "to the exact plan and source independently. Supported GES effects "
             "are color_grade, title, caption. A title/caption needs text. "
-            "Verified source: "+json.dumps(source["shots"])+
+            "Owner-verified source rights and consent metadata: "+json.dumps({
+                "human_reviewed":source["human_reviewed"],
+                "rights_and_consent_cleared":source["rights_and_consent_cleared"],
+                "external_ai_processing_consent":source["external_ai_processing_consent"]})+
+            " Verified source: "+json.dumps(source["shots"])+
             " Immutable director proposal: "+json.dumps(proposal))
     raw=groq_call("openai/gpt-oss-20b",prompt,temperature=0.1,
                   max_tokens=1900,
