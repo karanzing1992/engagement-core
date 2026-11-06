@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Owner-only GES synthetic source -> private Cloudflare KV -> GES pipeline QA."""
+"""Owner-only FFmpeg synthetic source -> private Cloudflare KV -> FFmpeg QA."""
 import argparse
 import os
 import subprocess
 from pathlib import Path
 import runner
-import ges_v6_adapter as ges
+
 
 def main(job_id,*,live_models=False,groq_only=False):
  if os.environ.get("GITHUB_EVENT_NAME")!="issues" or os.environ.get("GITHUB_ACTOR")!="karanzing1992":
@@ -16,13 +16,12 @@ def main(job_id,*,live_models=False,groq_only=False):
  work.mkdir(mode=0o700,parents=True,exist_ok=True)
  source=work/"test-matte.mp4"
  try:
-  subprocess.run(["gst-launch-1.0","-q","videotestsrc","pattern=ball","num-buffers=96",
-       "!","video/x-raw,width=480,height=270,framerate=24/1",
-       "!","videoconvert","!","x264enc","tune=zerolatency","speed-preset=ultrafast",
-       "!","h264parse","!","mp4mux","!","filesink","location="+str(source)],
-       check=True,timeout=60)
+  subprocess.run(["ffmpeg","-hide_banner","-loglevel","error","-y",
+       "-f","lavfi","-i","testsrc2=size=320x180:rate=24:duration=4",
+       "-c:v","libx264","-preset","ultrafast","-crf","34","-pix_fmt","yuv420p",
+       "-an",str(source)],check=True,timeout=90)
   if not source.exists() or source.stat().st_size>262144 or source.stat().st_size<1024:
-   raise RuntimeError("Synthetic GStreamer source violates private 256 KiB cap")
+   raise RuntimeError("Synthetic FFmpeg source violates private 256 KiB cap")
   result=runner.call("/internal/v6/jobs/"+job_id+"/seed",runner.token(),
        data=source.read_bytes(),digest=runner.sha(source))
   if result.get("synthetic_only") is not True or result.get("source_sha256")!=runner.sha(source):
