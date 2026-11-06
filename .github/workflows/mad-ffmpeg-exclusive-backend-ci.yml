@@ -24,9 +24,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest discover -s services/reel-engine -p 'test_backend_selection.py' -v
-      - name: Assert FFmpeg video and audio tools available
+      - name: Provision free system FFmpeg and assert codecs
         run: |
           set -euo pipefail
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
           command -v ffmpeg
           command -v ffprobe
           ffmpeg -hide_banner -encoders 2>/dev/null | grep -F libx264
