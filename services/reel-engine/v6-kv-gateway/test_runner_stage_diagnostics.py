@@ -34,19 +34,19 @@ class StageDiagnosticTests(unittest.TestCase):
         self.assertNotIn(secret,fail)
 
     def test_redacts_exception_strings_for_other_types(self):
-        runner.ACTIVE_STAGE="filmcraft_render"
+        runner.ACTIVE_STAGE="gstreamer_render"
         secret="SECRET_GUEST_PATH"
         fail=runner.safe_failure(RuntimeError(secret))
         self.assertEqual(fail,
-            "V6_KV_PRIVATE_RENDER_FAILED stage=filmcraft_render code=NON_MODEL_FAILURE")
+            "V6_KV_PRIVATE_RENDER_FAILED stage=gstreamer_render code=NON_MODEL_FAILURE")
         self.assertNotIn(secret,fail)
 
-    def test_allowlisted_filmcraft_failure_without_exposure(self):
-        runner.ACTIVE_STAGE="filmcraft_effects"
-        error=runner.filmcraft.FilmCraftError("Grounded title text required")
+    def test_allowlisted_ges_failure_without_exposure(self):
+        runner.ACTIVE_STAGE="gstreamer_render"
+        error=runner.ges.RenderBlocked("GES_TITLE_INSERT_FAILED")
         self.assertEqual(runner.safe_failure(error),
-            "V6_KV_PRIVATE_RENDER_FAILED stage=filmcraft_effects code=FILMCRAFT_TITLE_MISSING")
-        error=runner.filmcraft.FilmCraftError("secret guest folder")
+            "V6_KV_PRIVATE_RENDER_FAILED stage=gstreamer_render code=GES_TITLE_INSERT_FAILED")
+        error=runner.ges.RenderBlocked("secret guest folder")
         self.assertNotIn("secret guest folder",runner.safe_failure(error))
 
     def test_timeout_fallback_only_for_gemini_research(self):
