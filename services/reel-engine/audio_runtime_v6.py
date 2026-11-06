@@ -2,7 +2,7 @@
 """Bounded automated CC0 soundtrack discovery/ingest for owner-private FilmCraft."""
 from __future__ import annotations
 from pathlib import Path
-import hashlib,json,ipaddress,re,socket,urllib.parse,urllib.request
+import hashlib,json,ipaddress,re,socket,urllib.parse,urllib.request,os
 
 API="https://api.openverse.org/v1/audio/"
 USER_AGENT="MAD-V6-private-FilmCraft-CC0/1"
@@ -74,6 +74,8 @@ def select_cc0(workdir:Path,query:str="ambient nature music",minimum_duration:fl
               "rights":{"human_verified":False,"automatic_cc0_metadata_checked":True,
                 "license":"CC0","creator":page,"original_source_url":page,
                 "original_license_url":license_url,"audio_sha256":sha}}
-        except (OSError,ValueError,AudioUnavailable,TimeoutError):
+        except (OSError,ValueError,AudioUnavailable,TimeoutError) as exc:
+            if os.environ.get('MAD_V6_AUDIO_DIAGNOSTIC')=='true':
+                print('CC0_AUDIO_SOURCE_REJECTED',type(exc).__name__,getattr(exc,'code','none'))
             continue
     raise AudioUnavailable("No compatible CC0 soundtrack available; never silently substitute commercial audio")
