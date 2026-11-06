@@ -45,7 +45,7 @@ def select_cc0(workdir:Path,query:str="ambient nature music",minimum_duration:fl
     if not 3<=minimum_duration<=120:raise AudioUnavailable("Invalid timeline duration")
     if not isinstance(query,str) or len(query)>100:raise AudioUnavailable("Invalid search")
     workdir.mkdir(mode=0o700,parents=True,exist_ok=True)
-    params=urllib.parse.urlencode({"q":query,"license":"cc0","category":"music","page_size":12})
+    params=urllib.parse.urlencode({"q":query,"license":"cc0","page_size":12})
     try:payload=json.loads(read_url(API+"?"+params,128000))
     except Exception as exc:raise AudioUnavailable("Openverse CC0 discovery unavailable") from exc
     for record in payload.get("results",[])[:12]:
