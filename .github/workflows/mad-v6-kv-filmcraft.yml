@@ -67,7 +67,7 @@ jobs:
           [[ "$OWNER_JOB_ID" =~ ^v6job-[a-f0-9]{32}$ ]]
           test -n "${REEL_ENGINE_KEY:-${GROQ_API_KEY:-}}"
           if [[ "$GITHUB_EVENT_NAME" == "issues" ]]; then
-            python3 services/reel-engine/v6-kv-gateway/runner.py --job-id "$OWNER_JOB_ID" --synthetic-fixture
+            python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID"
           else
             python3 services/reel-engine/v6-kv-gateway/runner.py --job-id "$OWNER_JOB_ID"
           fi
