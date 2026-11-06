@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MAD V6 Gemini Pro -> Groq 120B -> Groq 20B film editing-plan bridge.
+"""MAD V6 free Gemini Flash -> Groq 120B -> Groq 20B film editing-plan bridge.
 
 No model executes shell, writes to timeline, downloads footage or publishes.
 Run offline --fixture for certification; live requires explicit approved API gate.
@@ -17,7 +17,7 @@ import sys
 import urllib.request
 
 from v6_contract import (V6Blocked, read_config, validate_source_manifest,
-                         select_pro_model)
+                         select_free_flash_model)
 from gemini_pro_preflight import adapter as legacy_adapter, discover_models
 from audio_library_v6 import resolve_audio
 
@@ -71,13 +71,13 @@ def post_json(url, headers, payload, timeout=50):
 
 
 def gemini_research(source, brief, *, approved_api_cost=False):
-    if not approved_api_cost:
-        raise V6Blocked("Gemini Pro API billing/zero-charge gate missing")
+    if not approved_api_cost or os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED") != "true":
+        raise V6Blocked("Gemini API project free tier not independently verified; no paid inference")
     key=os.environ.get("GEMINI_API_KEY")
     if not key:
-        raise V6Blocked("Existing Gemini Pro API key not present")
+        raise V6Blocked("Gemini free-tier API key not present")
     available=discover_models(key,legacy_adapter())
-    model=select_pro_model(available)
+    model=select_free_flash_model(available)
     # Only approved, human-reviewed descriptions, NEVER raw frames or private URLs.
     facts=[{"id":s["id"],"observed":s["visible"],
             "start_seconds":s["start_seconds"],
@@ -97,7 +97,7 @@ def gemini_research(source, brief, *, approved_api_cost=False):
     try:
         answer=result["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError,IndexError,TypeError) as exc:
-        raise V6Blocked("Gemini Pro returned no usable observations") from exc
+        raise V6Blocked("Gemini Flash returned no usable source observations") from exc
     return model,decode_json(answer)
 
 
@@ -230,7 +230,7 @@ def run(*,source,brief,brand,mode="fixture",audio_mode="source_ambience_only",
         research,proposal,review=fixture_chain(source,brief)
     elif mode=="live":
         if not approved_api_cost:
-            raise V6Blocked("Existing API free/quota entitlement not independently cleared")
+            raise V6Blocked("Gemini API project free tier not confirmed")
         model,research=gemini_research(source,brief,approved_api_cost=True)
         model_ids={"gemini":model,"groq_director":"openai/gpt-oss-120b",
                    "groq_reviewer":"openai/gpt-oss-20b"}
@@ -269,7 +269,7 @@ def main():
     ap.add_argument("--brand",required=True)
     ap.add_argument("--output",required=True)
     ap.add_argument("--mode",choices=("fixture","live"),default="fixture")
-    ap.add_argument("--confirm-free-api",action="store_true")
+    ap.add_argument("--confirm-free-api",action="store_true",help="Operator confirms the separate API key is in the Gemini Free tier; requires GEMINI_PROJECT_FREE_TIER_VERIFIED=true")
     args=ap.parse_args()
     source=json.loads(Path(args.source_manifest).read_text())
     result=run(source=source,brief=args.brief,brand=args.brand,
