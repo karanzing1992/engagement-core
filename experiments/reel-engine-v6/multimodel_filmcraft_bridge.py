@@ -73,8 +73,9 @@ def post_json(url, headers, payload, timeout=50):
 
 
 def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
-    if not approved_api_cost or os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED") != "true":
-        raise V6Blocked("Gemini API project free tier not independently verified; no paid inference")
+    if not approved_api_cost or not (os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED") == "true" or
+        os.environ.get("GEMINI_OWNER_APPROVED_FREE_CALLS") == "true"):
+        raise V6Blocked("Gemini requires explicit owner-approved free calls; no paid fallback")
     key=os.environ.get("GEMINI_API_KEY")
     if not key:
         raise V6Blocked("Gemini free-tier API key not present")
