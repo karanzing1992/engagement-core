@@ -198,7 +198,7 @@ async function internal(req,e,path){
  if(!JOB.test(id||""))return error("Invalid private render job",400);
  if(p[4]==="claim"&&req.method==="POST"){
   const lease=crypto.randomUUID();
-  const update=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='rendering',claim_id=?,claimed_at=?,attempts=attempts+1,updated_at=? WHERE job_id=? AND state='dispatching' AND expires_at>? RETURNING *")
+  const update=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='rendering',claim_id=?,claimed_at=?,attempts=attempts+1,updated_at=? WHERE job_id=? AND state IN ('sent','dispatching') AND expires_at>? RETURNING *")
    .bind(lease,now,now,id,now).first();
   if(!update)return error("Private render already claimed or expired",409);
   const parts=(await chunks(e,id,"source")).results||[];
