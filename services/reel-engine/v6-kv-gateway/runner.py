@@ -51,7 +51,7 @@ def model_plan(src,brief,description,duration,fixture=False):
  manifest={"source_sha256":src,"human_reviewed":True,"rights_and_consent_cleared":True,
    "external_ai_processing_consent":True,"shots":[{"id":"s1","start_seconds":0.0,
    "duration_seconds":min(120.,duration),"visible":description}]}
- brand="Moksha Wellness Arambol Goa. Premium source-grounded cinematic wellness. No medical claims."
+ brand="Generic consumer product. Source-grounded cinematic storytelling with no invented claims."
  if fixture:
   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture")
  if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true":
