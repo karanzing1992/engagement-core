@@ -103,7 +103,7 @@ test("owner source upload -> signed OIDC FilmCraft-output handoff -> range previ
   db.prepare("UPDATE mad_v6_kv_jobs SET expires_at=? WHERE job_id=?").run(md()-1,id);
   const expired=await worker.fetch(client("/v6/jobs/"+id+"/download"),env,{});
   assert.equal(expired.status,410);
-  await worker.scheduled({},env,{waitUntil:p=>p});
+  let cleanupTask=null;await worker.scheduled({},env,{waitUntil:p=>{cleanupTask=p}});await cleanupTask;
   assert.equal(storage.storage.size,0);
   console.log("V6_KV_SIGNED_E2E_SIMULATED_PASS owner auth/source SHA/OIDC/FilmCraft receipt/206/410/KV deletion");
  }finally{globalThis.fetch=old;db.close()}
