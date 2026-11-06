@@ -11,6 +11,8 @@ sys.path.insert(0,str(ROOT/"services/reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
 import filmcraft_v6_adapter as filmcraft
 import multimodel_filmcraft_bridge as multimodel
+from filmcraft_frame_samples import extract as filmcraft_frames
+from original_cc0_audio import compose as cc0_compose,choose as select_audio_profile
 
 GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
@@ -47,15 +49,15 @@ def call(path,identity,method="POST",claim=None,payload=None,data=None,digest=No
    return json.loads(body)
  except HTTPError as e:
   raise RuntimeError("Signed V6 KV endpoint rejected "+str(e.code)) from None
-def model_plan(src,brief,description,duration,fixture=False):
+def model_plan(src,brief,description,duration,fixture=False,frames=None):
  manifest={"source_sha256":src,"human_reviewed":True,"rights_and_consent_cleared":True,
    "external_ai_processing_consent":True,"shots":[{"id":"s1","start_seconds":0.0,
    "duration_seconds":min(120.,duration),"visible":description}]}
- brand="Moksha Wellness Arambol Goa. Premium source-grounded cinematic wellness. No medical claims."
+ brand=""  # Generic content: no brand context unless supplied by the owner.
  if fixture:
   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture")
- if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true":
-  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",approved_api_cost=True)
+ if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true" or os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")=="true":
+  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",frames=frames,approved_api_cost=True)
  # Approved free-tier fallback: existing Groq models. No Gemini paid fallback.
  multimodel.read_config()
  multimodel.validate_source_manifest(manifest,external_gemini_frames=False)
@@ -111,10 +113,16 @@ def run(job_id,*,fixture=False):
   finally:m.close()
   synthetic=fixture and claim.get("source_description","").startswith("SYNTHETIC QA:")
   if fixture and not synthetic:raise RuntimeError("Synthetic fixture cannot render real guest footage")
-  plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,fixture=synthetic)
+  frames=[] if synthetic else filmcraft_frames(os.environ["FILMCRAFT_CLI"],work,src,duration,
+    consent=bool(claim.get("free_gemini_consent")) and bool(claim.get("rights_confirmed")),
+    source_sha256=claim["source_sha256"])
+  plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,fixture=synthetic,frames=frames)
+  audio=cc0_compose(work/"v6-original-cc0-soundtrack.wav",max(3.0,sum(c["seconds"] for c in plan["cuts"])),
+    select_audio_profile(claim["brief"]))
   rec=filmcraft.render(cli=os.environ["FILMCRAFT_CLI"],workdir=work,output=out,source=src,
      source_rights_cleared=True,source_sha256=claim["source_sha256"],
      cuts=plan["cuts"],operations=plan["operations"],hook=plan["hook"],
+     music=Path(audio["file"]),music_rights=audio["filmcraft_rights"],
      width=1080,height=1920,fps=30)
   if rec.get("rendered") is not True or rec.get("ffmpeg_invocations")!=0 or not out.exists():
    raise RuntimeError("Native FilmCraft rendered output verification failed")
@@ -130,6 +138,10 @@ def run(job_id,*,fixture=False):
   receipt["model_roles"]=plan["model_roles"]
   receipt["model_policy"]=plan.get("model_policy","gemini_free_flash_groq")
   receipt["source_sha256"]=claim["source_sha256"]
+  receipt["audio_library"]={"title":audio["title"],"license":"CC0","bpm":audio["bpm"],
+    "sha256":audio["sha256"],"source":audio["original_source_url"],"native_audio_mix":rec.get("music_native_probed") is True}
+  receipt["gemini_frames_sent"]=len(frames)
+  receipt["product_context"]="generic"
   receipt["published"]=False
   receipt["owner_approval"]=False
   result=call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,
@@ -143,6 +155,7 @@ def run(job_id,*,fixture=False):
   raise
  finally:
   src.unlink(missing_ok=True);out.unlink(missing_ok=True)
+  (work/"v6-original-cc0-soundtrack.wav").unlink(missing_ok=True)
 if __name__=="__main__":
  p=argparse.ArgumentParser();p.add_argument("--job-id",required=True);p.add_argument("--synthetic-fixture",action="store_true")
  a=p.parse_args()
