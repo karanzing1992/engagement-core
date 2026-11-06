@@ -32,7 +32,7 @@ class IntegrationTests(unittest.TestCase):
   self.assertIn("source frame at",parts[1]["text"].lower())
   self.assertEqual(parts[2]["inline_data"]["mime_type"],"image/jpeg")
   self.assertEqual(result["observations"][0]["shot_id"],"s1")
-  self.assertNotIn("brand",parts[0]["text"].lower())
+  self.assertNotIn("moksha",parts[0]["text"].lower())
  def test_refuses_frames_without_consent(self):
   source=dict(SOURCE);source["external_ai_processing_consent"]=False
   with self.assertRaises(mm.V6Blocked):
