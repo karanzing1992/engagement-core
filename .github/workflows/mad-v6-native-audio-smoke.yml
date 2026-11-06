@@ -104,7 +104,7 @@ jobs:
           client=m.MCP(os.environ["FILMCRAFT_CLI"],root)
           try:
             output=client.cmd("mediaBrowser.probe",{"path":str(root/"synthetic-audio.mp4")})
-            assert output.get("info",{}).get("audio"), "FilmCraft export lacks native audio"
+            assert output.get("info",{}).get("audio_streams"), "FilmCraft export lacks native audio streams"
           finally:client.close()
           print("V6_FILMCRAFT_SYNTHETIC_NATIVE_AUDIO_MIX_PASS")
           print("REAL_LICENSED_SOUNDTRACK_CERTIFIED_FALSE")
