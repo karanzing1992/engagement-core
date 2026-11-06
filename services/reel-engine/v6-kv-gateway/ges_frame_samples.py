@@ -1,12 +1,12 @@
 """Private three-frame sampler using native GStreamer decoding and JPEG encoding."""
 import base64,hashlib
 from pathlib import Path
-import gi
-gi.require_version("Gst","1.0")
-from gi.repository import Gst
 from ges_v6_adapter import RenderBlocked
 
 def jpeg_frame(path,at):
+    import gi
+    gi.require_version("Gst","1.0")
+    from gi.repository import Gst
     Gst.init(None)
     pipeline=Gst.Pipeline.new("private-frame-sampler")
     src=Gst.ElementFactory.make("uridecodebin")
