@@ -67,6 +67,19 @@ jobs:
           (root/'fixture-rights.json').write_text(json.dumps(rights))
           print('MAD_V6_QA_SIGNAL_CREATED',target.stat().st_size)
           PY
+      - name: Diagnose native FilmCraft synthetic WAV media metadata shape
+        run: |
+          python3 - <<'PY'
+          import importlib.util,os,pathlib,json
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"v6-audio"
+          spec=importlib.util.spec_from_file_location("filmcraft","services/reel-engine/filmcraft_v6_adapter.py")
+          mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
+          client=mod.MCP(os.environ["FILMCRAFT_CLI"],root)
+          try:
+            result=client.cmd("mediaBrowser.probe",{"path":str(root/"synthetic-audio.wav")})
+            print("MAD_V6_SYNTHETIC_WAV_NATIVE_PROBE_SCHEMA",json.dumps(result)[:1700])
+          finally:client.close()
+          PY
       - name: Verify FilmCraft native audio import, track gain, export and probe
         run: |
           set -euo pipefail
