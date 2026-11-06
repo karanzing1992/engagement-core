@@ -40,7 +40,7 @@ async function authorize(eventName="workflow_dispatch",actorId="30191163"){
  const signature=Buffer.from(await webcrypto.subtle.sign("RSASSA-PKCS1-v1_5",keys.privateKey,Buffer.from(header+"."+claims))).toString("base64url");
  return {token:header+"."+claims+"."+signature,public:{...pub,kid:"local-test"}};
 }
-test("owner source upload -> signed OIDC FilmCraft-output handoff -> range preview -> 30min expiry",async()=>{
+test("owner source upload -> signed OIDC GStreamer-output handoff -> range preview -> 30min expiry",async()=>{
  const {db,mock}=database(),storage=kv(),proof=await authorize();
  const env={DB:mock,MEDIA_KV:storage,
   PROJECT_AUTH:{fetch:async()=>new Response('{"projects":[]}',{status:200,headers:{"content-type":"application/json"}})},
@@ -89,7 +89,7 @@ test("owner source upload -> signed OIDC FilmCraft-output handoff -> range previ
   const stored=await sign("/internal/v6/jobs/"+id+"/output/0",{method:"PUT",claim:job.claim_id,
     headers:{"X-Chunk-SHA256":SHA(output)},body:output});
   assert.equal(stored.status,200);
-  const receipt={filmcraft_only:true,ffmpeg_invocations:0,published:false,sha256:SHA(output)};
+  const receipt={engine:"GStreamer Editing Services",gstreamer_only:true,filmcraft_only:false,output_audio_verified:true,visual_presence_check:{visible:true,frames_examined:3},ffmpeg_invocations:0,published:false,sha256:SHA(output)};
   const completed=await sign("/internal/v6/jobs/"+id+"/complete",{method:"POST",claim:job.claim_id,
    headers:{"Content-Type":"application/json"},
    body:toJSON({state:"review_ready",chunks:1,bytes:output.length,sha256:SHA(output),receipt})});
@@ -105,7 +105,7 @@ test("owner source upload -> signed OIDC FilmCraft-output handoff -> range previ
   assert.equal(expired.status,410);
   let cleanupTask=null;await worker.scheduled({},env,{waitUntil:p=>{cleanupTask=p}});await cleanupTask;
   assert.equal(storage.storage.size,0);
-  console.log("V6_KV_SIGNED_E2E_SIMULATED_PASS owner auth/source SHA/OIDC/FilmCraft receipt/206/410/KV deletion");
+  console.log("V6_KV_SIGNED_E2E_SIMULATED_PASS owner auth/source SHA/OIDC/GStreamer receipt/206/410/KV deletion");
  }finally{globalThis.fetch=old;db.close()}
 });
 
