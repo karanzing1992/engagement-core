@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Owner-only signed GitHub synthetic FilmCraft -> Cloudflare KV -> FilmCraft smoke."""
+"""Owner-only GES synthetic source -> private Cloudflare KV -> GES pipeline QA."""
 import argparse
 import os
+import subprocess
 from pathlib import Path
 import runner
-import filmcraft_v6_adapter as filmcraft
+import ges_v6_adapter as ges
 
 def main(job_id,*,live_models=False,groq_only=False):
  if os.environ.get("GITHUB_EVENT_NAME")!="issues" or os.environ.get("GITHUB_ACTOR")!="karanzing1992":
@@ -15,13 +16,13 @@ def main(job_id,*,live_models=False,groq_only=False):
  work.mkdir(mode=0o700,parents=True,exist_ok=True)
  source=work/"test-matte.mp4"
  try:
-  receipt=filmcraft.render(cli=os.environ["FILMCRAFT_CLI"],workdir=work,output=source,
-    cuts=[{"start":0.,"seconds":4.,"source_index":0}],operations=[[]],
-    hook="SYNTHETIC QA - NOT A GUEST",width=480,height=270,fps=24)
-  if receipt.get("filmcraft_only") is not True or receipt.get("ffmpeg_invocations")!=0:
-   raise RuntimeError("Native FilmCraft synthetic source not verified")
-  if source.stat().st_size>262144:
-   raise RuntimeError("Synthetic source exceeds private QA 256 KiB safety cap")
+  subprocess.run(["gst-launch-1.0","-q","videotestsrc","pattern=ball","num-buffers=96",
+       "!","video/x-raw,width=480,height=270,framerate=24/1",
+       "!","videoconvert","!","x264enc","tune=zerolatency","speed-preset=ultrafast",
+       "!","h264parse","!","mp4mux","!","filesink","location="+str(source)],
+       check=True,timeout=60)
+  if not source.exists() or source.stat().st_size>262144 or source.stat().st_size<1024:
+   raise RuntimeError("Synthetic GStreamer source violates private 256 KiB cap")
   result=runner.call("/internal/v6/jobs/"+job_id+"/seed",runner.token(),
        data=source.read_bytes(),digest=runner.sha(source))
   if result.get("synthetic_only") is not True or result.get("source_sha256")!=runner.sha(source):
