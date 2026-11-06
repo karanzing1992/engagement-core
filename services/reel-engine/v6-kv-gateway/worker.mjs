@@ -37,8 +37,8 @@ async function verifyGitHub(req){
    if(!jwk)return false;
    const key=await crypto.subtle.importKey("jwk",{kty:"RSA",n:jwk.n,e:jwk.e,alg:"RS256",ext:true},
      {name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["verify"]);
-   return await crypto.subtle.verify("RSASSA-PKCS1-v1_5",key,b64(x.parts[2]),
-     new TextEncoder().encode(x.parts[0]+"."+x.parts[1]));
+   return (await crypto.subtle.verify("RSASSA-PKCS1-v1_5",key,b64(x.parts[2]),
+     new TextEncoder().encode(x.parts[0]+"."+x.parts[1])))?c:false;
  }catch{return false}
 }
 async function owner(req,e){
