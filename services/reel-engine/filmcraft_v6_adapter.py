@@ -257,9 +257,13 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
             "wait":True,"hardwareEncoding":"off","audio":source_has_audio or bool(music)},timeout=600)
         if not output.is_file() or output.stat().st_size<1024:raise FilmCraftError("FilmCraft export missing")
         verified=m.cmd("mediaBrowser.probe",{"path":str(output)})
-        video=verified.get("info",{}).get("video",{})
+        verified_info=verified.get("info",{})
+        video=verified_info.get("video",{})
         if video.get("width")!=width or video.get("height")!=height or "H.264" not in video.get("codec",""):
             raise FilmCraftError("FilmCraft export codec/geometry verification failed")
+        output_audio_verified=bool(verified_info.get("audio_streams") or verified_info.get("audio"))
+        if music is not None and not output_audio_verified:
+            raise FilmCraftError("FilmCraft exported music without a verified native audio stream")
         h=hashlib.sha256()
         with output.open("rb") as fd:
             for block in iter(lambda:fd.read(4*1024*1024),b""):h.update(block)
@@ -276,6 +280,7 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
             "source_music":"approved_recording" if music else "original_source_or_silence",
             "source_audio_detected":source_has_audio,
             "music_native_probed":bool(music),
+            "output_audio_verified":output_audio_verified,
             "project":str(project),"output":str(output),"published":False}
     finally:m.close()
 
