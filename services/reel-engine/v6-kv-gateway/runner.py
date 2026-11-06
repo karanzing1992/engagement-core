@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MAD V6 private signed Cloudflare KV runner. GStreamer GES only; no videos in CI artifacts."""
+"""MAD V6 signed KV runner. MLT + frei0r is sole editor; Gst decode QA only."""
 from __future__ import annotations
 import argparse,hashlib,json,os,sys,math,time
 from pathlib import Path
@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/"services/reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
-import ges_v6_adapter as ges
+import mlt_v6_adapter as mlt
 import multimodel_filmcraft_bridge as multimodel
 from ges_frame_samples import extract as ges_frames
 from original_cc0_audio import compose as cc0_compose,choose as select_audio_profile
@@ -18,7 +18,7 @@ GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
 CHUNK=4*1024*1024
 # Diagnostic output contains only fixed labels and allowlisted codes, never footage or provider data.
-STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","frame_sampling","model_policy","gemini_research","groq_director","groq_reviewer","edl_compile","audio_compose","filmcraft_render","filmcraft_source_preflight","filmcraft_music_rights","filmcraft_mcp_init","filmcraft_source_probe","filmcraft_edl_validate","filmcraft_sequence","filmcraft_source_import","filmcraft_timeline_place","filmcraft_effects","filmcraft_hook","filmcraft_music_mix","filmcraft_export","filmcraft_verify_output","output_upload","private_complete","gstreamer_render"))
+STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","frame_sampling","model_policy","gemini_research","groq_director","groq_reviewer","edl_compile","audio_compose","filmcraft_render","filmcraft_source_preflight","filmcraft_music_rights","filmcraft_mcp_init","filmcraft_source_probe","filmcraft_edl_validate","filmcraft_sequence","filmcraft_source_import","filmcraft_timeline_place","filmcraft_effects","filmcraft_hook","filmcraft_music_mix","filmcraft_export","filmcraft_verify_output","output_upload","private_complete","gstreamer_render","mlt_render"))
 ACTIVE_STAGE="start"
 SAFE_CAUSES={
  "All currently available free Flash candidate endpoints were unavailable":"GEMINI_ENDPOINT_UNAVAILABLE",
@@ -39,6 +39,7 @@ SAFE_CAUSES={
  "Strict reviewer response invalid":"REVIEW_SCHEMA_INVALID",
  "Unsupported GStreamer effect requested":"GES_DIRECTOR_EFFECT_UNSUPPORTED",
  "GStreamer title text invalid":"GES_TITLE_TEXT_INVALID",
+ "MLT renderer rejected creative template":"MLT_TEMPLATE_NOT_ALLOWLISTED",
  "Duplicate creative instruction identifier":"EDL_DUPLICATE_EFFECT_ID",
  "Director invented edit time outside reviewed footage":"DIRECTOR_TIMECODE_INVALID",
  "Gemini Flash returned no usable source observations":"GEMINI_OBSERVATIONS_INVALID",
@@ -64,7 +65,7 @@ FILMCRAFT_SAFE_CAUSES={
 }
 def safe_failure(exc):
  if isinstance(exc,multimodel.V6Blocked):code=SAFE_CAUSES.get(str(exc),"BLOCKED_UNCLASSIFIED")
- elif isinstance(exc,ges.RenderBlocked):code=str(exc) if str(exc).startswith(("GES_","GSTREAMER_","VIDEO_","MUSIC_","SOURCE_","CUT_","FRAME_","REEL_","EDIT_","EFFECTS_","EXPORT_")) else "GSTREAMER_REJECTED"
+ elif isinstance(exc,mlt.RenderBlocked):code=str(exc) if str(exc).startswith("MLT_") else "MLT_REJECTED"
  else:code="NON_MODEL_FAILURE"
  return "V6_KV_PRIVATE_RENDER_FAILED stage="+ACTIVE_STAGE+" code="+code
 def recoverable_gemini_timeout(exc):
@@ -90,7 +91,7 @@ def call(path,identity,method="POST",claim=None,payload=None,data=None,digest=No
   raise ValueError("Disallowed private runner endpoint or ambiguous payload")
  method=method.upper()
  content=json.dumps(payload,separators=(",",":")).encode() if payload is not None else data
- headers={"Authorization":"Bearer "+identity,"User-Agent":"MAD-V6-Private-KV-FilmCraft"}
+ headers={"Authorization":"Bearer "+identity,"User-Agent":"MAD-V6-Private-KV-MLT"}
  if claim:headers["X-V6-Claim"]=claim
  if digest:headers["X-Chunk-SHA256"]=digest
  if content is not None:headers["Content-Type"]="application/json" if payload is not None else "application/octet-stream"
@@ -168,7 +169,7 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
 
 def run(job_id,*,fixture=False):
  if not job_id.startswith("v6job-") or len(job_id)!=38:raise ValueError("Invalid private V6 job")
- ges.backend() # fail closed if system GES backend is unavailable
+ mlt.verify_backend() # fail closed if native MLT/frei0r is missing
  work=Path(os.environ["RUNNER_TEMP"])/("mad-v6-"+job_id)
  work.mkdir(mode=0o700,parents=True,exist_ok=True)
  mark("oidc")
@@ -193,8 +194,7 @@ def run(job_id,*,fixture=False):
   if src.stat().st_size!=claim["source_bytes"] or sha(src)!=claim["source_sha256"]:
    raise RuntimeError("Source media SHA-256 verification failed")
   mark("media_probe")
-  Gst,_GES,Pb=ges.backend()
-  metadata=ges.probe(Gst,Pb,src)
+  _gst,metadata=mlt._probe(src,2.5)
   duration=metadata["duration"]
   synthetic=fixture and claim.get("source_description","").startswith("SYNTHETIC QA:")
   if fixture and not synthetic:raise RuntimeError("Synthetic fixture cannot render owner footage")
@@ -207,21 +207,23 @@ def run(job_id,*,fixture=False):
   mark("audio_compose")
   audio=cc0_compose(work/"v6-original-cc0-soundtrack.wav",max(3.0,sum(c["seconds"] for c in plan["cuts"])),
     select_audio_profile(claim["brief"]))
-  mark("gstreamer_render")
+  mark("mlt_render")
   music_rights=audio["filmcraft_rights"]
   if music_rights.get("human_verified") is not True or music_rights.get("license")!="CC0":
    raise RuntimeError("Original CC0 music provenance missing")
   spec={"source":str(src),"source_sha256":claim["source_sha256"],
+    "template_id":mlt.choose_template(claim["brief"]),
     "workdir":str(work),"output":str(out),
     "music":audio["file"],"music_sha256":audio["sha256"],
     "cuts":plan["cuts"],"operations":plan["operations"],"hook":plan["hook"],
     "width":1080,"height":1920,"fps":30}
-  rec=ges.render(spec)
-  if (rec.get("rendered") is not True or rec.get("gstreamer_only") is not True
+  rec=mlt.render(spec)
+  if (rec.get("rendered") is not True or rec.get("mlt_only") is not True
+      or rec.get("frei0r_verified") is not True
       or rec.get("visual_presence_check",{}).get("visible") is not True
       or rec.get("output_audio_verified") is not True
       or rec.get("ffmpeg_invocations")!=0 or not out.exists()):
-   raise RuntimeError("GStreamer output video/audio visual certification failed")
+   raise RuntimeError("MLT output video/audio visual certification failed")
   digest=sha(out);n=math.ceil(out.stat().st_size/CHUNK)
   if digest!=rec.get("sha256") or not 1<=n<=20:raise RuntimeError("Output SHA/size invalid")
   mark("output_upload")
@@ -245,7 +247,7 @@ def run(job_id,*,fixture=False):
   result=call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,
     payload={"state":"review_ready","chunks":n,"bytes":out.stat().st_size,"sha256":digest,"receipt":receipt})
   if result.get("state")!="review_ready":raise RuntimeError("Private server output certification rejected")
-  print("MAD_V6_PRIVATE_KV_GSTREAMER_COMPLETED",job_id,"published=false","fixture="+str(synthetic))
+  print("MAD_V6_PRIVATE_KV_MLT_COMPLETED",job_id,"published=false","fixture="+str(synthetic))
   return result
  except Exception:
   try:call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,payload={"state":"failed"})
