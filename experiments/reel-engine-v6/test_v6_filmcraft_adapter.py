@@ -40,6 +40,17 @@ class FilmCraftV6Tests(unittest.TestCase):
                               output=wd / "out.mp4", source=src,
                               source_rights_cleared=True, source_sha256="0"*64)
 
+    def test_fixed_native_stage_emitted_before_rights_rejection(self):
+        with TemporaryDirectory() as folder:
+            wd=Path(folder)
+            src=wd/"source.mp4"
+            src.write_bytes(b"x"*2048)
+            stages=[]
+            with self.assertRaisesRegex(EDITOR.FilmCraftError,"rights"):
+                EDITOR.render(cli="/not/installed/filmcraft",workdir=wd,
+                              output=wd/"out.mp4",source=src,on_stage=stages.append)
+            self.assertEqual(stages,["filmcraft_source_preflight"])
+
     def test_reject_unverified_music_license_before_editor_start(self):
         with TemporaryDirectory() as folder:
             wd = Path(folder)
