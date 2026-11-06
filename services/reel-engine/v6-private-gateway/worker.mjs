@@ -76,6 +76,7 @@ async function createUpload(req,e){
  if(!Object.hasOwn(MIME,mime)||!name.endsWith(MIME[mime])||name.length>120||/[\/\\\x00-\x1f]/.test(name)||!Number.isInteger(bytes)||bytes<1024||bytes>MAX||!SHA.test(b.sha256||""))return httpError("Invalid source footage (MP4/MOV/WebM, max 80 MiB)");
  if(!/^reel-[a-f0-9-]{36}$/.test(b.project_id||""))return httpError("Project ID required");
  if(b.rights_confirmed!==true||b.people_consent!==true||b.external_ai_approved!==true)return httpError("Source rights and guest/AI processing consent required");
+ if(b.free_gemini_data_use_consent!==true)return httpError("Explicit Gemini free-tier data-use consent required (text observations only)",422);
  const description=(b.source_description||"").trim();
  if(description.length<20||description.length>1000||/[\x00-\x1f]/.test(description))return httpError("Human-reviewed description of visible footage required (20-1000 characters)");
  if((b.audio_mode||"source_ambience_only")!=="source_ambience_only")return httpError("Licensed soundtrack upload awaits independent audio rights certification",422);
@@ -85,6 +86,7 @@ async function createUpload(req,e){
  const id="v6job-"+crypto.randomUUID().replace(/-/g,""),now=Math.floor(Date.now()/1000);
  const meta={schema:"mad-v6-github-vault/1",job_id:id,state:"uploading",created_at:iso(now),fixture:false,source_sha256:b.sha256,
              project_id:b.project_id,audio_mode:"source_ambience_only",owner_consent_confirmed:true,
+             free_gemini_data_use_consent:true,filename:"source"+MIME[mime],file_name:"source"+MIME[mime],
              human_reviewed:true,source_description:description,source_bytes:bytes,source_chunks:Math.ceil(bytes/CHUNK)};
  const gh=await github(e,"POST","/releases",{tag_name:"mad-v6-tmp-"+id,name:"MAD V6 PRIVATE MEDIA "+id,draft:true,prerelease:true,target_commitish:"main",body:JSON.stringify(meta)});
  if(gh.status!==201||!gh.data.draft)return httpError("Private GitHub Release creation unavailable",503);
