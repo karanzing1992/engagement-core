@@ -43,6 +43,10 @@ def mark(stage):
 def safe_failure(exc):
  code=SAFE_CAUSES.get(str(exc),"BLOCKED_UNCLASSIFIED") if isinstance(exc,multimodel.V6Blocked) else "NON_MODEL_FAILURE"
  return "V6_KV_PRIVATE_RENDER_FAILED stage="+ACTIVE_STAGE+" code="+code
+def recoverable_gemini_timeout(exc):
+ """Only observed Gemini research network timeouts may fall back to Groq."""
+ return (ACTIVE_STAGE=="gemini_research" and isinstance(exc,multimodel.V6Blocked)
+         and str(exc)=="Model API rejected or timed out; details redacted")
 def sha(p):
  h=hashlib.sha256()
  with p.open("rb") as f:
@@ -90,7 +94,7 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
   except multimodel.V6Blocked as ex:
    # Only allowlisted Gemini network timeouts trigger fallback. Safety, rights
    # and creative-policy failures remain terminal; provider data is never logged.
-   if str(ex)!="Model API rejected or timed out; details redacted" or ACTIVE_STAGE!="gemini_research":
+   if not recoverable_gemini_timeout(ex):
     raise
    fallback_reason="GEMINI_NETWORK_TIMEOUT"
    print("V6_KV_MODEL_FALLBACK GEMINI_NETWORK_TIMEOUT_TO_GROQ_ONLY",flush=True)
