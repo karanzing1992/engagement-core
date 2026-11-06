@@ -77,7 +77,6 @@ def render(spec):
         if music_info["duration"]+.05<total:raise RenderBlocked("MUSIC_TOO_SHORT")
     timeline=GES.Timeline.new_audio_video()
     base=timeline.append_layer()
-    titles=timeline.append_layer()
     tracktype=GES.TrackType.VIDEO | (GES.TrackType.AUDIO if source_info["audio"] else GES.TrackType.UNKNOWN)
     asset=GES.UriClipAsset.request_sync(source.as_uri())
     cursor=0.
@@ -102,7 +101,10 @@ def render(spec):
                 title.set_font_desc("Sans Bold 55")
                 title.props.start=round(cursor*Gst.SECOND)
                 title.props.duration=round(min(seconds,2.8)*Gst.SECOND)
-                if not titles.add_clip(title):
+                # Each title gets its own video layer. GES rejects overlapping
+                # timeline clips within the same layer in multisegment edits.
+                title_layer=timeline.append_layer()
+                if not title_layer.add_clip(title):
                     raise RenderBlocked("GES_TITLE_INSERT_FAILED")
             confirmed+=1
         cursor+=seconds
@@ -113,7 +115,8 @@ def render(spec):
         title.set_font_desc("Sans Bold 68")
         title.props.start=0
         title.props.duration=round(min(2.5,total)*Gst.SECOND)
-        if not titles.add_clip(title):raise RenderBlocked("GES_HOOK_INSERT_FAILED")
+        hook_layer=timeline.append_layer()
+        if not hook_layer.add_clip(title):raise RenderBlocked("GES_HOOK_INSERT_FAILED")
     if music:
         layer=timeline.append_layer()
         music_asset=GES.UriClipAsset.request_sync(music.as_uri())
