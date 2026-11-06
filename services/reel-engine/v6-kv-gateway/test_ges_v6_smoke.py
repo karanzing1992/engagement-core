@@ -45,6 +45,16 @@ def main():
         assert vertical["width"]==1080 and vertical["height"]==1920
         assert vertical["visual_presence_check"]["visible"] is True and vertical["output_audio_verified"] is True
         print("MAD_V6_GES_VERTICAL_VISIBLE_AUDIO_PASS",vertical["bytes"])
+        # Fixture creative plan emits 2.0s; export must not reuse input-only 2.5s gate.
+        short={**spec,"output":str(w/"ges-short.mp4"),"width":480,"height":270,"fps":24,
+          "cuts":[{"start":0.0,"seconds":2.0,"source_index":0}],
+          "operations":[[]],"hook":"SHORT VALID OUTPUT"}
+        (w/"short-spec.json").write_text(json.dumps(short))
+        run("/usr/bin/python3",str(root/"ges_v6_adapter.py"),"--spec",str(w/"short-spec.json"),"--receipt",str(w/"short-receipt.json"))
+        result_short=json.loads((w/"short-receipt.json").read_text())
+        assert 1.8<=result_short["duration_seconds"]<=2.2
+        assert result_short["visual_presence_check"]["visible"] and result_short["output_audio_verified"]
+        print("MAD_V6_GES_TWO_SECOND_VISUAL_AUDIO_PASS")
         result=json.loads((w/"receipt.json").read_text())
         assert result["engine"]=="GStreamer Editing Services"
         assert result["gstreamer_only"] is True and result["filmcraft_only"] is False
