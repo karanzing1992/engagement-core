@@ -133,9 +133,13 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
           " Owner direction: "+brief)
   director=multimodel.groq_call("openai/gpt-oss-120b",repair,temperature=.2,max_tokens=1600)
   multimodel.validate_director(manifest,director)
- review_prompt=("Independently reject invented timecodes/effects. Return strict JSON with approved boolean, "
-   "director_plan_sha256 and segment_decisions: index+approved for all segments. "
-   "Use this exact director sha:"+multimodel.sha_json(director)+" and storyboard:"+json.dumps(director))
+ review_prompt=("You are the independent feasibility and rights reviewer. Return ONLY JSON with "
+  "three keys: approved (boolean), director_plan_sha256 (exact provided digest), and "
+  "segment_decisions (one object per segment, each with integer segment_index from 0 and "
+  "approved boolean). Reject invented shots, invalid time ranges, unlicensed or unsupported "
+  "effects, and missing source consent. Every decision must match the proposed storyboard. "
+  "Exact digest: "+multimodel.sha_json(director)+" Verified source: "+
+  json.dumps(manifest["shots"])+" Proposed storyboard: "+json.dumps(director))
  mark("groq_reviewer")
  review=multimodel.groq_call("openai/gpt-oss-20b",review_prompt,temperature=.12,max_tokens=1300)
  mark("edl_compile")
