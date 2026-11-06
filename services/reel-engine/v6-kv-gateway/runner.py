@@ -56,8 +56,8 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
  brand="Generic consumer product. Source-grounded cinematic storytelling with no invented claims."
  if fixture:
   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture")
- if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true":
-  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",approved_api_cost=True)
+ if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true" or os.environ.get("GEMINI_OWNER_APPROVED_FREE_CALLS")=="true":
+  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",approved_api_cost=True,frames=frames)
  # Approved free-tier fallback: existing Groq models. No Gemini paid fallback.
  multimodel.read_config()
  multimodel.validate_source_manifest(manifest,external_gemini_frames=False)
