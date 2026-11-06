@@ -12,7 +12,7 @@ permissions:
   id-token: write
 jobs:
   run-v6:
-    if: github.event_name == 'workflow_dispatch' || (github.actor == github.repository_owner && github.event.issue.user.login == github.repository_owner && startsWith(github.event.issue.title, '[MAD-V6-SYNTHETIC-QA] '))
+    if: github.event_name == 'workflow_dispatch' || (github.actor == github.repository_owner && github.event.issue.user.login == github.repository_owner && (startsWith(github.event.issue.title, '[MAD-V6-SYNTHETIC-QA] ') || startsWith(github.event.issue.title, '[MAD-V6-LIVE-AUDIO-QA] ')))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -20,6 +20,8 @@ jobs:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_PROJECT_FREE_TIER_VERIFIED: ${{ vars.GEMINI_PROJECT_FREE_TIER_VERIFIED }}
+      GEMINI_OWNER_APPROVED_FREE_CALLS: "true"
+      MAD_V6_CC0_AUDIO_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
         with:
