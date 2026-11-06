@@ -102,6 +102,7 @@ jobs:
           import json,os,sys
           from pathlib import Path
           sys.path.insert(0,'services/reel-engine/v6-kv-gateway')
+          sys.path.insert(0,'services/reel-engine')
           from original_cc0_audio import original_cc0_soundtrack
           from filmcraft_v6_adapter import render, MCP
           out=Path(os.environ['RUNNER_TEMP'])/'mad-v6-cc0-original'
