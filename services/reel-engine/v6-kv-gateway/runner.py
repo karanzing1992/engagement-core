@@ -11,6 +11,8 @@ sys.path.insert(0,str(ROOT/"services/reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
 import filmcraft_v6_adapter as filmcraft
 import multimodel_filmcraft_bridge as multimodel
+from native_frames import sample_video_frames
+from open_cc0_audio import verified_cc0_audio
 
 GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
@@ -47,15 +49,15 @@ def call(path,identity,method="POST",claim=None,payload=None,data=None,digest=No
    return json.loads(body)
  except HTTPError as e:
   raise RuntimeError("Signed V6 KV endpoint rejected "+str(e.code)) from None
-def model_plan(src,brief,description,duration,fixture=False):
+def model_plan(src,brief,description,duration,fixture=False,frames=None):
  manifest={"source_sha256":src,"human_reviewed":True,"rights_and_consent_cleared":True,
    "external_ai_processing_consent":True,"shots":[{"id":"s1","start_seconds":0.0,
    "duration_seconds":min(120.,duration),"visible":description}]}
- brand="Moksha Wellness Arambol Goa. Premium source-grounded cinematic wellness. No medical claims."
+ brand="Generic video editing service. Follow the creator prompt; never invent source footage or unsupported claims."
  if fixture:
   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture")
- if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true":
-  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",approved_api_cost=True)
+ if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true" or os.environ.get("GEMINI_FREE_TIER_OWNER_ATTESTED")=="true":
+  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",approved_api_cost=True,frames=frames)
  # Approved free-tier fallback: existing Groq models. No Gemini paid fallback.
  multimodel.read_config()
  multimodel.validate_source_manifest(manifest,external_gemini_frames=False)
