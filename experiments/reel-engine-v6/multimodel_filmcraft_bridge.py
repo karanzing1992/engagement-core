@@ -70,15 +70,16 @@ def post_json(url, headers, payload, timeout=50):
         raise V6Blocked("Provider response not parseable") from exc
 
 
-def gemini_research(source, brief, *, approved_api_cost=False):
-    if not approved_api_cost or os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED") != "true":
+def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
+    if not approved_api_cost or not (os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED") == "true" or os.environ.get("GEMINI_FREE_TIER_OWNER_ATTESTED") == "true"):
         raise V6Blocked("Gemini API project free tier not independently verified; no paid inference")
     key=os.environ.get("GEMINI_API_KEY")
     if not key:
         raise V6Blocked("Gemini free-tier API key not present")
     available=discover_models(key,legacy_adapter())
     model=select_free_flash_model(available)
-    # Only approved, human-reviewed descriptions, NEVER raw frames or private URLs.
+    # Source-grounded text plus a maximum of 3 consented FilmCraft-rendered PNGs.
+    # No raw MP4, guest IDs, live URLs or model API keys are exposed.
     facts=[{"id":s["id"],"observed":s["visible"],
             "start_seconds":s["start_seconds"],
             "duration_seconds":s["duration_seconds"]} for s in source["shots"]]
@@ -89,9 +90,28 @@ def gemini_research(source, brief, *, approved_api_cost=False):
             "\"research_scope\":\"grounded creative context\"}. "
             "Every source shot must appear exactly once. Creative brief: "+
             brief[:1800]+"\nVerified input: "+json.dumps(facts))
+    parts=[{"text":prompt}]
+    frame_receipts=[]
+    for frame in frames or []:
+        if (not isinstance(frame,dict) or frame.get("shot_id") not in [x["id"] for x in source["shots"]]
+            or frame.get("mime_type")!="image/png" or not isinstance(frame.get("data_b64"),str)
+            or len(frame["data_b64"])>1200000 or len(frame_receipts)>=3):
+            raise V6Blocked("Non-consented, oversized or unsupported Gemini frame")
+        shot=next(x for x in source["shots"] if x["id"]==frame["shot_id"])
+        at=frame.get("at_seconds")
+        if type(at) not in (int,float) or not shot["start_seconds"] <= at <= shot["start_seconds"]+shot["duration_seconds"]:
+            raise V6Blocked("Gemini frame timestamp differs from source shot")
+        import base64
+        try:raw=base64.b64decode(frame["data_b64"],validate=True)
+        except (ValueError,base64.binascii.Error) as exc:raise V6Blocked("Malformed native FilmCraft PNG") from exc
+        if not raw.startswith(b"\x89PNG\r\n\x1a\n") or hashlib.sha256(raw).hexdigest()!=frame.get("sha256"):
+            raise V6Blocked("Gemini frame does not match native source receipt")
+        parts.extend([{"text":"Verified source shot "+frame["shot_id"]+" at "+str(at)+" seconds. Describe only visible facts."},
+                      {"inline_data":{"mime_type":"image/png","data":frame["data_b64"]}}])
+        frame_receipts.append({"shot_id":frame["shot_id"],"at_seconds":at,"sha256":frame["sha256"]})
     result=post_json(GEMINI_ENDPOINT+model+":generateContent",
                      {"x-goog-api-key":key},
-                     {"contents":[{"parts":[{"text":prompt}]}],
+                     {"contents":[{"parts":parts}],
                       "generationConfig":{"responseMimeType":"application/json",
                                           "temperature":0.2,"maxOutputTokens":1400}},timeout=65)
     try:
@@ -217,9 +237,9 @@ def fixture_chain(source, brief):
 
 
 def run(*,source,brief,brand,mode="fixture",audio_mode="source_ambience_only",
-        approved_api_cost=False):
+        approved_api_cost=False,frames=None):
     read_config()
-    validate_source_manifest(source,external_gemini_frames=False)
+    validate_source_manifest(source,external_gemini_frames=bool(frames))
     if not isinstance(brief,str) or not 8<=len(brief)<=2000:
         raise V6Blocked("Human creative prompt missing")
     if not isinstance(brand,str) or not 8<=len(brand)<=1800:
@@ -231,7 +251,7 @@ def run(*,source,brief,brand,mode="fixture",audio_mode="source_ambience_only",
     elif mode=="live":
         if not approved_api_cost:
             raise V6Blocked("Gemini API project free tier not confirmed")
-        model,research=gemini_research(source,brief,approved_api_cost=True)
+        model,research=gemini_research(source,brief,approved_api_cost=True,frames=frames)
         model_ids={"gemini":model,"groq_director":"openai/gpt-oss-120b",
                    "groq_reviewer":"openai/gpt-oss-20b"}
         validate_observations(source,research)
@@ -258,6 +278,9 @@ def run(*,source,brief,brand,mode="fixture",audio_mode="source_ambience_only",
                    "audio_mode":audio["mode"],"audio_approved":audio_mode!="licensed_music",
                    "owner_approval":False,"published":False,
                    "renderer_invoked":False,"native_visual_qa":False,
+                   "vision_frames_sent":len(frames or []),
+                   "vision_frame_sha256":[x["sha256"] for x in (frames or [])],
+                   "model_api_billing_status":"owner_attested_free_not_independently_verified" if os.environ.get("GEMINI_FREE_TIER_OWNER_ATTESTED")=="true" else "provider_free_project_flag",
                    "created_at":datetime.now(timezone.utc).isoformat()})
     return output
 
