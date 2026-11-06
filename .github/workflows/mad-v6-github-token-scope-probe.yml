@@ -1,0 +1,37 @@
+name: MAD V6 | Cross-Repository Built-in Token Scope Probe
+on:
+  push:
+    branches: [feature/reel-engine-v6-gemini-pro-filmcraft-20261106]
+    paths:
+      - .github/workflows/mad-v6-github-token-scope-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  token-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Test private vault metadata-only access with existing workflow token
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh_repo='karanzing1992/Matrix-House'
+          code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${gh_repo}")"
+          echo "ENGINE_WORKFLOW_TOKEN_PRIVATE_VAULT_REPO_HTTP=${code}"
+          if [[ "$code" == '200' ]]; then
+            echo 'EXISTING_ENGINE_TOKEN_CAN_READ_PRIVATE_VAULT'
+          elif [[ "$code" == '403' || "$code" == '404' ]]; then
+            echo 'CROSS_REPOSITORY_ISOLATION_CONFIRMED'
+          else
+            echo 'UNEXPECTED_AUTH_RESULT_REQUIRES_REVIEW'
+          fi
+          echo 'NO_SECRET_VALUES_LOGGED_OR_TRANSMITTED'
