@@ -128,3 +128,41 @@ jobs:
                   'audio_native':True,'license':'CC0','ffmpeg_invocations':0,'published':False}))
           Path(music['audio_path']).unlink(missing_ok=True)
           PY
+
+  groq-independent-dual-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      REEL_ENGINE_KEY: ${{ secrets.REEL_ENGINE_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Real 120B creative director and 20B independent review of synthetic source
+        run: |
+          set -euo pipefail
+          test -n "${REEL_ENGINE_KEY:-${GROQ_API_KEY:-}}"
+          python3 - <<'PY'
+          import json,sys
+          sys.path.insert(0,'experiments/reel-engine-v6')
+          from multimodel_filmcraft_bridge import groq_call,validate_director,compile_reviewed_edl,sha_json
+          source={'source_sha256':'a'*64,'human_reviewed':True,
+            'rights_and_consent_cleared':True,'external_ai_processing_consent':True,
+            'shots':[{'id':'s1','start_seconds':0.,'duration_seconds':4.,
+              'visible':'Original synthetic green matte, no people, with a small QA label'}]}
+          proposal=groq_call('openai/gpt-oss-120b',
+            'Generic video director. Return ONLY valid JSON: {"hook":string,"segments":[{"shot_id":"s1","start_seconds":0,"duration_seconds":2,"effects":[{"name":"color_grade","parameters":{"contrast":12}}]}]}. Only edit verified 4-second synthetic color matte. No imaginary people, no branding.',
+            temperature=0.25,max_tokens=900)
+          validate_director(source,proposal)
+          review=groq_call('openai/gpt-oss-20b',
+            'You are an independent FilmCraft reviewer. Return JSON object {"approved":boolean, "director_plan_sha256":"'+sha_json(proposal)+'","segment_decisions":[{"segment_index":0,"approved":true}]}. Only approve source-valid edits. Proposal: '+json.dumps(proposal),
+            temperature=0.1,max_tokens=900)
+          plan=compile_reviewed_edl(source,proposal,review)
+          assert plan['requested_effects']<=16
+          print('MAD_V6_GROQ_120B_20B_LIVE_REVIEW_PASS',
+             json.dumps({'models':['openai/gpt-oss-120b','openai/gpt-oss-20b'],
+               'cuts':len(plan['cuts']),'approved_effects':plan['requested_effects'],
+               'synthetic_only':True,'published':False}))
+          PY
