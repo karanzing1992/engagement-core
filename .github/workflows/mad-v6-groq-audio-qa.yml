@@ -5,6 +5,7 @@ on:
     paths:
       - experiments/reel-engine-v6/live_groq_smoke.py
       - services/reel-engine/audio_runtime_v6.py
+      - services/reel-engine/audio_catalog_diagnostic_v6.py
       - .github/workflows/mad-v6-groq-audio-qa.yml
   workflow_dispatch:
 permissions:
@@ -35,6 +36,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Diagnose CC0 catalog metadata without downloading or disclosing source media
+        run: python3 services/reel-engine/audio_catalog_diagnostic_v6.py
       - name: Search and fetch original CC0 music via existing Openverse library adapter
         run: |
           python3 - <<'PY'
