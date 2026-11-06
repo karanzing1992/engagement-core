@@ -3,7 +3,7 @@
 
 No model executes shell, writes to timeline, downloads footage or publishes.
 Run offline --fixture for certification; live requires explicit approved API gate.
-FilmCraft (separate pinned native adapter) remains the sole video/audio editor.
+GStreamer Editing Services (GES) is the V6 video/audio renderer.
 """
 from __future__ import annotations
 from datetime import datetime, timezone
@@ -136,7 +136,7 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
     return model,decode_json(answer)
 
 
-def groq_call(model, prompt, *, temperature, max_tokens):
+def groq_call(model, prompt, *, temperature, max_tokens, response_format=None):
     key=os.environ.get("REEL_ENGINE_KEY") or os.environ.get("GROQ_API_KEY")
     if not key:
         raise V6Blocked("Existing Groq secret not provided to runner")
@@ -145,7 +145,7 @@ def groq_call(model, prompt, *, temperature, max_tokens):
                          {"role":"system","content":"Return strict JSON only. Never request shell commands. Source facts override creative claims."},
                          {"role":"user","content":prompt[:14500]}],
                       "temperature":temperature,"max_completion_tokens":max_tokens,
-                      "response_format":{"type":"json_object"}},timeout=65)
+                      "response_format":response_format or {"type":"json_object"}},timeout=65)
     try:
         return decode_json(result["choices"][0]["message"]["content"])
     except (KeyError,IndexError,TypeError) as exc:
@@ -207,6 +207,107 @@ def validate_director(source, proposal):
     return proposal
 
 
+# The external reviewer judges creative feasibility; the application owns
+# proposal identity, ordered segment indices and the cryptographic digest.
+_REVIEW_REASONS = ("APPROVED","UNSUPPORTED_EFFECT","SOURCE_UNVERIFIED",
+                   "OUT_OF_BOUNDS","RIGHTS_CONSENT_MISSING","OTHER")
+
+def strict_review_response_format(proposal):
+    validate_segments=proposal.get("segments")
+    if not isinstance(validate_segments,list) or not 1<=len(validate_segments)<=16:
+        raise V6Blocked("Director storyboard required")
+    segment_schema={
+        "type":"object",
+        "properties":{
+            "approved":{"type":"boolean"},
+            "reason_code":{"type":"string","enum":list(_REVIEW_REASONS)}},
+        "required":["approved","reason_code"],
+        "additionalProperties":False}
+    keys=["s"+str(i) for i in range(len(validate_segments))]
+    return {"type":"json_schema","json_schema":{
+        "name":"mad_v61_independent_editor_review",
+        "strict":True,
+        "schema":{
+            "type":"object",
+            "properties":{
+                "approved":{"type":"boolean"},
+                "decisions":{"type":"object",
+                             "properties":{key:segment_schema for key in keys},
+                             "required":keys,
+                             "additionalProperties":False}},
+            "required":["approved","decisions"],
+            "additionalProperties":False}}}
+
+def bind_strict_review_to_plan(proposal,raw_review):
+    """Never allow the model to supply a digest, segment index or approval default.
+
+    Strict schema gives syntax/shape; we independently check semantics and
+    explicitly distinguish rejection from malformed or contradictory verdicts.
+    """
+    spec=strict_review_response_format(proposal)["json_schema"]["schema"]
+    if not isinstance(raw_review,dict) or set(raw_review)!={"approved","decisions"}:
+        raise V6Blocked("Strict reviewer response invalid")
+    if type(raw_review["approved"]) is not bool:
+        raise V6Blocked("Strict reviewer response invalid")
+    declared=raw_review["decisions"]
+    keys=list(spec["properties"]["decisions"]["required"])
+    if not isinstance(declared,dict) or set(declared)!=set(keys):
+        raise V6Blocked("Strict reviewer response invalid")
+    decisions=[]
+    any_rejection=False
+    for index,key in enumerate(keys):
+        v=declared[key]
+        if not isinstance(v,dict) or set(v)!={"approved","reason_code"}:
+            raise V6Blocked("Strict reviewer response invalid")
+        approved,reason=v["approved"],v["reason_code"]
+        if type(approved) is not bool or reason not in _REVIEW_REASONS:
+            raise V6Blocked("Strict reviewer response invalid")
+        if approved and reason!="APPROVED":
+            raise V6Blocked("Strict reviewer response invalid")
+        if not approved:
+            any_rejection=True
+        decisions.append({"segment_index":index,"approved":approved})
+    if raw_review["approved"] is False or any_rejection:
+        raise V6Blocked("Independent reviewer rejected proposed edit")
+    return {"approved":True,
+            # Hash is *computed here*, never copied from model response.
+            "director_plan_sha256":sha_json(proposal),
+            "segment_decisions":decisions,
+            "strict_schema_verified":True}
+
+def groq_strict_review(source,proposal,*,on_stage=None):
+    validate_source_manifest(source,external_gemini_frames=False)
+    validate_director(source,proposal)
+    for segment in proposal["segments"]:
+        for effect in segment["effects"]:
+            if effect["name"] not in ("color_grade","title","caption"):
+                raise V6Blocked("Unsupported GStreamer effect requested")
+            if effect["name"] in ("title","caption"):
+                line=effect.get("parameters",{}).get("text","")
+                if not isinstance(line,str) or not 1<=len(line.strip())<=90:
+                    raise V6Blocked("GStreamer title text invalid")
+    if on_stage:on_stage("groq_reviewer")
+    prompt=("Independently assess the exact immutable video edit plan for "
+            "source-grounding, rights/consent, usable timecodes and actual "
+            "GStreamer GES effects. Respond in the required strict JSON schema. "
+            "Use approved=true and reason_code=APPROVED for each safe segment. "
+            "Reject unsafe or infeasible segments using approved=false and a "
+            "specific reason code. Overall approved must be false if ANY segment "
+            "is rejected. Do not copy hashes, assign indices, modify footage, "
+            "invent shots, or assume approval. The application binds decisions "
+            "to the exact plan and source independently. Supported GES effects "
+            "are color_grade, title, caption. A title/caption needs text. "
+            "Owner-verified source rights and consent metadata: "+json.dumps({
+                "human_reviewed":source["human_reviewed"],
+                "rights_and_consent_cleared":source["rights_and_consent_cleared"],
+                "external_ai_processing_consent":source["external_ai_processing_consent"]})+
+            " Verified source: "+json.dumps(source["shots"])+
+            " Immutable director proposal: "+json.dumps(proposal))
+    raw=groq_call("openai/gpt-oss-20b",prompt,temperature=0.1,
+                  max_tokens=1900,
+                  response_format=strict_review_response_format(proposal))
+    return bind_strict_review_to_plan(proposal,raw)
+
 def reviewer_schema_needs_retry(proposal,review):
     """Only malformed metadata in an explicit reviewer approval can be retried.
     Never retry/override explicit rejection by reviewer or any segment.
@@ -251,7 +352,7 @@ def compile_reviewed_edl(source, proposal, review):
     return {"cuts":cuts,"operations":operations,"hook":proposal["hook"],
             "requested_effects":sum(map(len,operations)),
             "director_sha256":sha_json(proposal),"review_sha256":sha_json(review),
-            "editor":"FilmCraft","source":source["source_sha256"],
+            "editor":"GStreamer GES","source":source["source_sha256"],
             "artistic_approval":False}
 
 
@@ -299,32 +400,7 @@ def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only"
         if on_stage:on_stage("groq_director")
         proposal=groq_call("openai/gpt-oss-120b",prompt,temperature=0.7,max_tokens=1800)
         validate_director(source,proposal)
-        expected_hash=sha_json(proposal)
-        segment_count=len(proposal["segments"])
-        rp=("You are the independent GStreamer GES feasibility and rights reviewer. "
-            "Return ONLY a JSON object with approved boolean, director_plan_sha256 "
-            "EXACTLY equal to this lowercase digest "+expected_hash+
-            ", and segment_decisions containing EXACTLY "+str(segment_count)+
-            " objects. The array must have each integer segment_index from 0 to "+
-            str(segment_count-1)+" IN ORDER, with a JSON boolean approved for "
-            "each. Judge each segment independently: set approved=false if "
-            "its source time range, permissions, effect feasibility or grounded "
-            "visual description is invalid. Global approved=false if ANY segment "
-            "is rejected. Never invent source footage or change the plan. "
-            "Plan to review: "+json.dumps(proposal))
-        if on_stage:on_stage("groq_reviewer")
-        review=groq_call("openai/gpt-oss-20b",rp,temperature=0.15,max_tokens=1200)
-        if reviewer_schema_needs_retry(proposal,review):
-            # One bounded reviewer-side metadata correction; review remains
-            # independent and explicit safety rejection is never overruled.
-            if on_stage:on_stage("groq_reviewer")
-            print("V6_EDITOR_REVIEW_SCHEMA_RETRY metadata_only",flush=True)
-            review=groq_call("openai/gpt-oss-20b",
-                rp+" Your previous reply explicitly approved the proposal but "
-                "had malformed digest, missing segment indices, or incomplete "
-                "decision booleans. Re-assess independently and provide exactly "
-                "the required JSON fields. Reject any unsafe edit.",
-                temperature=0.1,max_tokens=1500)
+        review=groq_strict_review(source,proposal,on_stage=on_stage)
     else:
         raise V6Blocked("Unknown V6 inference mode")
     validate_observations(source,research)

@@ -93,6 +93,93 @@ class IntegrationTests(unittest.TestCase):
    mm.compile_reviewed_edl(SOURCE,proposal,segment_denied)
   self.assertFalse(mm.reviewer_schema_needs_retry(proposal,{}))
 
+ def test_strict_groq_review_schema_binds_local_sha_and_indices(self):
+  proposal={"hook":"A moment of calm","segments":[
+   {"shot_id":"s1","start_seconds":0.0,"duration_seconds":1.5,"effects":[{"name":"color_grade","parameters":{"contrast":12}}]},
+   {"shot_id":"s1","start_seconds":1.5,"duration_seconds":1.5,"effects":[{"name":"title","parameters":{"text":"BREATHE"}}]}]}
+  fmt=mm.strict_review_response_format(proposal)
+  self.assertEqual(fmt["type"],"json_schema")
+  self.assertIs(fmt["json_schema"]["strict"],True)
+  schema=fmt["json_schema"]["schema"]
+  self.assertEqual(set(schema["properties"]),{"approved","decisions"})
+  self.assertEqual(schema["properties"]["decisions"]["required"],["s0","s1"])
+  self.assertNotIn("director_plan_sha256",str(schema))
+  raw={"approved":True,"decisions":{
+    "s0":{"approved":True,"reason_code":"APPROVED"},
+    "s1":{"approved":True,"reason_code":"APPROVED"}}}
+  with patch.object(mm,"groq_call",return_value=raw) as fake:
+   reviewed=mm.groq_strict_review(SOURCE,proposal)
+  self.assertEqual(fake.call_count,1)
+  self.assertEqual(fake.call_args.kwargs["response_format"],fmt)
+  self.assertEqual(reviewed["director_plan_sha256"],mm.sha_json(proposal))
+  self.assertEqual(reviewed["segment_decisions"],[
+    {"segment_index":0,"approved":True},{"segment_index":1,"approved":True}])
+  edl=mm.compile_reviewed_edl(SOURCE,proposal,reviewed)
+  self.assertEqual(len(edl["cuts"]),2)
+  self.assertEqual(edl["editor"],"GStreamer GES")
+ def test_strict_groq_reviewer_explicit_rejections_do_not_retry(self):
+  p={"hook":"Stay present","segments":[{"shot_id":"s1","start_seconds":0.0,
+   "duration_seconds":1.2,"effects":[]}]}
+  for response in (
+   {"approved":False,"decisions":{"s0":{"approved":False,"reason_code":"SOURCE_UNVERIFIED"}}},
+   {"approved":False,"decisions":{"s0":{"approved":True,"reason_code":"APPROVED"}}},
+   {"approved":True,"decisions":{"s0":{"approved":False,"reason_code":"RIGHTS_CONSENT_MISSING"}}},
+  ):
+   with patch.object(mm,"groq_call",return_value=response) as mock_review:
+    with self.assertRaisesRegex(mm.V6Blocked,"Independent reviewer rejected"):
+     mm.groq_strict_review(SOURCE,p)
+    self.assertEqual(mock_review.call_count,1)
+ def test_strict_groq_reviewer_malformed_or_inconsistent_fails_closed(self):
+  p={"hook":"Stay present","segments":[{"shot_id":"s1","start_seconds":0.0,
+   "duration_seconds":1.2,"effects":[]}]}
+  invalid=[
+    {"approved":True,"decisions":{}},
+    {"approved":True,"decisions":{"s0":{"approved":True,"reason_code":"OTHER"}}},
+    {"approved":True,"decisions":{"s0":{"approved":"true","reason_code":"APPROVED"}}},
+    {"approved":True,"decisions":{"s0":{"approved":True,"reason_code":"APPROVED"}},"director_plan_sha256":"FAKE"},
+  ]
+  for response in invalid:
+   with self.assertRaisesRegex(mm.V6Blocked,"Strict reviewer response invalid"):
+    mm.bind_strict_review_to_plan(p,response)
+ def test_groq_structured_request_never_uses_json_object(self):
+  p={"hook":"Stay present","segments":[{"shot_id":"s1","start_seconds":0.0,
+   "duration_seconds":1.2,"effects":[]}]}
+  fmt=mm.strict_review_response_format(p)
+  sent=[]
+  def canned(url,headers,payload,timeout=50):
+   sent.append(payload)
+   return {"choices":[{"message":{"content":'{"approved":true,"decisions":{"s0":{"approved":true,"reason_code":"APPROVED"}}}'}}]}
+  with patch.dict(os.environ,{"GROQ_API_KEY":"synthetic_only","REEL_ENGINE_KEY":""}),patch.object(mm,"post_json",side_effect=canned):
+   review=mm.groq_call("openai/gpt-oss-20b","Review abstract geometry",temperature=0.1,
+                       max_tokens=1600,response_format=fmt)
+  self.assertTrue(review["approved"])
+  self.assertEqual(sent[0]["response_format"],fmt)
+  self.assertNotIn("director_plan_sha256",sent[0]["messages"][-1]["content"])
+ def test_strict_reviewer_rejects_unsupported_ges_effect_locally(self):
+  p={"hook":"Stay present","segments":[{"shot_id":"s1","start_seconds":0.0,
+   "duration_seconds":1.2,"effects":[{"name":"zoom","parameters":{}}]}]}
+  with patch.object(mm,"groq_call") as groq:
+   with self.assertRaisesRegex(mm.V6Blocked,"Unsupported GStreamer effect"):
+    mm.groq_strict_review(SOURCE,p)
+   groq.assert_not_called()
+ def test_live_bridge_preserves_independent_strict_reviewer(self):
+  proposal={"hook":"A reset","segments":[{"shot_id":"s1","start_seconds":0.0,
+   "duration_seconds":1.4,"effects":[{"name":"color_grade","parameters":{"contrast":12}}]}]}
+  raw={"approved":True,"decisions":{"s0":{"approved":True,"reason_code":"APPROVED"}}}
+  calls=[]
+  def groq(model,prompt,**kwargs):
+   calls.append((model,kwargs.get("response_format")))
+   return proposal if model=="openai/gpt-oss-120b" else raw
+  research={"observations":[{"shot_id":"s1","visible":"Original abstract geometric footage"}],
+            "research_scope":"Only consented source images and owner verified notes"}
+  with patch.object(mm,"gemini_research",return_value=("gemini-3.8-flash",research)),patch.object(mm,"groq_call",side_effect=groq):
+   r=mm.run(source=SOURCE,brief="Create a private cinematic reel",brand="",
+            mode="live",approved_api_cost=True)
+  self.assertEqual([c[0] for c in calls],["openai/gpt-oss-120b","openai/gpt-oss-20b"])
+  self.assertIsNone(calls[0][1])
+  self.assertTrue(calls[1][1]["json_schema"]["strict"])
+  self.assertEqual(r["editor"],"GStreamer GES")
+
  def test_audio_profile_generic(self):
   self.assertEqual(audio.choose("A calm serene scenic sequence"),"ambient")
   self.assertEqual(audio.choose("A high energy fitness reel"),"uplift")

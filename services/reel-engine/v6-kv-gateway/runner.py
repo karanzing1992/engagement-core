@@ -35,6 +35,10 @@ SAFE_CAUSES={
  "Editor rejected one or more proposed FilmCraft edits":"REVIEW_REJECTED",
  "Editor-review per-segment approval incomplete":"REVIEW_INCOMPLETE",
  "Groq 20B review missing or director hash mismatch":"REVIEW_DIGEST_OR_APPROVAL_MISMATCH",
+ "Independent reviewer rejected proposed edit":"REVIEW_REJECTED",
+ "Strict reviewer response invalid":"REVIEW_SCHEMA_INVALID",
+ "Unsupported GStreamer effect requested":"GES_DIRECTOR_EFFECT_UNSUPPORTED",
+ "GStreamer title text invalid":"GES_TITLE_TEXT_INVALID",
  "Duplicate creative instruction identifier":"EDL_DUPLICATE_EFFECT_ID",
  "Director invented edit time outside reviewed footage":"DIRECTOR_TIMECODE_INVALID",
  "Gemini Flash returned no usable source observations":"GEMINI_OBSERVATIONS_INVALID",
@@ -130,7 +134,7 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
  prompt=("Act as a premium cinematic director. Return ONLY valid JSON with a non-empty "
          "hook (1-90 characters) and 1-4 verified source segments. Each segment must include "
          "shot_id, numeric start_seconds, numeric duration_seconds >= 0.4 and an effects list. "
-         "Allowed effect names: color_grade, motion, zoom, title, caption; each has a "
+         "Allowed effect names: color_grade, title, caption ONLY; each has a "
          "parameters object. Never invent unseen footage, people, dialogue, or off-screen "
          "activities. Timecodes must stay within the verified source. "
          "EXAMPLE JSON shape with concrete values: "+json.dumps(schema)+
@@ -152,24 +156,7 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
           " Owner direction: "+brief)
   director=multimodel.groq_call("openai/gpt-oss-120b",repair,temperature=.2,max_tokens=1600)
   multimodel.validate_director(manifest,director)
- review_prompt=("You are an independent feasibility and rights reviewer of "
-  "this EXACT source-grounded proposed edit. Return ONLY valid JSON with "
-  "approved boolean and director_plan_sha256 EXACTLY equal to "+
-  multimodel.sha_json(director)+". Include segment_decisions containing EXACTLY "+
-  str(len(director["segments"]))+" objects, one for each ordered 0-based "
-  "segment_index, each with approved boolean. Reject any invented source, "
-  "invalid time bounds, unsupported effects or missing consent. Set global "
-  "approved=false if any segment is rejected, and do not rewrite the plan. "
-  "Original reviewed source: "+json.dumps(manifest["shots"])+
-  " Director proposal: "+json.dumps(director))
- mark("groq_reviewer")
- review=multimodel.groq_call("openai/gpt-oss-20b",review_prompt,temperature=.12,max_tokens=1300)
- if multimodel.reviewer_schema_needs_retry(director,review):
-  print("V6_EDITOR_REVIEW_SCHEMA_RETRY metadata_only",flush=True)
-  review=multimodel.groq_call("openai/gpt-oss-20b",
-     review_prompt+" Reassess independently and repair digest, index list, "
-     "or missing boolean fields only. Keep all rejected edits rejected.",
-     temperature=.1,max_tokens=1500)
+ review=multimodel.groq_strict_review(manifest,director,on_stage=mark)
  mark("edl_compile")
  plan=multimodel.compile_reviewed_edl(manifest,director,review)
  plan.update({"model_roles":{"gemini":"SKIPPED_"+fallback_reason,
