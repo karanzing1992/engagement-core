@@ -8,6 +8,7 @@ FilmCraft (separate pinned native adapter) remains the sole video/audio editor.
 from __future__ import annotations
 from datetime import datetime, timezone
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -70,7 +71,7 @@ def post_json(url, headers, payload, timeout=50):
         raise V6Blocked("Provider response not parseable") from exc
 
 
-def gemini_research(source, brief, *, approved_api_cost=False):
+def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
     if not approved_api_cost or os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED") != "true":
         raise V6Blocked("Gemini API project free tier not independently verified; no paid inference")
     key=os.environ.get("GEMINI_API_KEY")
@@ -217,9 +218,9 @@ def fixture_chain(source, brief):
 
 
 def run(*,source,brief,brand,mode="fixture",audio_mode="source_ambience_only",
-        approved_api_cost=False):
+        approved_api_cost=False,frames=None):
     read_config()
-    validate_source_manifest(source,external_gemini_frames=False)
+    validate_source_manifest(source,external_gemini_frames=bool(frames))
     if not isinstance(brief,str) or not 8<=len(brief)<=2000:
         raise V6Blocked("Human creative prompt missing")
     if not isinstance(brand,str) or not 8<=len(brand)<=1800:
@@ -231,7 +232,7 @@ def run(*,source,brief,brand,mode="fixture",audio_mode="source_ambience_only",
     elif mode=="live":
         if not approved_api_cost:
             raise V6Blocked("Gemini API project free tier not confirmed")
-        model,research=gemini_research(source,brief,approved_api_cost=True)
+        model,research=gemini_research(source,brief,approved_api_cost=True,frames=frames)
         model_ids={"gemini":model,"groq_director":"openai/gpt-oss-120b",
                    "groq_reviewer":"openai/gpt-oss-20b"}
         validate_observations(source,research)
