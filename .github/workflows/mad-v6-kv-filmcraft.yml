@@ -1,0 +1,22 @@
+name: MAD V6 KV FilmCraft Owner Runner
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        required: true
+        type: string
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  run-v6:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test isolated V6 KV gateway contract
+        run: node --test services/reel-engine/v6-kv-gateway/test_kv_gateway.mjs
