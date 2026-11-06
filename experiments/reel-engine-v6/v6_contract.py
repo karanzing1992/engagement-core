@@ -14,6 +14,9 @@ SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHOT_ID = re.compile(r"^[A-Za-z0-9_-]{1,48}$")
 
 
+FREE_FLASH_MODELS = ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
+
+
 class V6Blocked(ValueError):
     """Fail closed on unsafe or unverified creative work."""
 
@@ -31,8 +34,10 @@ def check_config(c: dict) -> None:
                                   ("provider_policy", "model_roles", "editor", "delivery"))
     if p.get("mode") != "gemini_plus_groq" or p.get("gemini_auth") != "GEMINI_API_KEY":
         raise V6Blocked("Gemini-first API key routing missing")
-    if p.get("gemini_model_selection") != "highest_available_pro_generateContent_from_live_model_list":
-        raise V6Blocked("Gemini Pro must be selected from the actual key's available models")
+    if p.get("gemini_model_selection") != "highest_available_free_flash_generateContent_from_live_model_list":
+        raise V6Blocked("Gemini free-tier model must be selected from the actual key's available models")
+    if p.get("require_verified_free_project") is not True or p.get("gemini_free_tier_models") != list(FREE_FLASH_MODELS):
+        raise V6Blocked("Free-only model and project tier policy missing")
     if p.get("groq_auth") != "REEL_ENGINE_KEY" or p.get("allow_paid_inference") is not False:
         raise V6Blocked("Existing server-side Groq key and no-paid-inference rules required")
     if p.get("external_media_requires_explicit_owner_consent") is not True:
@@ -40,7 +45,7 @@ def check_config(c: dict) -> None:
     if p.get("cross_provider_fallback") is not False:
         raise V6Blocked("Unapproved cross-provider fallback forbidden")
     expected = {
-        "research": ("gemini", "discover_pro_model_at_runtime"),
+        "research": ("gemini", "discover_free_flash_model_at_runtime"),
         "creative_director": ("groq", "openai/gpt-oss-120b"),
         "editor_feasibility_reviewer": ("groq", "openai/gpt-oss-20b"),
     }
@@ -48,8 +53,9 @@ def check_config(c: dict) -> None:
         r = roles.get(role, {})
         if (r.get("provider"), r.get("model")) != (provider, model):
             raise V6Blocked("Required model role order/provider changed: " + role)
-    if roles["research"].get("allow_flash_fallback") is not False:
-        raise V6Blocked("Do not silently downgrade Gemini Pro")
+    if (roles["research"].get("allow_flash_fallback") is not True or
+            roles["research"].get("require_no_private_video_upload") is not True):
+        raise V6Blocked("Free-only Flash fallback and text-only privacy gate required")
     if editor.get("provider") != "FilmCraft" or editor.get("version") != "0.16.0":
         raise V6Blocked("Pinned FilmCraft editor required")
     if not SHA256.fullmatch(editor.get("linux_x86_64_archive_sha256", "")):
@@ -100,6 +106,36 @@ def select_pro_model(list_models_response: dict, *, approved_model: str | None =
     if not candidates:
         raise V6Blocked("No Pro generateContent model found; no silent Flash downgrade")
     return candidates[0]
+
+
+def free_flash_models(list_models_response: dict) -> list[str]:
+    """Only published free Flash IDs, filtered by this key's model listing.
+
+    Availability does not prove the API project uses the zero-cost billing tier.
+    """
+    if not isinstance(list_models_response, dict):
+        raise V6Blocked("Gemini model-list response malformed")
+    available = set()
+    for m in list_models_response.get("models", []):
+        if not isinstance(m, dict):
+            continue
+        name = m.get("name", "")
+        if (isinstance(name, str) and name.startswith("models/")
+                and isinstance(m.get("supportedGenerationMethods"), list)
+                and "generateContent" in m["supportedGenerationMethods"]):
+            available.add(name.removeprefix("models/"))
+    return [model for model in FREE_FLASH_MODELS if model in available]
+
+
+def select_free_flash_model(list_models_response: dict, *, approved_model: str | None = None) -> str:
+    options = free_flash_models(list_models_response)
+    if approved_model is not None:
+        if approved_model not in options:
+            raise V6Blocked("Requested free-tier Gemini model unavailable to this API key")
+        return approved_model
+    if not options:
+        raise V6Blocked("No free Flash model available; paid Pro fallback prohibited")
+    return options[0]
 
 
 def validate_source_manifest(manifest: dict, *, external_gemini_frames: bool) -> dict:
