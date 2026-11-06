@@ -13,6 +13,7 @@ import filmcraft_v6_adapter as filmcraft
 import multimodel_filmcraft_bridge as multimodel
 from filmcraft_frame_samples import extract as filmcraft_frames
 from original_cc0_audio import compose as cc0_compose,choose as select_audio_profile
+from output_artistic_audit import review as artistic_review
 
 GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
@@ -126,6 +127,14 @@ def run(job_id,*,fixture=False):
      width=1080,height=1920,fps=30)
   if rec.get("rendered") is not True or rec.get("ffmpeg_invocations")!=0 or not out.exists():
    raise RuntimeError("Native FilmCraft rendered output verification failed")
+  if not synthetic:
+   try:
+    audit=artistic_review(cli=os.environ["FILMCRAFT_CLI"],workdir=work,
+      output=out,receipt=rec,brief=claim["brief"],hook=plan["hook"],
+      source_consent=bool(claim.get("free_gemini_consent")) and bool(claim.get("rights_confirmed")))
+   except Exception:
+    audit={"status":"unavailable","reason":"Automated post-render audit unavailable; human review required"}
+   rec["post_render_visual_audit"]=audit
   digest=sha(out);n=math.ceil(out.stat().st_size/CHUNK)
   if digest!=rec.get("sha256") or not 1<=n<=20:raise RuntimeError("Output SHA/size invalid")
   with out.open("rb") as f:
