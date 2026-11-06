@@ -52,7 +52,7 @@ def post_json(url, headers, payload, timeout=50):
             url.startswith(GEMINI_ENDPOINT) and url.endswith(":generateContent")):
         raise V6Blocked("Inference URL not allowlisted")
     raw=json.dumps(payload,separators=(",",":")).encode()
-    if len(raw)>50000:
+    if len(raw)>(3000000 if url.startswith(GEMINI_ENDPOINT) else 50000):
         raise V6Blocked("Model request too large")
     req=urllib.request.Request(url,data=raw,headers={
         **headers, "Content-Type":"application/json", "Accept":"application/json",
