@@ -1,16 +1,7 @@
-name: MAD V6 | FilmCraft-Only Synthetic Cloud Smoke
+name: LEGACY ARCHIVE | V6 FilmCraft Synthetic Smoke (Manual Rollback Only)
+# Historical FilmCraft fixture retained for owner-approved rollback only.
+# Not an active V6 renderer or release check.
 on:
-  push:
-    branches: [feature/reel-engine-v6-gemini-pro-filmcraft-20261106]
-    paths:
-      - experiments/reel-engine-v6/**
-      - services/reel-engine/filmcraft_v6_adapter.py
-      - .github/workflows/mad-v6-filmcraft-smoke.yml
-  pull_request:
-    paths:
-      - experiments/reel-engine-v6/**
-      - services/reel-engine/filmcraft_v6_adapter.py
-      - .github/workflows/mad-v6-filmcraft-smoke.yml
   workflow_dispatch:
 
 permissions:
