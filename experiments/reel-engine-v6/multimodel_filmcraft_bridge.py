@@ -18,7 +18,7 @@ import urllib.request
 import urllib.error
 
 from v6_contract import (V6Blocked, read_config, validate_source_manifest,
-                         select_free_flash_model)
+                         select_free_flash_model, free_flash_models)
 from gemini_pro_preflight import adapter as legacy_adapter, discover_models
 from audio_library_v6 import resolve_audio
 
@@ -82,7 +82,9 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
     if not key:
         raise V6Blocked("Gemini free-tier API key not present")
     available=discover_models(key,legacy_adapter())
-    model=select_free_flash_model(available)
+    candidates=free_flash_models(available)
+    if not candidates:raise V6Blocked("No allowlisted free Gemini Flash model available")
+    model=candidates[0]
     # Source-grounded text plus a maximum of 3 consented FilmCraft-rendered PNGs.
     # No raw MP4, guest IDs, live URLs or model API keys are exposed.
     facts=[{"id":s["id"],"observed":s["visible"],
@@ -114,11 +116,21 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
         parts.extend([{"text":"Verified source shot "+frame["shot_id"]+" at "+str(at)+" seconds. Describe only visible facts."},
                       {"inline_data":{"mime_type":"image/png","data":frame["data_b64"]}}])
         frame_receipts.append({"shot_id":frame["shot_id"],"at_seconds":at,"sha256":frame["sha256"]})
-    result=post_json(GEMINI_ENDPOINT+model+":generateContent",
+    result=None
+    last_temporary=None
+    for model in candidates[:3]:
+        try:
+            result=post_json(GEMINI_ENDPOINT+model+":generateContent",
                      {"x-goog-api-key":key},
                      {"contents":[{"parts":parts}],
                       "generationConfig":{"responseMimeType":"application/json",
                                           "temperature":0.2,"maxOutputTokens":1400}},timeout=65)
+            break
+        except V6Blocked as exc:
+            if "temporarily unavailable HTTP" not in str(exc):raise
+            last_temporary=exc
+    if result is None:
+        raise V6Blocked("All three approved free Flash candidates unavailable") from last_temporary
     try:
         answer=result["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError,IndexError,TypeError) as exc:
