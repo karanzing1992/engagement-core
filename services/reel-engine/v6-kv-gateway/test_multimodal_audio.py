@@ -3,7 +3,7 @@ import base64,hashlib,os,tempfile
 from pathlib import Path
 import sys,unittest
 from unittest.mock import patch
-ROOT=Path(__file__).resolve().parents[2]
+ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/"services/reel-engine"))
 sys.path.insert(0,str(ROOT/"services/reel-engine/v6-kv-gateway"))
 sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
