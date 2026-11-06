@@ -12,6 +12,7 @@ const CHUNK=4*1024*1024,MAX=80*1024*1024,DOWNLOAD_WINDOW=1800,PENDING_WINDOW=864
 const WORKFLOW="mad-v6-owner-private-render.yml";
 const toJson=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff",...headers}});
 const httpError=(message,status=400)=>toJson({error:{message}},status);
+const withCors=(response,headers)=>{for(const [name,value] of Object.entries(headers||{}))response.headers.set(name,value);return response};
 function originHeaders(o){const allowed=ORIGINS.has(o)||PREVIEW.test(o);return allowed?{"access-control-allow-origin":o,"vary":"Origin","access-control-allow-methods":"GET,POST,PUT,OPTIONS","access-control-allow-headers":"Authorization,Content-Type,X-Chunk-SHA256,Range","access-control-expose-headers":"Content-Length,Content-Range,Accept-Ranges","access-control-max-age":"120"}:null}
 function iso(s){return new Date(s*1000).toISOString().replace(".000Z","Z")}
 function time(s){const t=Date.parse(s);return Number.isFinite(t)?Math.floor(t/1000):NaN}
@@ -256,15 +257,15 @@ export default {
    if(!(await owner(req,e)))return new Response(JSON.stringify({error:{message:"Owner authorization required"}}),{status:401,headers:{"content-type":"application/json",...cors}});
    let res;
    try{
-     if(!e.DB)return httpError("Private D1 unavailable",503);
+     if(!e.DB)return withCors(httpError("Private D1 unavailable",503),cors);
      const parts=url.pathname.split("/").filter(Boolean);
      // Owner project and open-audio discovery do not require the vault credential.
      // All private media and render endpoints remain fail-closed.
      if(!token(e)&&!((parts[0]==="v1"&&parts[1]==="projects")||
              (parts[0]==="v6"&&parts[1]==="catalog"&&parts.length===2&&req.method==="GET")))
-       return httpError("Private GitHub vault credential not configured",503);
+       return withCors(httpError("Private GitHub vault credential not configured",503),cors);
      if(parts[0]==="v1"&&parts[1]==="projects")res=await proxyPrivateProjects(req,e,url);
-     else if(parts[0]!=="v6")return httpError("V6 route not found",404);
+     else if(parts[0]!=="v6")return withCors(httpError("V6 route not found",404),cors);
      else
      if(parts[1]==="catalog"&&parts.length===2&&req.method==="GET")res=await catalog(req);
      else if(parts[1]==="media"&&parts[2]==="uploads"&&parts.length===3&&req.method==="POST")res=await createUpload(req,e);
