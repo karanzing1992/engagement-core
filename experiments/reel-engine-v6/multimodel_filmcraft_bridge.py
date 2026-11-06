@@ -74,7 +74,7 @@ def post_json(url, headers, payload, timeout=50):
 
 def free_flash_generate(models,key,parts):
     """Try only approved, discovered free Flash IDs; never paid models."""
-    for selected in models[:3]:
+    for selected in models[:6]:
         try:
             response=post_json(GEMINI_ENDPOINT+selected+":generateContent",
                 {"x-goog-api-key":key},
@@ -95,7 +95,7 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
     if not key:
         raise V6Blocked("Gemini free-tier API key not present")
     available=discover_models(key,legacy_adapter())
-    models=free_flash_models(available)[:3]
+    models=free_flash_models(available)[:6]
     if not models:raise V6Blocked("No approved Gemini Flash generation model")
     model=models[0]
     # Only approved, human-reviewed descriptions, NEVER raw frames or private URLs.
