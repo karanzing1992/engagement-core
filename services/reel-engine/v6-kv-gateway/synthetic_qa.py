@@ -6,7 +6,7 @@ from pathlib import Path
 import runner
 import filmcraft_v6_adapter as filmcraft
 
-def main(job_id,*,live_models=False):
+def main(job_id,*,live_models=False,groq_only=False):
  if os.environ.get("GITHUB_EVENT_NAME")!="issues" or os.environ.get("GITHUB_ACTOR")!="karanzing1992":
   raise RuntimeError("Owner-only synthetic QA event required")
  if not runner.GATEWAY.startswith("https://mad-v6-kv-private-beta."):
@@ -29,9 +29,13 @@ def main(job_id,*,live_models=False):
   print("MAD_V6_SYNTHETIC_SOURCE_SEEDED_TO_KV",job_id)
  finally:
   source.unlink(missing_ok=True)
+ if groq_only:
+  os.environ["GEMINI_INFERENCE_OWNER_APPROVED"]="false"
+  os.environ["GEMINI_PROJECT_FREE_TIER_VERIFIED"]="false"
  runner.run(job_id,fixture=not live_models)
 
 if __name__=="__main__":
  ap=argparse.ArgumentParser();ap.add_argument("--job-id",required=True)
  ap.add_argument("--live-models",action="store_true")
- args=ap.parse_args();main(args.job_id,live_models=args.live_models)
+ ap.add_argument("--groq-only",action="store_true")
+ args=ap.parse_args();main(args.job_id,live_models=args.live_models or args.groq_only,groq_only=args.groq_only)
