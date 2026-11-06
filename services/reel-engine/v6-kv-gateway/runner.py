@@ -119,6 +119,7 @@ def run(job_id,*,fixture=False):
   rec=filmcraft.render(cli=os.environ["FILMCRAFT_CLI"],workdir=work,output=out,source=src,
      source_rights_cleared=True,source_sha256=claim["source_sha256"],
      cuts=plan["cuts"],operations=plan["operations"],hook=plan["hook"],
+     music=music["path"] if music else None,music_rights=music["rights"] if music else None,
      width=1080,height=1920,fps=30)
   if rec.get("rendered") is not True or rec.get("ffmpeg_invocations")!=0 or not out.exists():
    raise RuntimeError("Native FilmCraft rendered output verification failed")
