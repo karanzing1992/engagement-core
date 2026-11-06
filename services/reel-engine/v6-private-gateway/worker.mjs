@@ -174,6 +174,7 @@ async function download(req,e,r,forDownload){
  const video=(x.rel.assets||[]).find(a=>a.name==="v6-output.mp4"&&a.state==="uploaded");
  const receipt=(x.rel.assets||[]).find(a=>a.name==="v6-receipt.json"&&a.state==="uploaded");
  if(!video||!receipt)return httpError("Signed FilmCraft output not verified",503);
+ if(video.digest!=="sha256:"+x.meta.output_sha256)return httpError("GitHub final MP4 checksum does not match verified render receipt",502);
  const url="https://api.github.com/repos/"+REPO+"/releases/assets/"+video.id;
  const range=req.headers.get("Range");
  if(range&&!/^bytes=\d*-\d*$/.test(range))return httpError("Invalid range",416);
