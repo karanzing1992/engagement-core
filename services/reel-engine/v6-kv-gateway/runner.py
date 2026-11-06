@@ -11,6 +11,8 @@ sys.path.insert(0,str(ROOT/"services/reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
 import filmcraft_v6_adapter as filmcraft
 import multimodel_filmcraft_bridge as multimodel
+from frame_sampling_v6 import export_native_source_frames
+from audio_runtime_v6 import select_cc0
 
 GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
