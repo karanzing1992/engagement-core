@@ -115,6 +115,7 @@ def run(job_id,*,fixture=False):
   if fixture and not synthetic:raise RuntimeError("Synthetic fixture cannot render real guest footage")
   frames=export_native_source_frames(cli=os.environ["FILMCRAFT_CLI"],workdir=work,source=src,duration=duration) if not synthetic else []
   plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,fixture=synthetic,frames=frames)
+  music=select_cc0(work/"audio-cc0",query="ambient music",minimum_duration=sum(x["seconds"] for x in plan["cuts"])) if os.environ.get("MAD_V6_CC0_AUDIO_ENABLED")=="true" else None
   rec=filmcraft.render(cli=os.environ["FILMCRAFT_CLI"],workdir=work,output=out,source=src,
      source_rights_cleared=True,source_sha256=claim["source_sha256"],
      cuts=plan["cuts"],operations=plan["operations"],hook=plan["hook"],
