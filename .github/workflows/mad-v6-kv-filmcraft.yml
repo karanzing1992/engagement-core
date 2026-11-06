@@ -11,6 +11,12 @@ permissions:
 jobs:
   run-v6:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      REEL_ENGINE_KEY: ${{ secrets.REEL_ENGINE_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_PROJECT_FREE_TIER_VERIFIED: ${{ vars.GEMINI_PROJECT_FREE_TIER_VERIFIED }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,3 +47,18 @@ jobs:
           cli="$RUNNER_TEMP/filmcraft/filmcraft-0.16.0-linux-x86_64/bin/filmcraft-cli"
           test -x "$cli"
           echo "FILMCRAFT_CLI=$cli" >> "$GITHUB_ENV"
+
+      - name: Execute owner-authorized FilmCraft-only private KV render
+        shell: bash
+        env:
+          OWNER_JOB_ID: ${{ inputs.job_id }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'karanzing1992/engagement-core'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          [[ "$OWNER_JOB_ID" =~ ^v6job-[a-f0-9]{32}$ ]]
+          test -n "${REEL_ENGINE_KEY:-${GROQ_API_KEY:-}}"
+          python3 services/reel-engine/v6-kv-gateway/runner.py --job-id "$OWNER_JOB_ID"
+      - name: No raw or finished videos enter GitHub Actions artifacts
+        if: always()
+        run: echo "Private footage remains in Cloudflare KV with an authenticated 30-minute deadline."
