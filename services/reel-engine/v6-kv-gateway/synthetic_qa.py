@@ -6,7 +6,7 @@ from pathlib import Path
 import runner
 import filmcraft_v6_adapter as filmcraft
 
-def main(job_id):
+def main(job_id,*,live_models_and_music=False):
  if os.environ.get("GITHUB_EVENT_NAME")!="issues" or os.environ.get("GITHUB_ACTOR")!="karanzing1992":
   raise RuntimeError("Owner-only synthetic QA event required")
  if not runner.GATEWAY.startswith("https://mad-v6-kv-private-beta."):
@@ -29,8 +29,9 @@ def main(job_id):
   print("MAD_V6_SYNTHETIC_SOURCE_SEEDED_TO_KV",job_id)
  finally:
   source.unlink(missing_ok=True)
- runner.run(job_id,fixture=True)
+ runner.run(job_id,fixture=not live_models_and_music)
 
 if __name__=="__main__":
  ap=argparse.ArgumentParser();ap.add_argument("--job-id",required=True)
- args=ap.parse_args();main(args.job_id)
+ ap.add_argument("--live-models-and-music",action="store_true")
+ args=ap.parse_args();main(args.job_id,live_models_and_music=args.live_models_and_music)
