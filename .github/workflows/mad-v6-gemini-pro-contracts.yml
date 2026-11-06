@@ -43,7 +43,7 @@ jobs:
 
   gemini-free-flash-key-metadata-probe:
     needs: source-contracts
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.online_gemini_model_discovery == true)
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.online_gemini_model_discovery == true)
     runs-on: ubuntu-24.04
     timeout-minutes: 4
     steps:
