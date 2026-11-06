@@ -257,8 +257,9 @@ export default {
    let res;
    try{
      if(!e.DB)return httpError("Private D1 unavailable",503);
-     if(!token(e))return httpError("Private GitHub vault credential not configured",503);
      const parts=url.pathname.split("/").filter(Boolean);
+     if(!token(e)&&!(parts[0]==="v1"&&parts[1]==="projects"))
+       return httpError("Private GitHub vault credential not configured",503);
      if(parts[0]==="v1"&&parts[1]==="projects")res=await proxyPrivateProjects(req,e,url);
      else if(parts[0]!=="v6")return httpError("V6 route not found",404);
      else
