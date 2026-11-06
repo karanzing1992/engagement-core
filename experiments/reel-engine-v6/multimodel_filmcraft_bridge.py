@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import sys
 import urllib.request
+import urllib.error
 
 from v6_contract import (V6Blocked, read_config, validate_source_manifest,
                          select_free_flash_model)
@@ -60,6 +61,10 @@ def post_json(url, headers, payload, timeout=50):
     try:
         with urllib.request.urlopen(req,timeout=timeout) as response:
             data=response.read(400001)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (429,502,503,504):
+            raise V6Blocked("Model provider temporarily unavailable HTTP "+str(exc.code)) from exc
+        raise V6Blocked("Model API failed HTTP "+str(exc.code)) from exc
     except Exception as exc:
         raise V6Blocked("Model API rejected or timed out; details redacted") from exc
     if len(data)>400000:
