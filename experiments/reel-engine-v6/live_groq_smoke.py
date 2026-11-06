@@ -10,6 +10,7 @@ q=("Return ONLY JSON with keys hook and segments. Exactly one segment: shot_id s
    "Create a compelling short hook (max 60 chars) for generic product atmosphere. "
    "Do not invent source footage. Source: "+json.dumps(source["shots"])+" Brief: "+brief)
 director=m.groq_call("openai/gpt-oss-120b",q,temperature=.3,max_tokens=1200)
+print("GROQ_DIRECTOR_STRUCTURAL_DIAGNOSTIC",{"keys":list(director),"segments":len(director.get("segments",[])) if isinstance(director.get("segments"),list) else "not_list","effect_types":[type(z.get("effects")).__name__ for z in director.get("segments",[]) if isinstance(z,dict)]})
 m.validate_director(source,director)
 h=m.sha_json(director)
 reviewprompt=("Return ONLY JSON with approved:true, director_plan_sha256 exactly "+h+
