@@ -193,7 +193,8 @@ async function catalog(req){
  }catch{return error("Music catalog temporarily unavailable",503)}
 }
 async function internal(req,e,path){
- if(!await verifyGitHub(req))return error("Authenticated GitHub runner required",401);
+ const claims=await verifyGitHub(req);
+ if(!claims)return error("Authenticated GitHub runner required",401);
  const p=path.split("/").filter(Boolean),now=TIME(),id=p[3];
  if(!JOB.test(id||""))return error("Invalid private render job",400);
  if(p[4]==="claim"&&req.method==="POST"){
