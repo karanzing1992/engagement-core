@@ -142,6 +142,22 @@ def validate_observations(source, research):
     return research
 
 
+def normalize_effect_shape(proposal):
+    """Lossless shape correction, never invents or removes any requested effect."""
+    if not isinstance(proposal,dict):return proposal
+    for segment in proposal.get("segments",[]):
+        if not isinstance(segment,dict):continue
+        effects=segment.get("effects")
+        if isinstance(effects,dict):
+            if effects.get("name") in ALLOWED_EFFECTS and isinstance(effects.get("parameters"),dict):
+                segment["effects"]=[effects]
+            elif effects and all(k in ALLOWED_EFFECTS and isinstance(v,dict) for k,v in effects.items()):
+                segment["effects"]=[{"name":k,"parameters":v} for k,v in effects.items()]
+            else:
+                raise V6Blocked("Groq proposed ambiguous effects; no silent substitution")
+    return proposal
+
+
 def validate_director(source, proposal):
     if not isinstance(proposal,dict):
         raise V6Blocked("Director storyboard required")
