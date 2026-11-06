@@ -223,7 +223,7 @@ def check_frames(Gst,source,output,source_duration,output_duration,cuts):
     sample_source=sample_gray(Gst,source,max(.1,mid))
     seen=max(x["variance"] for x in sample_out)
     threshold=max(4.0,min(20.,sample_source["variance"]*.15))
-    return {"visible":seen>threshold,"output_variance_peak":round(seen,2),
+    return {"visible":sum(x["variance"]>threshold for x in sample_out)>=2,"output_variance_peak":round(seen,2),
         "source_variance_reference":sample_source["variance"],"threshold":round(threshold,2),
         "frames_examined":len(sample_out),"method":"gstreamer_native_gray_frames"}
 
