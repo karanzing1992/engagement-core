@@ -25,6 +25,21 @@ def main():
               "hook":"VISIBLE FOOTAGE TEST","width":480,"height":270,"fps":24}
         (w/"spec.json").write_text(json.dumps(spec))
         run("/usr/bin/python3",str(root/"ges_v6_adapter.py"),"--spec",str(w/"spec.json"),"--receipt",str(w/"receipt.json"))
+        # Independent consented source-frame decode exercises the actual Gemini sampler.
+        from ges_frame_samples import extract
+        frames=extract(w,src,4.0,consent=True,source_sha256=spec["source_sha256"])
+        assert len(frames)==3 and all(f["bytes"]>1024 for f in frames)
+        # Platform-profile smoke: reject missing visuals even at Instagram geometry.
+        spec["output"]=str(w/"ges-vertical.mp4")
+        spec["width"]=1080
+        spec["height"]=1920
+        spec["fps"]=30
+        (w/"vertical-spec.json").write_text(json.dumps(spec))
+        run("/usr/bin/python3",str(root/"ges_v6_adapter.py"),"--spec",str(w/"vertical-spec.json"),"--receipt",str(w/"vertical-receipt.json"))
+        vertical=json.loads((w/"vertical-receipt.json").read_text())
+        assert vertical["width"]==1080 and vertical["height"]==1920
+        assert vertical["visual_presence_check"]["visible"] is True and vertical["output_audio_verified"] is True
+        print("MAD_V6_GES_VERTICAL_VISIBLE_AUDIO_PASS",vertical["bytes"])
         result=json.loads((w/"receipt.json").read_text())
         assert result["engine"]=="GStreamer Editing Services"
         assert result["gstreamer_only"] is True and result["filmcraft_only"] is False
