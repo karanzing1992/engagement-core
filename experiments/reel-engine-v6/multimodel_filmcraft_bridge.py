@@ -275,12 +275,12 @@ def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only"
                 json.dumps(research)+"\nExact verified shots: "+json.dumps(source["shots"])+
                 "\nReturn JSON: {\"hook\":string<=90,\"segments\":[{\"shot_id\":id,"
                 "\"start_seconds\":number,\"duration_seconds\":number,"
-                "\"effects\":[{\"name\":one of color_grade/motion/zoom/title/caption,\"parameters\":object}]}]. "
-                "No invented timecodes/people. FilmCraft only; no music invented.")
+                "\"effects\":[{\"name\":one of color_grade/title/caption,\"parameters\":object}]}]. "
+                "No invented timecodes/people. GStreamer GES only; no music invented.")
         if on_stage:on_stage("groq_director")
         proposal=groq_call("openai/gpt-oss-120b",prompt,temperature=0.7,max_tokens=1800)
         validate_director(source,proposal)
-        rp=("You are independent FilmCraft feasibility and rights reviewer. Review this exact"
+        rp=("You are independent GStreamer GES feasibility and rights reviewer. Review this exact"
             " storyboard without changing or adding footage. Return JSON {\"approved\":true,"
             "\"director_plan_sha256\":\""+sha_json(proposal)+"\","
             "\"segment_decisions\":[{\"segment_index\":0,\"approved\":true}]}. "
