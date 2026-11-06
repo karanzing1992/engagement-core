@@ -49,6 +49,17 @@ class StageDiagnosticTests(unittest.TestCase):
         error=runner.ges.RenderBlocked("secret guest folder")
         self.assertNotIn("secret guest folder",runner.safe_failure(error))
 
+    def test_edl_failure_is_classified_without_guest_or_model_data(self):
+        runner.ACTIVE_STAGE="edl_compile"
+        cases={
+            "Groq 20B review missing or director hash mismatch":"REVIEW_DIGEST_OR_APPROVAL_MISMATCH",
+            "Editor-review per-segment approval incomplete":"REVIEW_INCOMPLETE",
+            "Editor rejected one or more proposed FilmCraft edits":"REVIEW_REJECTED",
+        }
+        for message,code in cases.items():
+            self.assertEqual(runner.safe_failure(runner.multimodel.V6Blocked(message)),
+                "V6_KV_PRIVATE_RENDER_FAILED stage=edl_compile code="+code)
+
     def test_timeout_fallback_only_for_gemini_research(self):
         runner.ACTIVE_STAGE="gemini_research"
         self.assertTrue(runner.recoverable_gemini_timeout(
