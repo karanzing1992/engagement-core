@@ -1,5 +1,7 @@
 name: MAD V6 KV FilmCraft Owner Runner
 on:
+  issues:
+    types: [opened]
   workflow_dispatch:
     inputs:
       job_id:
@@ -10,6 +12,7 @@ permissions:
   id-token: write
 jobs:
   run-v6:
+    if: github.event_name == 'workflow_dispatch' || (github.actor == github.repository_owner && github.event.issue.user.login == github.repository_owner && startsWith(github.event.issue.title, '[MAD-V6-SYNTHETIC-QA] '))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -21,6 +24,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -52,13 +58,23 @@ jobs:
         shell: bash
         env:
           OWNER_JOB_ID: ${{ inputs.job_id }}
+          QA_ISSUE_TITLE: ${{ github.event.issue.title }}
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = 'karanzing1992/engagement-core'
           test "$GITHUB_REF" = 'refs/heads/main'
+          if [[ "$GITHUB_EVENT_NAME" == "issues" ]]; then
+            prefix='[MAD-V6-SYNTHETIC-QA] '
+            [[ "$QA_ISSUE_TITLE" == "$prefix"* ]]
+            OWNER_JOB_ID="${QA_ISSUE_TITLE#"$prefix"}"
+          fi
           [[ "$OWNER_JOB_ID" =~ ^v6job-[a-f0-9]{32}$ ]]
           test -n "${REEL_ENGINE_KEY:-${GROQ_API_KEY:-}}"
-          python3 services/reel-engine/v6-kv-gateway/runner.py --job-id "$OWNER_JOB_ID"
+          if [[ "$GITHUB_EVENT_NAME" == "issues" ]]; then
+            python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID"
+          else
+            python3 services/reel-engine/v6-kv-gateway/runner.py --job-id "$OWNER_JOB_ID"
+          fi
       - name: No raw or finished videos enter GitHub Actions artifacts
         if: always()
         run: echo "Private footage remains in Cloudflare KV with an authenticated 30-minute deadline."

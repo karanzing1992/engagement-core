@@ -1,3 +1,4 @@
+import {seedSynthetic} from "./synthetic_seed.mjs";
 // MAD V6 Cloudflare KV media gateway, independent of V5 routes.
 // Owner PWA + signed GitHub OIDC: no GitHub vault credential or model keys.
 const ORIGINS=new Set(["https://mad-v6-owner-private-beta.pages.dev"]);
@@ -25,7 +26,7 @@ async function verifyGitHub(req){
  const c=x.body,n=TIME();
  if(c.iss!==OIDC_ISS||c.aud!==OIDC_AUD||c.repository!==ENGINE_REPO||String(c.repository_id)!==REPO_ID||
     String(c.repository_owner_id)!==OWNER_ID||c.ref!=="refs/heads/main"||c.workflow_ref!==OIDC_WF||
-    c.event_name!=="workflow_dispatch"||c.runner_environment!=="github-hosted"||
+    !(c.event_name==="workflow_dispatch"||(c.event_name==="issues"&&String(c.actor_id)===OWNER_ID))||c.runner_environment!=="github-hosted"||
     !Number.isFinite(c.iat)||!Number.isFinite(c.exp)||!Number.isFinite(c.nbf)||
     c.iat>n+30||c.nbf>n+30||c.iat<n-1200||c.exp<=n||c.exp-c.iat>1200||
     !/^[0-9]{5,15}$/.test(String(c.run_id)))return false;
@@ -37,8 +38,8 @@ async function verifyGitHub(req){
    if(!jwk)return false;
    const key=await crypto.subtle.importKey("jwk",{kty:"RSA",n:jwk.n,e:jwk.e,alg:"RS256",ext:true},
      {name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["verify"]);
-   return await crypto.subtle.verify("RSASSA-PKCS1-v1_5",key,b64(x.parts[2]),
-     new TextEncoder().encode(x.parts[0]+"."+x.parts[1]));
+   return (await crypto.subtle.verify("RSASSA-PKCS1-v1_5",key,b64(x.parts[2]),
+     new TextEncoder().encode(x.parts[0]+"."+x.parts[1])))?c:false;
  }catch{return false}
 }
 async function owner(req,e){
@@ -193,10 +194,19 @@ async function catalog(req){
  }catch{return error("Music catalog temporarily unavailable",503)}
 }
 async function internal(req,e,path){
- if(!await verifyGitHub(req))return error("Authenticated GitHub runner required",401);
+ const claims=await verifyGitHub(req);
+ if(!claims)return error("Authenticated GitHub runner required",401);
  const p=path.split("/").filter(Boolean),now=TIME(),id=p[3];
  if(!JOB.test(id||""))return error("Invalid private render job",400);
+ if(p[4]==="seed"&&p.length===5&&req.method==="POST"){
+  if(claims.event_name!=="issues"||String(claims.actor_id)!==OWNER_ID)return error("Owner-signed synthetic QA only",403);
+  return seedSynthetic(req,e,id,now);
+ }
  if(p[4]==="claim"&&req.method==="POST"){
+  if(claims.event_name==="issues"){
+   const current=await getJob(e,id);
+   if(!current||current.project_id!=="synthetic-owner-qa")return error("Issue QA cannot claim customer media",403);
+  }
   const lease=crypto.randomUUID();
   const update=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='rendering',claim_id=?,claimed_at=?,attempts=attempts+1,updated_at=? WHERE job_id=? AND state IN ('sent','dispatching') AND expires_at>? RETURNING *")
    .bind(lease,now,now,id,now).first();
@@ -209,6 +219,7 @@ async function internal(req,e,path){
  }
  const j=await getJob(e,id);
  if(!j)return error("Private job not found",404);
+ if(claims.event_name==="issues"&&j.project_id!=="synthetic-owner-qa")return error("Issue QA restricted to synthetic media",403);
  const lease=req.headers.get("x-v6-claim")||"";
  if(j.state!=="rendering"||j.claim_id!==lease||!lease||j.claimed_at<now-3300||j.expires_at<=now)return error("Invalid or stale private claim",403);
  if(p[4]==="source"&&p.length===6&&req.method==="GET"){
