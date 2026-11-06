@@ -2,8 +2,8 @@
 // GitHub draft Release media vault, 30-minute access cutoff, D1 history.
 // Does NOT change any V5 routes or publish any media.
 const REPO="karanzing1992/Matrix-House";
-const ORIGINS=new Set(["https://reel.delulutech.in","https://delulutech-ai-reel-engine-v1.pages.dev"]);
-const PREVIEW=/^https:\/\/[a-z0-9-]+\.delulutech-ai-reel-engine-v1\.pages\.dev$/;
+const ORIGINS=new Set(["https://reel.delulutech.in","https://delulutech-ai-reel-engine-v1.pages.dev","https://mad-v6-owner-private-beta.pages.dev"]);
+const PREVIEW=/^https:\/\/[a-z0-9-]+\.(?:delulutech-ai-reel-engine-v1|mad-v6-owner-private-beta)\.pages\.dev$/;
 const JOB=/^mad-v6-tmp-([a-z][a-z0-9_-]{7,63})$/;
 const ID=/^v6job-([a-f0-9]{32})$/;
 const SHA=/^[a-f0-9]{64}$/;
@@ -195,6 +195,24 @@ async function download(req,e,r,forDownload){
  for(const name of ["content-range","content-length"]){if(media.headers.get(name))out[name]=media.headers.get(name)}
  return new Response(media.body,{status:media.status,headers:out});
 }
+async function proxyPrivateProjects(req,e,url){
+ const allowed=url.pathname==="/v1/projects"||url.pathname.startsWith("/v1/projects/");
+ if(!allowed)return httpError("Private project route forbidden",404);
+ if(!["GET","POST","PATCH"].includes(req.method))return httpError("Private project method forbidden",405);
+ const headers={
+   "Authorization":req.headers.get("Authorization")||"",
+   "Origin":"https://reel.delulutech.in",
+   "Accept":"application/json"
+ };
+ const t=req.headers.get("Content-Type");
+ if(t==="application/json")headers["Content-Type"]="application/json";
+ const remote=new Request("https://reel-projects.delulutech.in"+url.pathname+url.search,
+                         {method:req.method,headers,body:req.method==="GET"?undefined:await req.text()});
+ const result=await e.PROJECT_AUTH.fetch(remote);
+ if(!["application/json","application/json; charset=utf-8"].some(x=>(result.headers.get("content-type")||"").toLowerCase().startsWith(x)))
+   return httpError("Unexpected internal project response",502);
+ return new Response(result.body,{status:result.status,headers:{"content-type":"application/json","cache-control":"no-store"}});
+}
 async function catalog(req){
  const u=new URL(req.url);
  const q=(u.searchParams.get("q")||"").trim();
@@ -241,7 +259,9 @@ export default {
      if(!e.DB)return httpError("Private D1 unavailable",503);
      if(!token(e))return httpError("Private GitHub vault credential not configured",503);
      const parts=url.pathname.split("/").filter(Boolean);
-     if(parts[0]!=="v6")return httpError("V6 route not found",404);
+     if(parts[0]==="v1"&&parts[1]==="projects")res=await proxyPrivateProjects(req,e,url);
+     else if(parts[0]!=="v6")return httpError("V6 route not found",404);
+     else
      if(parts[1]==="catalog"&&parts.length===2&&req.method==="GET")res=await catalog(req);
      else if(parts[1]==="media"&&parts[2]==="uploads"&&parts.length===3&&req.method==="POST")res=await createUpload(req,e);
      else{
