@@ -21,6 +21,7 @@ from v6_contract import (V6Blocked, read_config, validate_source_manifest,
                          select_free_flash_model)
 from gemini_pro_preflight import adapter as legacy_adapter, discover_models
 from audio_library_v6 import resolve_audio
+from gemini_frames_v6 import inline_parts
 
 GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -53,8 +54,8 @@ def post_json(url, headers, payload, timeout=50):
             url.startswith(GEMINI_ENDPOINT) and url.endswith(":generateContent")):
         raise V6Blocked("Inference URL not allowlisted")
     raw=json.dumps(payload,separators=(",",":")).encode()
-    if len(raw)>50000:
-        raise V6Blocked("Model request too large")
+    if len(raw)>300000:
+        raise V6Blocked("Model request exceeds bounded source frame limit")
     req=urllib.request.Request(url,data=raw,headers={
         **headers, "Content-Type":"application/json", "Accept":"application/json",
         "User-Agent":"MAD-ReelEngine-V6-owner-private"},method="POST")
@@ -90,9 +91,10 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
             "\"research_scope\":\"grounded creative context\"}. "
             "Every source shot must appear exactly once. Creative brief: "+
             brief[:1800]+"\nVerified input: "+json.dumps(facts))
+    parts=[{"text":prompt}]+inline_parts(source["shots"],frames)
     result=post_json(GEMINI_ENDPOINT+model+":generateContent",
                      {"x-goog-api-key":key},
-                     {"contents":[{"parts":[{"text":prompt}]}],
+                     {"contents":[{"parts":parts}],
                       "generationConfig":{"responseMimeType":"application/json",
                                           "temperature":0.2,"maxOutputTokens":1400}},timeout=65)
     try:
@@ -259,6 +261,7 @@ def run(*,source,brief,brand,mode="fixture",audio_mode="source_ambience_only",
                    "audio_mode":audio["mode"],"audio_approved":audio_mode!="licensed_music",
                    "owner_approval":False,"published":False,
                    "renderer_invoked":False,"native_visual_qa":False,
+                   "gemini_native_frames_sent":len(frames or []) if mode=="live" else 0,
                    "created_at":datetime.now(timezone.utc).isoformat()})
     return output
 
