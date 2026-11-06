@@ -2,7 +2,7 @@
 """Offline source-only V6 acceptance. Deliberately never calls model APIs or renders."""
 from copy import deepcopy
 import unittest
-from v6_contract import (V6Blocked, check_config, read_config, select_pro_model,
+from v6_contract import (V6Blocked, check_config, read_config, select_pro_model, select_free_flash_model,
                          validate_source_manifest, validate_effect_receipts)
 from gemini_pro_preflight import preflight
 
@@ -55,6 +55,32 @@ class V6ContractTests(unittest.TestCase):
             select_pro_model(models, approved_model="gemini-3.6-flash")
         with self.assertRaises(V6Blocked):
             select_pro_model({"models": [models["models"][0]]})
+
+    def test_free_flash_selection_is_exact_allowlist(self):
+        models={"models":[
+            {"name":"models/gemini-3.1-pro-preview","supportedGenerationMethods":["generateContent"]},
+            {"name":"models/gemini-3.7-flash","supportedGenerationMethods":["generateContent"]},
+            {"name":"models/gemini-3.8-flash","supportedGenerationMethods":["generateContent"]},
+            {"name":"models/gemini-3.9-flash-unverified","supportedGenerationMethods":["generateContent"]},
+            {"name":"models/gemini-3.6-flash","supportedGenerationMethods":["embedContent"]},
+        ]}
+        self.assertEqual(select_free_flash_model(models),"gemini-3.8-flash")
+        self.assertEqual(select_free_flash_model(models,approved_model="gemini-3.7-flash"),"gemini-3.7-flash")
+        for bad in ("gemini-3.1-pro-preview","gemini-3.9-flash-unverified","gemini-3.6-flash"):
+            with self.assertRaises(V6Blocked):
+                select_free_flash_model(models,approved_model=bad)
+        with self.assertRaises(V6Blocked):
+            select_free_flash_model({"models":[models["models"][0]]})
+
+    def test_paid_model_disallowed_by_free_policy(self):
+        invalid=deepcopy(self.cfg)
+        invalid["provider_policy"]["gemini_model_selection"]="highest_available_pro_generateContent_from_live_model_list"
+        with self.assertRaises(V6Blocked):
+            check_config(invalid)
+        invalid=deepcopy(self.cfg)
+        invalid["provider_policy"]["require_verified_free_project"]=False
+        with self.assertRaises(V6Blocked):
+            check_config(invalid)
 
     def test_source_requires_verified_rights_and_external_ai_consent(self):
         source = {"source_sha256": "a"*64, "human_reviewed": True,
