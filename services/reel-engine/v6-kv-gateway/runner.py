@@ -79,7 +79,7 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
    "Use this exact director sha:"+multimodel.sha_json(director)+" and storyboard:"+json.dumps(director))
  review=multimodel.groq_call("openai/gpt-oss-20b",review_prompt,temperature=.12,max_tokens=1300)
  plan=multimodel.compile_reviewed_edl(manifest,director,review)
- plan.update({"model_roles":{"gemini":"SKIPPED_FREE_TIER_NOT_VERIFIED",
+ plan.update({"model_roles":{"gemini":"UNAVAILABLE_AFTER_FREE_FLASH_RETRIES" if os.environ.get("GEMINI_OWNER_APPROVED_FREE_CALLS")=="true" else "SKIPPED_FREE_TIER_NOT_VERIFIED",
     "groq_director":"openai/gpt-oss-120b","groq_reviewer":"openai/gpt-oss-20b"},
     "model_policy":"free_tier_groq_only_fallback","live_model_inference":True,
     "source_rights_admitted":True,"audio_mode":"source_ambience_only",
