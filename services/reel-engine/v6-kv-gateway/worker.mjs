@@ -1,3 +1,4 @@
+import {seedSynthetic} from "./synthetic_seed.mjs";
 // MAD V6 Cloudflare KV media gateway, independent of V5 routes.
 // Owner PWA + signed GitHub OIDC: no GitHub vault credential or model keys.
 const ORIGINS=new Set(["https://mad-v6-owner-private-beta.pages.dev"]);
@@ -197,6 +198,10 @@ async function internal(req,e,path){
  if(!claims)return error("Authenticated GitHub runner required",401);
  const p=path.split("/").filter(Boolean),now=TIME(),id=p[3];
  if(!JOB.test(id||""))return error("Invalid private render job",400);
+ if(p[4]==="seed"&&p.length===5&&req.method==="POST"){
+  if(claims.event_name!=="issues"||String(claims.actor_id)!==OWNER_ID)return error("Owner-signed synthetic QA only",403);
+  return seedSynthetic(req,e,id,now);
+ }
  if(p[4]==="claim"&&req.method==="POST"){
   const lease=crypto.randomUUID();
   const update=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='rendering',claim_id=?,claimed_at=?,attempts=attempts+1,updated_at=? WHERE job_id=? AND state IN ('sent','dispatching') AND expires_at>? RETURNING *")
