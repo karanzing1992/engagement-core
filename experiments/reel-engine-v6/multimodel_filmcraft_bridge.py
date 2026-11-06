@@ -261,7 +261,7 @@ def run(*,source,brief,brand,mode="fixture",audio_mode="source_ambience_only",
                 "\"start_seconds\":number,\"duration_seconds\":number,"
                 "\"effects\":[{\"name\":one of color_grade/motion/zoom/title/caption,\"parameters\":object}]}]. "
                 "No invented timecodes/people. FilmCraft only; no music invented.")
-        proposal=groq_call("openai/gpt-oss-120b",prompt,temperature=0.7,max_tokens=1800)
+        proposal=normalize_effect_shape(groq_call("openai/gpt-oss-120b",prompt,temperature=0.7,max_tokens=1800))
         validate_director(source,proposal)
         rp=("You are independent FilmCraft feasibility and rights reviewer. Review this exact"
             " storyboard without changing or adding footage. Return JSON {\"approved\":true,"
