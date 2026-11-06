@@ -1,0 +1,105 @@
+name: MAD V6 | Live Free Models and CC0 Audio Certification
+on:
+  push:
+    branches: [feature/mad-v6-live-multimodal-audio-qa-20261106]
+    paths:
+      - .github/workflows/mad-v6-live-model-audio-qa.yml
+      - services/reel-engine/v6-kv-gateway/**
+      - experiments/reel-engine-v6/multimodel_filmcraft_bridge.py
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  gemini-groq-vision:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      REEL_ENGINE_KEY: ${{ secrets.REEL_ENGINE_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GEMINI_FREE_TIER_OWNER_ATTESTED: "true"
+      FILMCRAFT_CLI: ${{ runner.temp }}/filmcraft/filmcraft-0.16.0-linux-x86_64/bin/filmcraft-cli
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install SHA-pinned FilmCraft CLI; never FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/filmcraft"
+          cd "$RUNNER_TEMP/filmcraft"
+          curl -fLsS --max-time 180 -o filmcraft.tar.gz \
+            'https://github.com/storytold/filmcraft/releases/download/v0.16.0/filmcraft-0.16.0-linux-x86_64.tar.gz'
+          echo '588390eee5d7e1634f05794c4f877ddf29494d9cf74405111d67c16cbe215ae9  filmcraft.tar.gz' | sha256sum -c -
+          tar -xzf filmcraft.tar.gz
+          test -x "$FILMCRAFT_CLI"
+      - name: Live Gemini vision plus Groq 120B/20B; synthetic frames and generic brief only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GEMINI_API_KEY"
+          test -n "${REEL_ENGINE_KEY:-${GROQ_API_KEY:-}}"
+          python3 - <<'PY'
+          import json,os,hashlib,sys
+          from pathlib import Path
+          sys.path[:0]=['services/reel-engine','services/reel-engine/v6-kv-gateway','experiments/reel-engine-v6']
+          from filmcraft_v6_adapter import render
+          from native_frames import sample_video_frames
+          from multimodel_filmcraft_bridge import run
+          w=Path(os.environ['RUNNER_TEMP'])/'mad-v6-live-vision'
+          w.mkdir(mode=0o700,parents=True,exist_ok=True)
+          src=w/'original-synthetic.mp4'
+          rec=render(cli=os.environ['FILMCRAFT_CLI'],workdir=w,output=src,
+              cuts=[{'start':0.0,'seconds':4.0,'source_index':0}],operations=[[]],
+              hook='SYNTHETIC V6 QA',width=480,height=270,fps=24)
+          desc='Synthetic green color matte with a source-generated on-screen QA label; no humans or guest footage.'
+          frames=sample_video_frames(src,cli=os.environ['FILMCRAFT_CLI'],workdir=w,
+              duration=4.0,external_ai_consent=True)
+          manifest={'source_sha256':rec['sha256'],'human_reviewed':True,
+              'rights_and_consent_cleared':True,'external_ai_processing_consent':True,
+              'shots':[{'id':'s1','start_seconds':0.,'duration_seconds':4.,'visible':desc}]}
+          plan=run(source=manifest,
+              brief='Create a short, contemplative cinematic treatment of the visible synthetic source. Keep all shots factual.',
+              brand='Generic film-editing service: follow the provided visual evidence and prompt, no brand assumptions.',
+              mode='live',approved_api_cost=True,frames=frames)
+          assert plan['model_roles']['gemini'].startswith('gemini-')
+          assert plan['model_roles']['groq_director']=='openai/gpt-oss-120b'
+          assert plan['model_roles']['groq_reviewer']=='openai/gpt-oss-20b'
+          assert plan['vision_frames_sent']==3
+          assert plan['live_model_inference'] is True
+          print('MAD_V6_LIVE_GEMINI_FRAME_AND_GROQ_REVIEW_PASS',
+                json.dumps({'models':plan['model_roles'],'frames':len(frames),
+                 'cuts':len(plan['cuts']),'effects':plan['requested_effects'],
+                 'paid_pro_fallback':False,'guest_media_sent':False,'published':False}))
+          src.unlink(missing_ok=True)
+          PY
+  open-cc0-audio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Re-check original Commons CC0 metadata, download WAV and verify SHA-1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,sys
+          from pathlib import Path
+          sys.path.insert(0,'services/reel-engine/v6-kv-gateway')
+          from open_cc0_audio import verified_cc0_audio
+          out=Path(os.environ['RUNNER_TEMP'])/'mad-v6-cc0-original'
+          out.mkdir(mode=0o700,parents=True,exist_ok=True)
+          music=verified_cc0_audio(out,minimum_seconds=4.0)
+          assert music['license']=='CC0'
+          assert music['audio_bytes']>1000
+          assert music['filmcraft_rights']['audio_sha256']==music['audio_sha256']
+          print('MAD_V6_ORIGINAL_CC0_AUDIO_SOURCE_PASS',
+            json.dumps({k:music[k] for k in ('track_title','audio_bytes','duration_seconds','audio_sha256','license','original_source_url','published')}))
+          Path(music['audio_path']).unlink(missing_ok=True)
+          PY
