@@ -113,7 +113,18 @@ def run(job_id,*,fixture=False):
   finally:m.close()
   synthetic=fixture and claim.get("source_description","").startswith("SYNTHETIC QA:")
   if fixture and not synthetic:raise RuntimeError("Synthetic fixture cannot render real guest footage")
-  plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,fixture=synthetic)
+  frames=[]
+  if os.environ.get("MAD_V6_FRAMES_TO_GEMINI")=="true" and not synthetic:
+   if claim.get("free_gemini_consent") is not True or claim.get("people_consent") is not True:
+    raise RuntimeError("External Gemini vision consent missing")
+   frames=sample_video_frames(src,cli=os.environ["FILMCRAFT_CLI"],workdir=work,
+     duration=duration,external_ai_consent=True)
+  plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,fixture=synthetic,frames=frames)
+  audio=None
+  if os.environ.get("MAD_V6_CURATED_CC0_AUDIO")=="true":
+   timeline_seconds=sum(float(cut["seconds"]) for cut in plan["cuts"])
+   audio=verified_cc0_audio(work,minimum_seconds=timeline_seconds)
+   print("MAD_V6_CC0_AUDIO_SOURCE_READY",audio["audio_sha256"],flush=True)
   rec=filmcraft.render(cli=os.environ["FILMCRAFT_CLI"],workdir=work,output=out,source=src,
      source_rights_cleared=True,source_sha256=claim["source_sha256"],
      cuts=plan["cuts"],operations=plan["operations"],hook=plan["hook"],
