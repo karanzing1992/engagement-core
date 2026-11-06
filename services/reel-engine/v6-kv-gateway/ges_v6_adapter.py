@@ -27,13 +27,13 @@ def backend():
             raise RenderBlocked("GSTREAMER_REQUIRED_ELEMENT_MISSING")
     return Gst,GES,GstPbutils
 
-def probe(Gst,GstPbutils,path):
+def probe(Gst,GstPbutils,path,*,min_duration=2.5):
     d=GstPbutils.Discoverer.new(15*Gst.SECOND)
     info=d.discover_uri(Path(path).resolve().as_uri())
     vids=info.get_video_streams() or []
     if not vids:raise RenderBlocked("VIDEO_STREAM_MISSING")
     duration=info.get_duration()/Gst.SECOND
-    if not (2.5<=duration<=480):raise RenderBlocked("VIDEO_DURATION_INVALID")
+    if not (min_duration<=duration<=480):raise RenderBlocked("VIDEO_DURATION_INVALID")
     return {"duration":duration,"width":vids[0].get_width(),"height":vids[0].get_height(),
         "audio":bool(info.get_audio_streams())}
 
@@ -151,7 +151,8 @@ def render(spec):
     finally:pipe.set_state(Gst.State.NULL)
     if not output.exists() or output.stat().st_size<4096:
         raise RenderBlocked("GES_OUTPUT_MISSING")
-    out_info=probe(Gst,GstPbutils,output)
+    # Source admission is >=2.5 s; a reviewed one-second reel is still valid output.
+    out_info=probe(Gst,GstPbutils,output,min_duration=1.0)
     if out_info["width"]!=width or out_info["height"]!=height or not out_info["audio"]:
         raise RenderBlocked("GES_OUTPUT_STREAMS_INVALID")
     # Audio metadata and a video track are necessary but not sufficient.
