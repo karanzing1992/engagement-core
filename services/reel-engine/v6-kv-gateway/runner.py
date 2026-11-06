@@ -57,7 +57,11 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
  if fixture:
   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture")
  if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true" or os.environ.get("GEMINI_OWNER_APPROVED_FREE_CALLS")=="true":
-  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",approved_api_cost=True,frames=frames)
+  try:
+   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",approved_api_cost=True,frames=frames)
+  except multimodel.V6Blocked:
+   if os.environ.get("MAD_V6_GROQ_ONLY_WHEN_GEMINI_UNAVAILABLE")!="true":raise
+   print("MAD_V6_GEMINI_FREE_FLASH_UNAVAILABLE_FAILOVER_TO_GROQ_ONLY")
  # Approved free-tier fallback: existing Groq models. No Gemini paid fallback.
  multimodel.read_config()
  multimodel.validate_source_manifest(manifest,external_gemini_frames=False)
