@@ -1,0 +1,38 @@
+name: MAD V6 | Consolidated KV Security & Models
+on:
+  push:
+    branches: [feature/reel-engine-v6-gemini-pro-filmcraft-20261106]
+    paths:
+      - services/reel-engine/v6-kv-gateway/**
+      - services/reel-engine/ai-reel-api-v1/v6_dispatch.mjs
+      - services/reel-engine/ai-reel-api-v1/test_v6_dispatch.mjs
+      - .github/workflows/mad-v6-kv-contracts.yml
+  pull_request:
+    paths:
+      - services/reel-engine/v6-kv-gateway/**
+      - services/reel-engine/ai-reel-api-v1/v6_dispatch.mjs
+      - services/reel-engine/ai-reel-api-v1/test_v6_dispatch.mjs
+      - .github/workflows/mad-v6-kv-contracts.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  security-and-handoff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Native Cloudflare KV upload, signed OIDC, range, expiry, model and V5 dispatch regression
+        run: |
+          node --test services/reel-engine/v6-kv-gateway/test_kv_gateway.mjs services/reel-engine/ai-reel-api-v1/test_v6_dispatch.mjs services/reel-engine/ai-reel-api-v1/test_media_event_wake.mjs
+          python3 -m py_compile services/reel-engine/v6-kv-gateway/runner.py
+          python3 -m unittest discover -s experiments/reel-engine-v6 -p 'test_*.py' -q
+          echo 'MAD_V6_KV_CONSOLIDATED_SMOKE_PASS'
