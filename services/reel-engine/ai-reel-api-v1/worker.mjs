@@ -1,5 +1,6 @@
 // DeluluTech AI Reel Engine owner-only PWA API.
 import {wakeMediaJob,readMediaWake,recoverPendingWakes} from './media_event_wake.mjs';
+import {dispatchV6} from './v6_dispatch.mjs';
 const ALLOWED_ORIGINS=new Set(["https://reel.delulutech.in","https://delulutech-ai-reel-engine-v1.pages.dev"]);
 const CODE_PREFIX="Bearer nk-";
 function j(v,status=200,h={}){return new Response(JSON.stringify(v),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer",...h}})}
@@ -198,7 +199,8 @@ export default {
   if(!await authorized(request,env))return j({error:{message:"Invalid access code"}},401,headers);
   try{
    let response;
-   if(url.pathname.startsWith("/v1/media/"))response=await doMedia(request,env,url,ctx);
+   if(url.pathname==="/internal/v6/dispatch"&&request.method==="POST")response=await dispatchV6(request,env);
+   else if(url.pathname.startsWith("/v1/media/"))response=await doMedia(request,env,url,ctx);
    else if(url.pathname==="/v1/chat/completions"&&request.method==="POST")response=await handleChat(request,env);
    else if(url.pathname==="/v1/models"&&request.method==="GET")response=j({object:"list",data:[{id:"mad-v5",object:"model",owned_by:"delulutech"}]});
    else response=j({error:{message:"Not found"}},404);
