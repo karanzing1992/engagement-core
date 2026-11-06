@@ -12,7 +12,7 @@ permissions:
   id-token: write
 jobs:
   run-v6:
-    if: github.event_name == 'workflow_dispatch' || (github.actor == github.repository_owner && github.event.issue.user.login == github.repository_owner && startsWith(github.event.issue.title, '[MAD-V6-SYNTHETIC-QA] '))
+    if: github.event_name == 'workflow_dispatch' || (github.actor == github.repository_owner && github.event.issue.user.login == github.repository_owner && (startsWith(github.event.issue.title, '[MAD-V6-SYNTHETIC-QA] ') || startsWith(github.event.issue.title, '[MAD-V6-LIVE-MULTIMODAL-AUDIO-QA] ')))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -20,6 +20,7 @@ jobs:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_PROJECT_FREE_TIER_VERIFIED: ${{ vars.GEMINI_PROJECT_FREE_TIER_VERIFIED }}
+      GEMINI_INFERENCE_OWNER_APPROVED: "true"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,13 +66,20 @@ jobs:
           test "$GITHUB_REF" = 'refs/heads/main'
           if [[ "$GITHUB_EVENT_NAME" == "issues" ]]; then
             prefix='[MAD-V6-SYNTHETIC-QA] '
+            if [[ "$QA_ISSUE_TITLE" == "[MAD-V6-LIVE-MULTIMODAL-AUDIO-QA] "* ]]; then
+              prefix='[MAD-V6-LIVE-MULTIMODAL-AUDIO-QA] '
+            fi
             [[ "$QA_ISSUE_TITLE" == "$prefix"* ]]
             OWNER_JOB_ID="${QA_ISSUE_TITLE#"$prefix"}"
           fi
           [[ "$OWNER_JOB_ID" =~ ^v6job-[a-f0-9]{32}$ ]]
           test -n "${REEL_ENGINE_KEY:-${GROQ_API_KEY:-}}"
           if [[ "$GITHUB_EVENT_NAME" == "issues" ]]; then
-            python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID"
+            if [[ "$QA_ISSUE_TITLE" == "[MAD-V6-LIVE-MULTIMODAL-AUDIO-QA] "* ]]; then
+              python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID" --live-models
+            else
+              python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID"
+            fi
           else
             python3 services/reel-engine/v6-kv-gateway/runner.py --job-id "$OWNER_JOB_ID"
           fi

@@ -20,14 +20,21 @@
       "gemini-3.1-flash-lite"
     ],
     "require_verified_free_project": true,
-    "gemini_privacy": "free_tier_vendor_product_improvement_may_apply; source-grounded human-reviewed text only"
+    "gemini_privacy": "Only consented FilmCraft-native JPEG frame samples, source timestamps, and human-reviewed textual shot descriptions are sent to Gemini. No entire video, private URL, or original audio is transmitted.",
+    "owner_approved_free_flash_inference": true
   },
   "model_roles": {
     "research": {
       "provider": "gemini",
       "model": "discover_free_flash_model_at_runtime",
       "allow_flash_fallback": true,
-      "require_no_private_video_upload": true
+      "require_no_private_video_upload": true,
+      "frame_policy": {
+        "source": "FilmCraft file.exportFrame",
+        "max_frames": 3,
+        "max_combined_bytes": 3145728,
+        "requires_explicit_owner_consent": true
+      }
     },
     "creative_director": {
       "provider": "groq",
@@ -53,7 +60,7 @@
     "publish_automatically": false,
     "default_runtime_version": "v5",
     "source_consent_required": true,
-    "music_mode": "verified_existing_recordings_only",
+    "music_mode": "original_CC0_library_and_verified_openverse_candidates",
     "output_profile": {
       "width": 1080,
       "height": 1920

@@ -52,7 +52,8 @@ def post_json(url, headers, payload, timeout=50):
             url.startswith(GEMINI_ENDPOINT) and url.endswith(":generateContent")):
         raise V6Blocked("Inference URL not allowlisted")
     raw=json.dumps(payload,separators=(",",":")).encode()
-    if len(raw)>50000:
+    cap=5*1024*1024 if url.startswith(GEMINI_ENDPOINT) else 50000
+    if len(raw)>cap:
         raise V6Blocked("Model request too large")
     req=urllib.request.Request(url,data=raw,headers={
         **headers, "Content-Type":"application/json", "Accept":"application/json",
@@ -70,15 +71,17 @@ def post_json(url, headers, payload, timeout=50):
         raise V6Blocked("Provider response not parseable") from exc
 
 
-def gemini_research(source, brief, *, approved_api_cost=False):
-    if not approved_api_cost or os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED") != "true":
-        raise V6Blocked("Gemini API project free tier not independently verified; no paid inference")
+def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
+    owner_ok=os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")=="true"
+    tier_ok=os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true"
+    if not approved_api_cost or not (tier_ok or owner_ok):
+        raise V6Blocked("Owner approval for allowlisted Gemini Flash request required")
     key=os.environ.get("GEMINI_API_KEY")
     if not key:
         raise V6Blocked("Gemini free-tier API key not present")
     available=discover_models(key,legacy_adapter())
     model=select_free_flash_model(available)
-    # Only approved, human-reviewed descriptions, NEVER raw frames or private URLs.
+    # Frame sampling uses FilmCraft-native exports; only three consented stills, no private URLs.
     facts=[{"id":s["id"],"observed":s["visible"],
             "start_seconds":s["start_seconds"],
             "duration_seconds":s["duration_seconds"]} for s in source["shots"]]
@@ -89,9 +92,19 @@ def gemini_research(source, brief, *, approved_api_cost=False):
             "\"research_scope\":\"grounded creative context\"}. "
             "Every source shot must appear exactly once. Creative brief: "+
             brief[:1800]+"\nVerified input: "+json.dumps(facts))
+    parts=[{"text":prompt}]
+    if frames:
+        if source.get("external_ai_processing_consent") is not True or len(frames)>3:
+            raise V6Blocked("Explicit still-image processing consent and frame count required")
+        for frame in frames:
+            if (frame.get("mime_type")!="image/jpeg" or not isinstance(frame.get("data"),str)
+                or len(frame["data"])>4*1024*1024 or not isinstance(frame.get("time_seconds"),(float,int))):
+                raise V6Blocked("Gemini frame payload malformed")
+            parts.append({"text":"Source frame at "+str(frame["time_seconds"])+" seconds; describe only visible content."})
+            parts.append({"inline_data":{"mime_type":"image/jpeg","data":frame["data"]}})
     result=post_json(GEMINI_ENDPOINT+model+":generateContent",
                      {"x-goog-api-key":key},
-                     {"contents":[{"parts":[{"text":prompt}]}],
+                     {"contents":[{"parts":parts}],
                       "generationConfig":{"responseMimeType":"application/json",
                                           "temperature":0.2,"maxOutputTokens":1400}},timeout=65)
     try:
@@ -216,14 +229,14 @@ def fixture_chain(source, brief):
     return research,proposal,review
 
 
-def run(*,source,brief,brand,mode="fixture",audio_mode="source_ambience_only",
-        approved_api_cost=False):
+def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only",
+        approved_api_cost=False,frames=None):
     read_config()
-    validate_source_manifest(source,external_gemini_frames=False)
+    validate_source_manifest(source,external_gemini_frames=bool(frames))
     if not isinstance(brief,str) or not 8<=len(brief)<=2000:
         raise V6Blocked("Human creative prompt missing")
-    if not isinstance(brand,str) or not 8<=len(brand)<=1800:
-        raise V6Blocked("Registered brand context missing")
+    if not isinstance(brand,str) or len(brand)>1800:
+        raise V6Blocked("Optional generic product context invalid")
     audio=resolve_audio(audio_mode)
     if mode=="fixture":
         model_ids={"gemini":"FIXTURE","groq_director":"FIXTURE","groq_reviewer":"FIXTURE"}
@@ -231,11 +244,11 @@ def run(*,source,brief,brand,mode="fixture",audio_mode="source_ambience_only",
     elif mode=="live":
         if not approved_api_cost:
             raise V6Blocked("Gemini API project free tier not confirmed")
-        model,research=gemini_research(source,brief,approved_api_cost=True)
+        model,research=gemini_research(source,brief,approved_api_cost=True,frames=frames)
         model_ids={"gemini":model,"groq_director":"openai/gpt-oss-120b",
                    "groq_reviewer":"openai/gpt-oss-20b"}
         validate_observations(source,research)
-        prompt=("Registered brand: "+brand+"\nOwner brief: "+brief+"\nValidated research: "+
+        prompt=("Product context (optional): "+(brand or "generic creative content")+"\nOwner brief: "+brief+"\nValidated research: "+
                 json.dumps(research)+"\nExact verified shots: "+json.dumps(source["shots"])+
                 "\nReturn JSON: {\"hook\":string<=90,\"segments\":[{\"shot_id\":id,"
                 "\"start_seconds\":number,\"duration_seconds\":number,"

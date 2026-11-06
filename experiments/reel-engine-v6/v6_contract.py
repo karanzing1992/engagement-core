@@ -68,7 +68,7 @@ def check_config(c: dict) -> None:
             delivery.get("publish_automatically") is not False or
             delivery.get("default_runtime_version") != "v5" or
             delivery.get("source_consent_required") is not True or
-            delivery.get("music_mode") != "verified_existing_recordings_only" or
+            delivery.get("music_mode") != "original_CC0_library_and_verified_openverse_candidates" or
             delivery.get("output_profile") != {"width": 1080, "height": 1920}):
         raise V6Blocked("Private preview, source rights, music or V5 rollback changed")
 
