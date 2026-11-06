@@ -1,0 +1,35 @@
+name: MAD V6 GStreamer GES Native Visual Smoke
+on:
+  pull_request:
+    paths:
+      - 'services/reel-engine/v6-kv-gateway/ges_v6_adapter.py'
+      - 'services/reel-engine/v6-kv-gateway/test_ges_v6_smoke.py'
+      - '.github/workflows/mad-v6-gstreamer-ges-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ges-visible-video:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Ubuntu native GStreamer Editing Services
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends python3-gi gir1.2-gst-plugins-base-1.0 gir1.2-ges-1.0 python3-ges-1.0 ges1.0-tools gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
+          /usr/bin/python3 -c "import gi; gi.require_version('GES','1.0'); from gi.repository import GES; print('GES_NATIVE_LOADED')"
+      - name: Enforce source security and compile adapter
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -m py_compile services/reel-engine/v6-kv-gateway/ges_v6_adapter.py services/reel-engine/v6-kv-gateway/test_ges_v6_smoke.py
+          ! grep -Ei 'subprocess.*ffmpeg|FilmCraft_CLI' services/reel-engine/v6-kv-gateway/ges_v6_adapter.py
+      - name: GES real decoded visual and audio smoke
+        run: |
+          /usr/bin/python3 services/reel-engine/v6-kv-gateway/test_ges_v6_smoke.py
+      - name: Never upload media to Actions artifacts
+        if: always()
+        run: echo 'Synthetic MP4 only in temporary private runner filesystem; all temporary files cleaned'
