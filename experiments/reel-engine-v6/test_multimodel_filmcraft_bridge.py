@@ -16,7 +16,7 @@ BRAND="Moksha Wellness, Arambol; forest, ivory and restrained gold; no medical c
 class MultiModelBridgeTests(unittest.TestCase):
     def test_frozen_synthetic_model_order_and_nonpublication(self):
         p=run(source=SOURCE,brief=BRIEF,brand=BRAND)
-        self.assertEqual(p["editor"],"MLT + frei0r"
+        self.assertEqual(p["editor"],"MLT + frei0r")
         self.assertFalse(p["live_model_inference"])
         self.assertFalse(p["renderer_invoked"])
         self.assertFalse(p["native_visual_qa"])
