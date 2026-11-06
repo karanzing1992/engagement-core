@@ -85,7 +85,16 @@ jobs:
         with: {persist-credentials: false}
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
-      - name: Re-check original Commons CC0 metadata, download WAV and verify SHA-1
+      - name: Install native FilmCraft for original CC0 soundtrack QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/filmcraft"
+          cd "$RUNNER_TEMP/filmcraft"
+          curl -fLsS --max-time 180 -o filmcraft.tar.gz 'https://github.com/storytold/filmcraft/releases/download/v0.16.0/filmcraft-0.16.0-linux-x86_64.tar.gz'
+          echo '588390eee5d7e1634f05794c4f877ddf29494d9cf74405111d67c16cbe215ae9  filmcraft.tar.gz' | sha256sum -c -
+          tar -xzf filmcraft.tar.gz
+      - name: Render original CC0 library soundtrack in FilmCraft native audio track
         shell: bash
         run: |
           set -euo pipefail
@@ -93,14 +102,29 @@ jobs:
           import json,os,sys
           from pathlib import Path
           sys.path.insert(0,'services/reel-engine/v6-kv-gateway')
-          from open_cc0_audio import verified_cc0_audio
+          from original_cc0_audio import original_cc0_soundtrack
+          from filmcraft_v6_adapter import render, MCP
           out=Path(os.environ['RUNNER_TEMP'])/'mad-v6-cc0-original'
           out.mkdir(mode=0o700,parents=True,exist_ok=True)
-          music=verified_cc0_audio(out,minimum_seconds=4.0)
+          music=original_cc0_soundtrack(out,seconds=9.0,brief="calm cinematic instrumental")
           assert music['license']=='CC0'
           assert music['audio_bytes']>1000
           assert music['filmcraft_rights']['audio_sha256']==music['audio_sha256']
           print('MAD_V6_ORIGINAL_CC0_AUDIO_SOURCE_PASS',
             json.dumps({k:music[k] for k in ('track_title','audio_bytes','duration_seconds','audio_sha256','license','original_source_url','published')}))
+          cli=Path(os.environ['RUNNER_TEMP'])/'filmcraft/filmcraft-0.16.0-linux-x86_64/bin/filmcraft-cli'
+          result=render(cli=str(cli),workdir=out,output=out/'native-cc0-audio.mp4',
+              cuts=[{'start':0.0,'seconds':4.0,'source_index':0}],operations=[[]],
+              hook='ORIGINAL CC0 AUDIO QA',music=Path(music['audio_path']),
+              music_rights=music['filmcraft_rights'],width=720,height=1280,fps=24)
+          assert result['music_native_probed'] is True and result['ffmpeg_invocations']==0
+          probe=MCP(str(cli),out)
+          try:
+              info=probe.cmd('mediaBrowser.probe',{'path':str(out/'native-cc0-audio.mp4')}).get('info',{})
+              assert info.get('audio_streams') or info.get('audio'), 'Native output has no soundtrack'
+          finally:probe.close()
+          print('MAD_V6_ORIGINAL_CC0_FILMCRAFT_AUDIO_MIX_PASS',
+               json.dumps({'sha256':result['sha256'],'bytes':result['bytes'],
+                  'audio_native':True,'license':'CC0','ffmpeg_invocations':0,'published':False}))
           Path(music['audio_path']).unlink(missing_ok=True)
           PY
