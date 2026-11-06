@@ -207,6 +207,25 @@ def validate_director(source, proposal):
     return proposal
 
 
+def reviewer_schema_needs_retry(proposal,review):
+    """Only malformed metadata in an explicit reviewer approval can be retried.
+    Never retry/override explicit rejection by reviewer or any segment.
+    """
+    if not isinstance(review,dict) or review.get("approved") is not True:
+        return False
+    decisions=review.get("segment_decisions")
+    if isinstance(decisions,list) and any(
+        isinstance(d,dict) and d.get("approved") is False for d in decisions):
+        return False
+    segments=proposal.get("segments",[])
+    if review.get("director_plan_sha256")!=sha_json(proposal):
+        return True
+    if not isinstance(decisions,list) or len(decisions)!=len(segments):
+        return True
+    return any(not isinstance(d,dict) or d.get("segment_index")!=i or
+               d.get("approved") is not True
+               for i,d in enumerate(decisions))
+
 def compile_reviewed_edl(source, proposal, review):
     validate_director(source,proposal)
     if review.get("approved") is not True or review.get("director_plan_sha256")!=sha_json(proposal):
@@ -280,13 +299,32 @@ def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only"
         if on_stage:on_stage("groq_director")
         proposal=groq_call("openai/gpt-oss-120b",prompt,temperature=0.7,max_tokens=1800)
         validate_director(source,proposal)
-        rp=("You are independent GStreamer GES feasibility and rights reviewer. Review this exact"
-            " storyboard without changing or adding footage. Return JSON {\"approved\":true,"
-            "\"director_plan_sha256\":\""+sha_json(proposal)+"\","
-            "\"segment_decisions\":[{\"segment_index\":0,\"approved\":true}]}. "
-            "Reject invalid effects/timecodes. Original: "+json.dumps(proposal))
+        expected_hash=sha_json(proposal)
+        segment_count=len(proposal["segments"])
+        rp=("You are the independent GStreamer GES feasibility and rights reviewer. "
+            "Return ONLY a JSON object with approved boolean, director_plan_sha256 "
+            "EXACTLY equal to this lowercase digest "+expected_hash+
+            ", and segment_decisions containing EXACTLY "+str(segment_count)+
+            " objects. The array must have each integer segment_index from 0 to "+
+            str(segment_count-1)+" IN ORDER, with a JSON boolean approved for "
+            "each. Judge each segment independently: set approved=false if "
+            "its source time range, permissions, effect feasibility or grounded "
+            "visual description is invalid. Global approved=false if ANY segment "
+            "is rejected. Never invent source footage or change the plan. "
+            "Plan to review: "+json.dumps(proposal))
         if on_stage:on_stage("groq_reviewer")
         review=groq_call("openai/gpt-oss-20b",rp,temperature=0.15,max_tokens=1200)
+        if reviewer_schema_needs_retry(proposal,review):
+            # One bounded reviewer-side metadata correction; review remains
+            # independent and explicit safety rejection is never overruled.
+            if on_stage:on_stage("groq_reviewer")
+            print("V6_EDITOR_REVIEW_SCHEMA_RETRY metadata_only",flush=True)
+            review=groq_call("openai/gpt-oss-20b",
+                rp+" Your previous reply explicitly approved the proposal but "
+                "had malformed digest, missing segment indices, or incomplete "
+                "decision booleans. Re-assess independently and provide exactly "
+                "the required JSON fields. Reject any unsafe edit.",
+                temperature=0.1,max_tokens=1500)
     else:
         raise V6Blocked("Unknown V6 inference mode")
     validate_observations(source,research)
