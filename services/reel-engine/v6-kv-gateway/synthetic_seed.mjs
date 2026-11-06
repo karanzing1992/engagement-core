@@ -13,10 +13,10 @@ export async function seedSynthetic(req,env,id,now){
    String.fromCharCode(...new Uint8Array(source).slice(4,8))!=="ftyp")
   return reply(422,{error:"Synthetic source integrity or MP4 signature invalid"});
  await env.MEDIA_KV.put("private/mad-v6/source/"+id+"/0",source,{expirationTtl:3600});
- const d="SYNTHETIC QA: Original FilmCraft color matte with no people or customer recordings.";
- const brief="Make an original cinematic wellness QA reel using only the synthetic color matte.";
+ const d="SYNTHETIC QA: GStreamer-generated moving test pattern with no people or customer recordings.";
+ const brief="Make an original cinematic wellness QA reel using only the synthetic moving test pattern.";
  const row=await env.DB.prepare("INSERT INTO mad_v6_kv_jobs(job_id,project_id,file_name,mime,bytes,source_sha256,source_chunks,source_description,brief,state,created_at,updated_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,'sent',?,?,?)")
-   .bind(id,"synthetic-owner-qa","filmcraft-qa.mp4","video/mp4",bytes,expected,1,d,brief,now,now,now+3600).run();
+   .bind(id,"synthetic-owner-qa","gstreamer-qa.mp4","video/mp4",bytes,expected,1,d,brief,now,now,now+3600).run();
  if(!row.meta?.changes)return reply(409,{error:"Synthetic job admission declined"});
  await env.DB.prepare("INSERT INTO mad_v6_kv_parts(job_id,kind,idx,bytes,sha256) VALUES(?,'source',0,?,?)")
    .bind(id,bytes,expected).run();

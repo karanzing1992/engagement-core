@@ -243,7 +243,7 @@ async function internal(req,e,path){
  if(p[4]==="complete"&&req.method==="POST"){
   const body=await req.json().catch(()=>({}));
   if(body.state==="failed"){
-   await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='failed',error_code='PRIVATE_FILMCRAFT_FAILED',updated_at=? WHERE job_id=? AND claim_id=?")
+   await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='failed',error_code='PRIVATE_GSTREAMER_FAILED',updated_at=? WHERE job_id=? AND claim_id=?")
     .bind(now,id,lease).run();
    return json({job_id:id,state:"failed"});
   }
