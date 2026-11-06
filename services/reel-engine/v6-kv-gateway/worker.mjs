@@ -25,7 +25,7 @@ async function verifyGitHub(req){
  const c=x.body,n=TIME();
  if(c.iss!==OIDC_ISS||c.aud!==OIDC_AUD||c.repository!==ENGINE_REPO||String(c.repository_id)!==REPO_ID||
     String(c.repository_owner_id)!==OWNER_ID||c.ref!=="refs/heads/main"||c.workflow_ref!==OIDC_WF||
-    c.event_name!=="workflow_dispatch"||c.runner_environment!=="github-hosted"||
+    !(c.event_name==="workflow_dispatch"||(c.event_name==="issues"&&String(c.actor_id)===OWNER_ID))||c.runner_environment!=="github-hosted"||
     !Number.isFinite(c.iat)||!Number.isFinite(c.exp)||!Number.isFinite(c.nbf)||
     c.iat>n+30||c.nbf>n+30||c.iat<n-1200||c.exp<=n||c.exp-c.iat>1200||
     !/^[0-9]{5,15}$/.test(String(c.run_id)))return false;
