@@ -76,12 +76,13 @@ async function makeUpload(req,e){
  if(desc.length<20||desc.length>1000||/[\x00-\x1f]/.test(desc))return error("Reviewed visible-shot description required");
  if(b.rights_confirmed!==true||b.people_consent!==true||b.external_ai_approved!==true||b.free_gemini_data_use_consent!==true)
   return error("Explicit source, people and AI/free-tier consent required",422);
- if((b.audio_mode||"source_ambience_only")!=="source_ambience_only")return error("Unlicensed soundtrack blocked",422);
+ const audioMode=b.audio_mode||"source_ambience_only";
+ if(!["source_ambience_only","original_cc0"].includes(audioMode))return error("Unsupported private audio mode",422);
  const p=await e.DB.prepare("SELECT id FROM mad_v1_projects WHERE id=?").bind(b.project_id).first();
  if(!p)return error("Project not found",404);
  const id="v6job-"+crypto.randomUUID().replace(/-/g,""),now=TIME(),count=Math.ceil(size/CHUNK);
- const r=await e.DB.prepare("INSERT INTO mad_v6_kv_jobs(job_id,project_id,file_name,mime,bytes,source_sha256,source_chunks,source_description,state,created_at,updated_at,expires_at) VALUES(?,?,?,?,?,?,?,?,'uploading',?,?,?)")
-  .bind(id,b.project_id,name,mime,size,b.sha256,count,desc,now,now,now+RENDER_WINDOW).run();
+ const r=await e.DB.prepare("INSERT INTO mad_v6_kv_jobs(job_id,project_id,file_name,mime,bytes,source_sha256,source_chunks,source_description,audio_mode,state,created_at,updated_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,'uploading',?,?,?)")
+  .bind(id,b.project_id,name,mime,size,b.sha256,count,desc,audioMode,now,now,now+RENDER_WINDOW).run();
  if(!r.success)return error("Upload database unavailable",503);
  return json({job_id:id,chunk_bytes:CHUNK,chunks:count,state:"uploading"},201);
 }
@@ -139,7 +140,7 @@ function publicState(j){
          download_available:state==="review_ready"&&expiry>now,
          expiry_at:expiry,seconds_remaining:expiry===null?null:Math.max(0,expiry-now),
          output_sha256:state==="review_ready"?j.output_sha256:null,
-         audio_mode:"source_ambience_only",published:false,error_code:j.error_code||null};
+         audio_mode:j.audio_mode||"source_ambience_only",published:false,error_code:j.error_code||null};
 }
 async function preview(req,e,j,download){
  const state=publicState(j);
@@ -215,7 +216,7 @@ async function internal(req,e,path){
   if(parts.length!==update.source_chunks)return error("Private source not fully uploaded",409);
   return json({job_id:id,claim_id:lease,source_sha256:update.source_sha256,source_chunks:update.source_chunks,
     source_bytes:update.bytes,mime:update.mime,source_description:update.source_description,brief:update.brief,
-    audio_mode:"source_ambience_only",rights_confirmed:true,people_consent:true,free_gemini_consent:true});
+    project_id:update.project_id,audio_mode:update.audio_mode||"source_ambience_only",rights_confirmed:true,people_consent:true,free_gemini_consent:true});
  }
  const j=await getJob(e,id);
  if(!j)return error("Private job not found",404);
