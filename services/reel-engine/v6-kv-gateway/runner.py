@@ -43,6 +43,10 @@ def mark(stage):
 def safe_failure(exc):
  code=SAFE_CAUSES.get(str(exc),"BLOCKED_UNCLASSIFIED") if isinstance(exc,multimodel.V6Blocked) else "NON_MODEL_FAILURE"
  return "V6_KV_PRIVATE_RENDER_FAILED stage="+ACTIVE_STAGE+" code="+code
+def recoverable_gemini_timeout(exc):
+ """Only observed Gemini research network timeouts may fall back to Groq."""
+ return (ACTIVE_STAGE=="gemini_research" and isinstance(exc,multimodel.V6Blocked)
+         and str(exc)=="Model API rejected or timed out; details redacted")
 def sha(p):
  h=hashlib.sha256()
  with p.open("rb") as f:
@@ -83,8 +87,17 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
  if fixture:
   mark("model_policy")
   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture")
+ fallback_reason="GEMINI_FREE_TIER_NOT_VERIFIED"
  if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true" or os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")=="true":
-  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",frames=frames,approved_api_cost=True,on_stage=mark)
+  try:
+   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",frames=frames,approved_api_cost=True,on_stage=mark)
+  except multimodel.V6Blocked as ex:
+   # Only allowlisted Gemini network timeouts trigger fallback. Safety, rights
+   # and creative-policy failures remain terminal; provider data is never logged.
+   if not recoverable_gemini_timeout(ex):
+    raise
+   fallback_reason="GEMINI_NETWORK_TIMEOUT"
+   print("V6_KV_MODEL_FALLBACK GEMINI_NETWORK_TIMEOUT_TO_GROQ_ONLY",flush=True)
  # Approved free-tier fallback: existing Groq models. No Gemini paid fallback.
  mark("model_policy")
  multimodel.read_config()
@@ -106,9 +119,9 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
  review=multimodel.groq_call("openai/gpt-oss-20b",review_prompt,temperature=.12,max_tokens=1300)
  mark("edl_compile")
  plan=multimodel.compile_reviewed_edl(manifest,director,review)
- plan.update({"model_roles":{"gemini":"SKIPPED_FREE_TIER_NOT_VERIFIED",
+ plan.update({"model_roles":{"gemini":"SKIPPED_"+fallback_reason,
     "groq_director":"openai/gpt-oss-120b","groq_reviewer":"openai/gpt-oss-20b"},
-    "model_policy":"free_tier_groq_only_fallback","live_model_inference":True,
+    "model_policy":"groq_only_fallback_"+fallback_reason.lower(),"live_model_inference":True,
     "source_rights_admitted":True,"audio_mode":"source_ambience_only",
     "published":False,"owner_approval":False})
  return plan

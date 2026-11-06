@@ -41,5 +41,20 @@ class StageDiagnosticTests(unittest.TestCase):
             "V6_KV_PRIVATE_RENDER_FAILED stage=filmcraft_render code=NON_MODEL_FAILURE")
         self.assertNotIn(secret,fail)
 
+    def test_timeout_fallback_only_for_gemini_research(self):
+        runner.ACTIVE_STAGE="gemini_research"
+        self.assertTrue(runner.recoverable_gemini_timeout(
+            runner.multimodel.V6Blocked("Model API rejected or timed out; details redacted")))
+        self.assertFalse(runner.recoverable_gemini_timeout(
+            runner.multimodel.V6Blocked("Explicit still-image processing consent and frame count required")))
+        self.assertFalse(runner.recoverable_gemini_timeout(
+            runner.multimodel.V6Blocked("Director storyboard required")))
+        runner.ACTIVE_STAGE="groq_director"
+        self.assertFalse(runner.recoverable_gemini_timeout(
+            runner.multimodel.V6Blocked("Model API rejected or timed out; details redacted")))
+        runner.ACTIVE_STAGE="gemini_research"
+        self.assertFalse(runner.recoverable_gemini_timeout(
+            RuntimeError("Model API rejected or timed out; details redacted")))
+
 if __name__=="__main__":
     unittest.main()
