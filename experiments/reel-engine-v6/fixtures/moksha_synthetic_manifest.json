@@ -1,0 +1,15 @@
+{
+  "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "human_reviewed": true,
+  "rights_and_consent_cleared": true,
+  "external_ai_processing_consent": false,
+  "synthetic_test_fixture_only": true,
+  "shots": [
+    {
+      "id": "synthetic_s1",
+      "start_seconds": 0.0,
+      "duration_seconds": 2.0,
+      "visible": "SYNTHETIC matte frame for isolated FilmCraft command verification, not a Moksha recording."
+    }
+  ]
+}

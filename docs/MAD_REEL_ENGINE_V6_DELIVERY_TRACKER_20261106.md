@@ -61,3 +61,53 @@
 - **No V6 implementation source exists in production.**
 - **No Gemini/Groq API requests performed**, no model settings changed, no FilMcraft conversion in GitHub runner, no workflow trigger, no FFmpeg changes, no new media/job/project, no deployment, no publication.
 - Status to tell owner: **“V6 documented/initialized in Git; implementation not started; V5 still running Groq-only and FFmpeg; previous Gemini+Groq combination reinstated in the V6 target architecture only.”**
+
+## 6. V6 implementation kickoff — 2026-11-06, revised owner instruction
+
+The owner subsequently instructed: **"Start with reel engine v6 and gemini is pro account api key."** This supersedes the earlier **no execution** restriction for isolated V6 development, NOT for changing V5 production, using chargeable inference, real guest footage, automatic publishing, or declaring certification.
+
+**Account clarification:** Use the owner's existing Gemini Pro API key route `GEMINI_API_KEY`, not a presumption that Workspace/Business subscriptions convey API access. Model selection is from the key's live `models.list` response, Pro `generateContent` candidate first, never silently substitute Flash. API billing/privacy entitlement remains unverified until separately evidenced. Keep server-side secrets out of source/logs; no inference without the free/approved-cost gate.
+
+**Implementation branch:** `feature/reel-engine-v6-gemini-pro-filmcraft-20261106` (not merged; not deployed).
+- V6-01 **SOURCE_ONLY IMPLEMENTED, CI pending:** `experiments/reel-engine-v6/v6_config.json`, `v6_contract.py`, offline contract regression tests. Explicit `gemini_plus_groq` routing roles: Gemini Pro research, Groq 120B director, Groq 20B editor reviewer. V5 remains production default.
+- V6-02 **SOURCE_ONLY PARTIAL:** `gemini_pro_preflight.py` reuses existing V4.2 Gemini key-from-environment and allowlisted HTTPS REST, offers opt-in READ-ONLY Pro model discovery with no inference/media. No claim that Pro quota or billing status is verified.
+- V6-03 **CONTRACT ONLY:** distinct Groq model identities validated; live director/reviewer execution and evidence receipts not yet integrated.
+- V6-04 **SOURCE_ONLY PARTIAL:** existing FilmCraft experimental adapter ported to `services/reel-engine/filmcraft_v6_adapter.py`; source SHA/consent and audio rights are checked before editor admission. Native command-accepted receipts remain visibly `output_unverified`, not `creative_complete`. GitHub signed private V6 queue/export still NOT INTEGRATED.
+- V6-05 **SOURCE_ONLY PARTIAL:** immutable effect IDs and 1:1 command receipt requirements; independent output verification pending.
+- V6-06–11 **OPEN:** FilmCraft music approval/mixing actual audio output, private queue, artistic and mobile positive-owner acceptance, and release remain blocked.
+- `.github/workflows/mad-v6-gemini-pro-contracts.yml` introduced as isolated offline CI; optional authenticated model LISTING requires explicit manual opt-in. No keys, billed inference, real media, production workflow or customer data in these files.
+
+**Certification status:** source implementation only pending CI readback; not a V6 render or an owner's accepted reel. **Rollback:** close branch/draft PR, leave V5 runtime unchanged. Master Registry final sync and consumer acknowledgements are pending a verified eligible default-branch change and required publication readback.
+
+## 7. Verified V6 branch-only kickoff readback (2026-11-06 IST)
+
+**Developed:** isolated source branch `feature/reel-engine-v6-gemini-pro-filmcraft-20261106`; [draft PR #165](https://github.com/karanzing1992/engagement-core/pull/165). Source commit at offline Dell certification: `9812d0709d7c0f7da19e186c7191eb115a6cf375`.
+
+**Dell independently executed tests:** 13/13 offline unit tests PASS and V6 Python modules compile, job receipt ID `b397d004151e4a198e05285a900e6d8a` on online `dell-linux`; isolated temporary checkout removed. Tests cover Gemini Pro general-purpose selector, Groq model-role constraints, strict FilmCraft-only config, effect IDs, omitted-effect rejection, source rights, SHA-256 and audio license admission. No real editor process or inference attempted.
+
+**GitHub Actions verification:** [V6 run 42104046740](https://github.com/karanzing1992/engagement-core/actions/runs/42104046740) finished **success**: source-contracts and `gemini-pro-key-metadata-probe`. Probe authenticated existing `GEMINI_API_KEY` with a GET-only models.list call, returned **7** eligible Pro generation model IDs, and selected generic-purpose `gemini-3.1-pro-preview` (not the specialized `-customtools` variant). This proves an API key can list supported models, NOT that Gemini Pro generation/vision requests are certified, billed API quota is free or subscription tier guarantees API entitlements. No media was transmitted and no inference performed. No key bytes were exposed.
+
+**Scope/release classification:** `SOURCE_ONLY_BRANCH_TESTED`; LIVE V5 unmodified. **Do not merge or promote V6 from a metadata preflight.** Next technical gate: implement independent full-model invocation and source-grounded observation on fully synthetic approved inputs with cost/privacy checks, then signed GitHub FilmCraft export with meaningful independently inspected output effects. Follow with licensed audio and user-private preview; real guest footage only after rights/consent.
+
+**Master Stack delivery:** branch-only change tracked in PR #165. Route A registry publication requires a verified eligible default-branch change and actual Google Doc readback; separate consumers NOT ACKNOWLEDGED. Do not assert `FULLY_SYNCED` for this draft PR.
+
+## 8. 6 November integration sprint — audited synthetic beta preparation (source only)
+
+**Owner directive:** Integrate V6 components, smoke test and present for private beta. Retain the existing free/open-licensed third-party audio catalog. All changes are isolated to the V6 source branch and private GitHub vault branch; **V5 production and current PWA are unchanged**.
+
+**Verified implementation:**
+- V6 guarded model bridge `experiments/reel-engine-v6/multimodel_filmcraft_bridge.py`: Gemini Pro research -> Groq GPT-OSS-120B creative director -> GPT-OSS-20B independent technical reviewer, validated shot IDs/timestamps, reviewer-bound SHA256 and deterministic FilmCraft EDL. **Fixture/offline mode** is certified; **live three-provider inference is NOT certified** and requires approved API usage/privacy/cost and real key tests. No model can execute shell commands.
+- V6 audio library `experiments/reel-engine-v6/audio_library_v6.py` reuses existing Openverse and Wikimedia metadata discovery and validates independently reviewed CC0/PDM/CC BY, original recording provenance, local file SHA256, attribution and FilmCraft-only mixing admission. Music discovery results are NOT automatic licensing approval. No new music composed or synthesized; **actual licensed-audio mix is not certified**.
+- `services/reel-engine/filmcraft_v6_adapter.py` strengthened with FilmCraft native source audio detection, verified soundtrack digest, FilmCraft native soundtrack duration/probe and -6 dB placed gain. It does not invoke FFmpeg or FFprobe. Effects are marked command accepted but visually unverified until independent output inspection.
+- [Source contracts + FilmCraft smoke 42164457717](https://github.com/karanzing1992/engagement-core/actions/runs/42164457717): **35/35 Python tests PASS** and pinned native FilmCraft synthetic H.264 export PASS using V6 Gemini/Groq synthetic edit-plan contract. No real source, live model inference, real soundtrack or production route changed.
+- [Private vault actual MP4 end-to-end 42164717631](https://github.com/karanzing1992/Matrix-House/actions/runs/42164717631): Two actual FilmCraft-generated synthetic MP4s (raw and edited) rendered and hashed, uploaded as private GitHub draft Release assets, 1800-second completion-based expiry recorded, Release deleted after simulated expiry and GET 404 verified. Output 20,950 bytes. No guest/customer content used.
+- [Private vault policy PR #2](https://github.com/karanzing1992/Matrix-House/pull/2) remains unmerged/draft. Expiry polling was reduced from every 5 minutes to a 30-minute fallback to manage private GitHub Actions free minutes. Precisely at T+30:00, authenticated gateway must deny preview even if GitHub scheduled cleanup is delayed; production gateway and scheduled cleanup are **not live**.
+
+**Release blockers (P0):**
+1. Owner-authenticated Cloudflare PWA still speaks to V5 upload/render/preview APIs and shows 48-hour retention. V6 is not available through the live PWA; new V6 mode must be added on an isolated frontend branch and pass authenticated mobile testing. Attempted connected GitHub branch write was blocked by tool safety, so **no PWA branch or code changes were made** in that private repository.
+2. Dedicated owner-scoped **private GitHub vault API credential** is absent from the Cloudflare GitHub bridge; the existing ChatGPT GitHub connector token is not reusable or exposable. Do not copy other applications' credentials. The currently deployed `mad-reel-v5-github-mcp` Worker has no secret bindings; it cannot proxy private Release upload/preview.
+3. Real Gemini Pro `generateContent` capacity, privacy/business use and zero-charge API entitlement remain unverified; the prior `models.list` call proves only model discovery, not inference authorization. Real Groq 120B -> 20B chaining, output provenance and errors also require an independently observed smoke.
+4. Actual CC0/CC BY soundtrack selection with reviewed primary origin, audible FilmCraft mix, source-ambience balance and video/audio output review remains unverified. V6 MUST fail closed when soundtrack is requested but no licensed track is admitted.
+5. FilmCraft 1080x1920 actual output, at least one independently verified visible effect, visual safe-area QA, owner-positive-auth preview/download, exact expiry denial and scheduled cleanup retry remain OPEN.
+
+**Beta release verdict:** `INTEGRATED_SYNTHETIC_SOURCE_BETA_CANDIDATE` — **NOT OWNER-BETA READY / NOT DEPLOYED**. Never label a synthetic FilmCraft CLI success as final artistic/real-media certification. V5 remains the live version and rollback.

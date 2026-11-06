@@ -1,0 +1,111 @@
+name: MAD V6 | Native FilmCraft Audio Smoke
+on:
+  push:
+    branches: [feature/reel-engine-v6-gemini-pro-filmcraft-20261106]
+    paths:
+      - .github/workflows/mad-v6-native-audio-smoke.yml
+      - services/reel-engine/filmcraft_v6_adapter.py
+      - experiments/reel-engine-v6/audio_library_v6.py
+  pull_request:
+    paths:
+      - .github/workflows/mad-v6-native-audio-smoke.yml
+      - services/reel-engine/filmcraft_v6_adapter.py
+      - experiments/reel-engine-v6/audio_library_v6.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  filmcraft-synthetic-audio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install integrity-pinned native FilmCraft CLI (no FFmpeg)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/filmcraft"
+          cd "$RUNNER_TEMP/filmcraft"
+          curl -fLsS --retry 2 --connect-timeout 12 --max-time 180 -o filmcraft.tar.gz \
+            'https://github.com/storytold/filmcraft/releases/download/v0.16.0/filmcraft-0.16.0-linux-x86_64.tar.gz'
+          echo '588390eee5d7e1634f05794c4f877ddf29494d9cf74405111d67c16cbe215ae9  filmcraft.tar.gz' | sha256sum -c -
+          python3 - <<'PY'
+          import tarfile
+          with tarfile.open("filmcraft.tar.gz") as tf:
+            for e in tf.getmembers():
+              assert not e.name.startswith("/") and ".." not in e.name.split("/")
+              assert not (e.issym() or e.islnk() or e.isdev())
+          PY
+          tar -xzf filmcraft.tar.gz
+          cli="$RUNNER_TEMP/filmcraft/filmcraft-0.16.0-linux-x86_64/bin/filmcraft-cli"
+          test -x "$cli"
+          echo "FILMCRAFT_CLI=$cli" >> "$GITHUB_ENV"
+      - name: Generate original synthetic QA-only WAV test signal and checksum
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v6-audio"
+          python3 - <<'PY'
+          import json,math,hashlib,os,pathlib,struct,wave
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'v6-audio'
+          target=root/'synthetic-audio.wav'
+          sr=44100
+          with wave.open(str(target),'wb') as f:
+            f.setnchannels(1);f.setsampwidth(2);f.setframerate(sr)
+            f.writeframes(b''.join(struct.pack('<h',round(math.sin(2*math.pi*440*t/sr)*600)) for t in range(sr*4)))
+          sha=hashlib.sha256(target.read_bytes()).hexdigest()
+          rights={'human_verified':True,'license':'CC0',
+                  'creator':'https://example.org/mad-v6-synthetic-audio-qa/creator',
+                  'original_source_url':'https://example.org/mad-v6-synthetic-audio-qa',
+                  'original_license_url':'https://creativecommons.org/publicdomain/zero/1.0/',
+                  'audio_sha256':sha,'synthetic_audio_fixture_only':True}
+          (root/'fixture-rights.json').write_text(json.dumps(rights))
+          print('MAD_V6_QA_SIGNAL_CREATED',target.stat().st_size)
+          PY
+      - name: Diagnose native FilmCraft synthetic WAV media metadata shape
+        run: |
+          python3 - <<'PY'
+          import importlib.util,os,pathlib,json
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"v6-audio"
+          spec=importlib.util.spec_from_file_location("filmcraft","services/reel-engine/filmcraft_v6_adapter.py")
+          mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
+          client=mod.MCP(os.environ["FILMCRAFT_CLI"],root)
+          try:
+            result=client.cmd("mediaBrowser.probe",{"path":str(root/"synthetic-audio.wav")})
+            print("MAD_V6_SYNTHETIC_WAV_NATIVE_PROBE_SCHEMA",json.dumps(result)[:1700])
+          finally:client.close()
+          PY
+      - name: Verify FilmCraft native audio import, track gain, export and probe
+        run: |
+          set -euo pipefail
+          python3 services/reel-engine/filmcraft_v6_adapter.py \
+            --cli "$FILMCRAFT_CLI" \
+            --workdir "$RUNNER_TEMP/v6-audio" \
+            --width 480 --height 270 --fps 24 \
+            --music "$RUNNER_TEMP/v6-audio/synthetic-audio.wav" \
+            --music-rights-json "$RUNNER_TEMP/v6-audio/fixture-rights.json" \
+            --hook "SYNTHETIC QA SIGNAL, NOT REAL MUSIC" \
+            --output synthetic-audio.mp4
+          python3 - <<'PY'
+          import importlib.util,json,os,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"v6-audio"
+          receipt=json.loads((root/"filmcraft-receipt.json").read_text())
+          assert receipt["filmcraft_only"] and receipt["ffmpeg_invocations"]==0
+          assert receipt["music_native_probed"] is True
+          assert "approved_audio_placed_and_gain_reduced" in receipt["applied_operations"]
+          assert receipt["published"] is False
+          spec=importlib.util.spec_from_file_location("filmcraft","services/reel-engine/filmcraft_v6_adapter.py")
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          client=m.MCP(os.environ["FILMCRAFT_CLI"],root)
+          try:
+            output=client.cmd("mediaBrowser.probe",{"path":str(root/"synthetic-audio.mp4")})
+            assert output.get("info",{}).get("audio_streams"), "FilmCraft export lacks native audio streams"
+          finally:client.close()
+          print("V6_FILMCRAFT_SYNTHETIC_NATIVE_AUDIO_MIX_PASS")
+          print("REAL_LICENSED_SOUNDTRACK_CERTIFIED_FALSE")
+          PY
