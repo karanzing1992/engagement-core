@@ -203,6 +203,10 @@ async function internal(req,e,path){
   return seedSynthetic(req,e,id,now);
  }
  if(p[4]==="claim"&&req.method==="POST"){
+  if(claims.event_name==="issues"){
+   const current=await getJob(e,id);
+   if(!current||current.project_id!=="synthetic-owner-qa")return error("Issue QA cannot claim customer media",403);
+  }
   const lease=crypto.randomUUID();
   const update=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='rendering',claim_id=?,claimed_at=?,attempts=attempts+1,updated_at=? WHERE job_id=? AND state IN ('sent','dispatching') AND expires_at>? RETURNING *")
    .bind(lease,now,now,id,now).first();
@@ -215,6 +219,7 @@ async function internal(req,e,path){
  }
  const j=await getJob(e,id);
  if(!j)return error("Private job not found",404);
+ if(claims.event_name==="issues"&&j.project_id!=="synthetic-owner-qa")return error("Issue QA restricted to synthetic media",403);
  const lease=req.headers.get("x-v6-claim")||"";
  if(j.state!=="rendering"||j.claim_id!==lease||!lease||j.claimed_at<now-3300||j.expires_at<=now)return error("Invalid or stale private claim",403);
  if(p[4]==="source"&&p.length===6&&req.method==="GET"){
