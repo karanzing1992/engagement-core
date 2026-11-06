@@ -49,7 +49,7 @@ def call(path,identity,method="POST",claim=None,payload=None,data=None,digest=No
    return json.loads(body)
  except HTTPError as e:
   raise RuntimeError("Signed V6 KV endpoint rejected "+str(e.code)) from None
-def model_plan(src,brief,description,duration,fixture=False):
+def model_plan(src,brief,description,duration,fixture=False,frames=None):
  manifest={"source_sha256":src,"human_reviewed":True,"rights_and_consent_cleared":True,
    "external_ai_processing_consent":True,"shots":[{"id":"s1","start_seconds":0.0,
    "duration_seconds":min(120.,duration),"visible":description}]}
