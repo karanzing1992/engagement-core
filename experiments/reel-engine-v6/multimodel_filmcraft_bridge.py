@@ -15,9 +15,11 @@ from pathlib import Path
 import re
 import sys
 import urllib.request
+import urllib.error
+import time
 
 from v6_contract import (V6Blocked, read_config, validate_source_manifest,
-                         select_free_flash_model)
+                         select_free_flash_model,free_flash_models)
 from gemini_pro_preflight import adapter as legacy_adapter, discover_models
 from audio_library_v6 import resolve_audio
 
@@ -26,6 +28,9 @@ GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/"
 ALLOWED_EFFECTS = {"color_grade", "lumetri", "blur", "gaussian_blur",
                    "motion", "zoom", "title", "caption", "audio_gain"}
 MODEL_JSON_MAX = 25000
+
+class FreeModelTemporarilyUnavailable(V6Blocked):
+    pass
 
 
 def sha_json(value):
@@ -61,6 +66,10 @@ def post_json(url, headers, payload, timeout=50):
     try:
         with urllib.request.urlopen(req,timeout=timeout) as response:
             data=response.read(400001)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (429,500,502,503,504):
+            raise FreeModelTemporarilyUnavailable("Free model endpoint temporarily unavailable: HTTP "+str(exc.code)) from None
+        raise V6Blocked("Model API request rejected; provider response redacted") from None
     except Exception as exc:
         raise V6Blocked("Model API rejected or timed out; details redacted") from exc
     if len(data)>400000:
@@ -80,7 +89,8 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
     if not key:
         raise V6Blocked("Gemini free-tier API key not present")
     available=discover_models(key,legacy_adapter())
-    model=select_free_flash_model(available)
+    models=free_flash_models(available)
+    if not models:raise V6Blocked("No approved free Gemini Flash model available")
     # Frame sampling uses FilmCraft-native exports; only three consented stills, no private URLs.
     facts=[{"id":s["id"],"observed":s["visible"],
             "start_seconds":s["start_seconds"],
@@ -102,11 +112,23 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
                 raise V6Blocked("Gemini frame payload malformed")
             parts.append({"text":"Source frame at "+str(frame["time_seconds"])+" seconds; describe only visible content."})
             parts.append({"inline_data":{"mime_type":"image/jpeg","data":frame["data"]}})
-    result=post_json(GEMINI_ENDPOINT+model+":generateContent",
+    result=None
+    model=None
+    for candidate in models[:5]:
+        for attempt in range(2):
+            try:
+                result=post_json(GEMINI_ENDPOINT+candidate+":generateContent",
                      {"x-goog-api-key":key},
                      {"contents":[{"parts":parts}],
                       "generationConfig":{"responseMimeType":"application/json",
                                           "temperature":0.2,"maxOutputTokens":1400}},timeout=65)
+                model=candidate
+                break
+            except FreeModelTemporarilyUnavailable:
+                if attempt==0:time.sleep(2)
+        if result is not None:break
+    if result is None:
+        raise V6Blocked("All currently available free Flash candidate endpoints were unavailable")
     try:
         answer=result["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError,IndexError,TypeError) as exc:
