@@ -27,7 +27,7 @@ function client(path,opts={}){
  return new Request(base+path,{method:opts.method||"GET",headers,body:opts.body});
 }
 function toJSON(data){return JSON.stringify(data)}
-async function authorize(){
+async function authorize(eventName="workflow_dispatch",actorId="30191163"){
  const keys=await webcrypto.subtle.generateKey({name:"RSASSA-PKCS1-v1_5",modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:"SHA-256"},true,["sign","verify"]);
  const pub=await webcrypto.subtle.exportKey("jwk",keys.publicKey);
  const b64=s=>Buffer.from(s).toString("base64url");
@@ -35,7 +35,7 @@ async function authorize(){
  const claims=b64(JSON.stringify({iss:"https://token.actions.githubusercontent.com",aud:"mad-v6-cloudflare-kv/1",
  repository:"karanzing1992/engagement-core",repository_id:"1403281267",repository_owner_id:"30191163",
  ref:"refs/heads/main",workflow_ref:"karanzing1992/engagement-core/.github/workflows/mad-v6-kv-filmcraft.yml@refs/heads/main",
- runner_environment:"github-hosted",event_name:"workflow_dispatch",run_id:"42170000000",
+ runner_environment:"github-hosted",event_name:eventName,actor_id:actorId,run_id:"42170000000",
  iat:md()-10,nbf:md()-10,exp:md()+300}));
  const signature=Buffer.from(await webcrypto.subtle.sign("RSASSA-PKCS1-v1_5",keys.privateKey,Buffer.from(header+"."+claims))).toString("base64url");
  return {token:header+"."+claims+"."+signature,public:{...pub,kid:"local-test"}};
@@ -107,4 +107,21 @@ test("owner source upload -> signed OIDC FilmCraft-output handoff -> range previ
   assert.equal(storage.storage.size,0);
   console.log("V6_KV_SIGNED_E2E_SIMULATED_PASS owner auth/source SHA/OIDC/FilmCraft receipt/206/410/KV deletion");
  }finally{globalThis.fetch=old;db.close()}
+});
+
+test("only signed GitHub issue events from repository owner can enter synthetic QA",async()=>{
+ const {db,mock}=database(),store=kv();
+ const ownerProof=await authorize("issues","30191163");
+ const other=await authorize("issues","11111111");
+ const original=globalThis.fetch;
+ const e={DB:mock,MEDIA_KV:store,PROJECT_AUTH:{fetch:async()=>new Response("{}",{status:200})}};
+ globalThis.fetch=async()=>new Response(JSON.stringify({keys:[ownerProof.public]}),{status:200});
+ try{
+  const make=jwt=>new Request(base+"/internal/v6/jobs/v6job-"+"a".repeat(32)+"/claim",
+    {method:"POST",headers:{Authorization:"Bearer "+jwt}});
+  const authorized=await worker.fetch(make(ownerProof.token),e,{});
+  assert.equal(authorized.status,409);
+  const denied=await worker.fetch(make(other.token),e,{});
+  assert.equal(denied.status,401);
+ }finally{globalThis.fetch=original;db.close()}
 });
