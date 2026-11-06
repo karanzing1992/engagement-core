@@ -151,7 +151,10 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
            cuts:list[dict]|None=None,operations:list[list[dict]]|None=None,
            hook:str="",music:Path|None=None,width:int=1080,height:int=1920,fps:int=30,
            source_rights_cleared:bool=False,source_sha256:str|None=None,
-           music_rights:dict|None=None):
+           music_rights:dict|None=None,on_stage=None):
+    def stage(name):
+        if on_stage is not None:on_stage(name)
+    stage("filmcraft_source_preflight")
     if (width,height) not in ((480,270),(720,1280),(1080,1920)) or fps not in (24,30):
         raise FilmCraftError("FilmCraft export geometry not approved")
     # Source/media admission happens before starting FilmCraft, not after ingest.
@@ -168,6 +171,7 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
                 hasher.update(chunk)
         if hasher.hexdigest()!=source_sha256:
             raise FilmCraftError("Private source SHA256 mismatch")
+    stage("filmcraft_music_rights")
     if music is not None:
         if not isinstance(music_rights,dict) or music_rights.get("human_verified") is not True:
             raise FilmCraftError("Music license independent review missing")
@@ -179,10 +183,12 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
     workdir.mkdir(parents=True,exist_ok=True)
     if output.resolve().parent!=workdir.resolve():
         raise FilmCraftError("FilmCraft may export only to isolated job workdir")
+    stage("filmcraft_mcp_init")
     m=MCP(cli,workdir)
     try:
         probe=None;source_id=None;source_has_audio=False
         if source:
+            stage("filmcraft_source_probe")
             if not source.is_file() or source.stat().st_size<1024:raise FilmCraftError("Private source missing")
             probe=m.cmd("mediaBrowser.probe",{"path":str(source.resolve())})
             info=probe.get("info",{})
@@ -194,10 +200,13 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
             duration=None
         if cuts is None:cuts=[{"start":0.,"seconds":2.,"source_index":0}]
         if operations is None:operations=[[] for _ in cuts]
+        stage("filmcraft_edl_validate")
         total=validate_edl(cuts,operations,duration)
+        stage("filmcraft_sequence")
         m.cmd("file.newSequence",{"name":"MAD_V6_FILMCRAFT_PRIVATE_REVIEW",
             "width":width,"height":height,"fps":fps,"video":2,"audio":2})
         if source:
+            stage("filmcraft_source_import")
             m.tool("media_import",{"paths":[str(source.resolve())]})
             source_id=find_item(m.tool("project_inspect",{}),source.name)
         else:
@@ -209,11 +218,13 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
                 "sourceIn":{"seconds":float(cut.get("start",0))},
                 "duration":{"seconds":float(cut["seconds"])},"audio":source_has_audio,"video":True,
                 "matchSequence":False}
+            stage("filmcraft_timeline_place")
             placed=m.cmd("timeline.place",params)
             ids=placed.get("clips",[])
             if not ids or not isinstance(ids[0],int):
                 raise FilmCraftError("FilmCraft did not confirm placed clip ID")
             clips.append(ids[0])
+            stage("filmcraft_effects")
             commands_accepted=apply_operations(m,ids[0],op,timeline,total,i)
             if len(commands_accepted)!=len(op):
                 raise FilmCraftError("FilmCraft native command / creative effect count mismatch")
@@ -224,11 +235,13 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
             } for action,command in zip(op,commands_accepted))
             timeline+=float(cut["seconds"])
         if hook:
+            stage("filmcraft_hook")
             m.cmd("graphics.newText",{"text":hook[:100],"size":56 if width==480 else 80,
                 "seconds":min(2.8,total),"track":2,"time":0,
                 "position":[width*.08,height*.20]})
             applied.append("opening_title")
         if music:
+            stage("filmcraft_music_mix")
             if not music.is_file() or music.stat().st_size<1024:raise FilmCraftError("Approved music file absent")
             expect=music_rights.get("audio_sha256") if music_rights else None
             if not isinstance(expect,str) or len(expect)!=64:
@@ -252,10 +265,12 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
             applied.append("approved_audio_placed_and_gain_reduced")
         project=workdir/"filmcraft-private.fcproj"
         m.cmd("file.saveAs",{"path":str(project)})
+        stage("filmcraft_export")
         m.cmd("file.exportMedia",{"path":str(output),"format":"h264","width":width,
             "height":height,"fps":fps,"range":"custom","startSeconds":0,"endSeconds":total,
             "wait":True,"hardwareEncoding":"off","audio":source_has_audio or bool(music)},timeout=600)
         if not output.is_file() or output.stat().st_size<1024:raise FilmCraftError("FilmCraft export missing")
+        stage("filmcraft_verify_output")
         verified=m.cmd("mediaBrowser.probe",{"path":str(output)})
         verified_info=verified.get("info",{})
         video=verified_info.get("video",{})

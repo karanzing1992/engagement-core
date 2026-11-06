@@ -41,6 +41,14 @@ class StageDiagnosticTests(unittest.TestCase):
             "V6_KV_PRIVATE_RENDER_FAILED stage=filmcraft_render code=NON_MODEL_FAILURE")
         self.assertNotIn(secret,fail)
 
+    def test_allowlisted_filmcraft_failure_without_exposure(self):
+        runner.ACTIVE_STAGE="filmcraft_effects"
+        error=runner.filmcraft.FilmCraftError("Grounded title text required")
+        self.assertEqual(runner.safe_failure(error),
+            "V6_KV_PRIVATE_RENDER_FAILED stage=filmcraft_effects code=FILMCRAFT_TITLE_MISSING")
+        error=runner.filmcraft.FilmCraftError("secret guest folder")
+        self.assertNotIn("secret guest folder",runner.safe_failure(error))
+
     def test_timeout_fallback_only_for_gemini_research(self):
         runner.ACTIVE_STAGE="gemini_research"
         self.assertTrue(runner.recoverable_gemini_timeout(

@@ -18,7 +18,7 @@ GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
 CHUNK=4*1024*1024
 # Diagnostic output contains only fixed labels and allowlisted codes, never footage or provider data.
-STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","frame_sampling","model_policy","gemini_research","groq_director","groq_reviewer","edl_compile","audio_compose","filmcraft_render","output_upload","private_complete"))
+STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","frame_sampling","model_policy","gemini_research","groq_director","groq_reviewer","edl_compile","audio_compose","filmcraft_render","filmcraft_source_preflight","filmcraft_music_rights","filmcraft_mcp_init","filmcraft_source_probe","filmcraft_edl_validate","filmcraft_sequence","filmcraft_source_import","filmcraft_timeline_place","filmcraft_effects","filmcraft_hook","filmcraft_music_mix","filmcraft_export","filmcraft_verify_output","output_upload","private_complete"))
 ACTIVE_STAGE="start"
 SAFE_CAUSES={
  "All currently available free Flash candidate endpoints were unavailable":"GEMINI_ENDPOINT_UNAVAILABLE",
@@ -41,8 +41,24 @@ def mark(stage):
  if stage not in STAGES:raise ValueError("Unknown fixed diagnostic stage")
  ACTIVE_STAGE=stage
  print("V6_KV_STAGE "+stage,flush=True)
+FILMCRAFT_SAFE_CAUSES={
+ "Source duration outside owner-beta admission":"FILMCRAFT_SOURCE_DURATION",
+ "Timeline section exceeds source bounds":"FILMCRAFT_SOURCE_BOUNDS",
+ "FilmCraft MCP request failed":"FILMCRAFT_MCP_COMMAND_REJECTED",
+ "FilmCraft command_run failed (details redacted)":"FILMCRAFT_COMMAND_REJECTED",
+ "Grounded title text required":"FILMCRAFT_TITLE_MISSING",
+ "FilmCraft media item ID unverified":"FILMCRAFT_IMPORT_UNVERIFIED",
+ "FilmCraft did not confirm placed clip ID":"FILMCRAFT_TIMELINE_PLACE_REJECTED",
+ "FilmCraft native command / creative effect count mismatch":"FILMCRAFT_EFFECT_MISMATCH",
+ "FilmCraft source SHA256 mismatch":"FILMCRAFT_SOURCE_HASH_MISMATCH",
+ "Approved music shorter than timeline; no silent truncation":"FILMCRAFT_MUSIC_DURATION",
+ "FilmCraft native audio probe rejected soundtrack":"FILMCRAFT_AUDIO_PROBE",
+ "FilmCraft export missing":"FILMCRAFT_EXPORT_MISSING",
+}
 def safe_failure(exc):
- code=SAFE_CAUSES.get(str(exc),"BLOCKED_UNCLASSIFIED") if isinstance(exc,multimodel.V6Blocked) else "NON_MODEL_FAILURE"
+ if isinstance(exc,multimodel.V6Blocked):code=SAFE_CAUSES.get(str(exc),"BLOCKED_UNCLASSIFIED")
+ elif isinstance(exc,filmcraft.FilmCraftError):code=FILMCRAFT_SAFE_CAUSES.get(str(exc),"FILMCRAFT_REJECTED")
+ else:code="NON_MODEL_FAILURE"
  return "V6_KV_PRIVATE_RENDER_FAILED stage="+ACTIVE_STAGE+" code="+code
 def recoverable_gemini_timeout(exc):
  """Only observed Gemini research network timeouts may fall back to Groq."""
@@ -200,7 +216,7 @@ def run(job_id,*,fixture=False):
      source_rights_cleared=True,source_sha256=claim["source_sha256"],
      cuts=plan["cuts"],operations=plan["operations"],hook=plan["hook"],
      music=Path(audio["file"]),music_rights=audio["filmcraft_rights"],
-     width=1080,height=1920,fps=30)
+     width=1080,height=1920,fps=30,on_stage=mark)
   if rec.get("rendered") is not True or rec.get("ffmpeg_invocations")!=0 or not out.exists():
    raise RuntimeError("Native FilmCraft rendered output verification failed")
   digest=sha(out);n=math.ceil(out.stat().st_size/CHUNK)
