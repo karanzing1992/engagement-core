@@ -69,6 +69,30 @@ class IntegrationTests(unittest.TestCase):
   self.assertEqual(model,"gemini-3.7-flash")
   self.assertEqual(len(urls),3)
   self.assertFalse(any("-pro" in z for z in urls))
+ def test_reviewer_metadata_repair_never_overrides_rejection(self):
+  proposal={"hook":"A calm reset","segments":[
+   {"shot_id":"s1","start_seconds":0,"duration_seconds":1.3,"effects":[]},
+   {"shot_id":"s1","start_seconds":1.3,"duration_seconds":1.3,"effects":[]}]}
+  good={"approved":True,"director_plan_sha256":mm.sha_json(proposal),
+        "segment_decisions":[{"segment_index":0,"approved":True},
+                             {"segment_index":1,"approved":True}]}
+  self.assertFalse(mm.reviewer_schema_needs_retry(proposal,good))
+  mismatch={**good,"director_plan_sha256":"z"*64}
+  self.assertTrue(mm.reviewer_schema_needs_retry(proposal,mismatch))
+  missing={**good,"segment_decisions":[{"segment_index":0,"approved":True}]}
+  self.assertTrue(mm.reviewer_schema_needs_retry(proposal,missing))
+  wrong={**good,"segment_decisions":[{"segment_index":1,"approved":True},
+                                     {"segment_index":0,"approved":True}]}
+  self.assertTrue(mm.reviewer_schema_needs_retry(proposal,wrong))
+  denied={**good,"approved":False}
+  self.assertFalse(mm.reviewer_schema_needs_retry(proposal,denied))
+  segment_denied={**good,"segment_decisions":[{"segment_index":0,"approved":False},
+                                             {"segment_index":1,"approved":True}]}
+  self.assertFalse(mm.reviewer_schema_needs_retry(proposal,segment_denied))
+  with self.assertRaises(mm.V6Blocked):
+   mm.compile_reviewed_edl(SOURCE,proposal,segment_denied)
+  self.assertFalse(mm.reviewer_schema_needs_retry(proposal,{}))
+
  def test_audio_profile_generic(self):
   self.assertEqual(audio.choose("A calm serene scenic sequence"),"ambient")
   self.assertEqual(audio.choose("A high energy fitness reel"),"uplift")
