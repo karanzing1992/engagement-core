@@ -18,7 +18,7 @@ import sys
 import urllib.request
 
 from v6_contract import (V6Blocked, read_config, validate_source_manifest,
-                         select_free_flash_model)
+                         select_free_flash_model, free_flash_models)
 from gemini_pro_preflight import adapter as legacy_adapter, discover_models
 from audio_library_v6 import resolve_audio
 from gemini_frames_v6 import inline_parts
@@ -80,7 +80,8 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
     if not key:
         raise V6Blocked("Gemini free-tier API key not present")
     available=discover_models(key,legacy_adapter())
-    model=select_free_flash_model(available)
+    models=free_flash_models(available)[:3]
+    if not models:raise V6Blocked("No approved Gemini Flash generation model")
     # Only approved, human-reviewed descriptions, NEVER raw frames or private URLs.
     facts=[{"id":s["id"],"observed":s["visible"],
             "start_seconds":s["start_seconds"],
