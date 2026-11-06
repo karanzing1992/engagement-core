@@ -125,3 +125,41 @@ test("only signed GitHub issue events from repository owner can enter synthetic 
   assert.equal(denied.status,401);
  }finally{globalThis.fetch=original;db.close()}
 });
+
+
+test("owner issue JWT seeds synthetic MP4 only, rejects nonowner signed issues and customer claim",async()=>{
+ const {db,mock}=database(),store=kv();
+ const proof=await authorize("issues","30191163");
+ const forged=await authorize("issues","10001111");
+ const old=globalThis.fetch;
+ globalThis.fetch=async ()=>new Response(JSON.stringify({keys:[proof.public]}),{status:200});
+ const env={DB:mock,MEDIA_KV:store};
+ const id="v6job-"+"b".repeat(32);
+ const synthetic=Buffer.alloc(2048);
+ synthetic.write("ftyp",4);
+ const upload=jwt=>new Request(base+"/internal/v6/jobs/"+id+"/seed",{method:"POST",
+  headers:{Authorization:"Bearer "+jwt,"Content-Type":"video/mp4","Content-Length":String(synthetic.length),"X-Chunk-SHA256":SHA(synthetic)},body:synthetic});
+ try{
+   const denied=await worker.fetch(upload(forged.token),env,{});
+   assert.equal(denied.status,401);
+   const created=await worker.fetch(upload(proof.token),env,{});
+   assert.equal(created.status,201);
+   const row=db.prepare("SELECT project_id,state,source_sha256 FROM mad_v6_kv_jobs WHERE job_id=?").get(id);
+   assert.equal(row.project_id,"synthetic-owner-qa");
+   assert.equal(row.source_sha256,SHA(synthetic));
+   assert.equal(store.storage.size,1);
+   const replay=await worker.fetch(upload(proof.token),env,{});
+   assert.equal(replay.status,409);
+   const other="v6job-"+"c".repeat(32);
+   const now=md();
+   db.prepare("INSERT INTO mad_v6_kv_jobs(job_id,project_id,file_name,mime,bytes,source_sha256,source_chunks,source_description,brief,state,created_at,updated_at,expires_at) VALUES(?,?,?,?,?,?,1,?,?,'sent',?,?,?)")
+    .run(other,"reel-"+"a".repeat(36),"private.mp4","video/mp4",2048,SHA(synthetic),
+      "Owner footage must not be available to issue-driven tests","Original user film brief",now,now,now+3600);
+   const claim=new Request(base+"/internal/v6/jobs/"+other+"/claim",{method:"POST",
+    headers:{Authorization:"Bearer "+proof.token}});
+   const blocked=await worker.fetch(claim,env,{});
+   assert.equal(blocked.status,403);
+   assert.equal(db.prepare("SELECT state FROM mad_v6_kv_jobs WHERE job_id=?").get(other).state,"sent");
+   console.log("SIGNED_SYNTHETIC_QA_UPLOAD_PASS_REAL_USER_MEDIA_DENIED");
+ }finally{globalThis.fetch=old;db.close()}
+});
