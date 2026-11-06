@@ -17,6 +17,32 @@ from original_cc0_audio import compose as cc0_compose,choose as select_audio_pro
 GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
 CHUNK=4*1024*1024
+# Diagnostic output contains only fixed labels and allowlisted codes, never footage or provider data.
+STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","frame_sampling","model_policy","gemini_research","groq_director","groq_reviewer","edl_compile","audio_compose","filmcraft_render","output_upload","private_complete"))
+ACTIVE_STAGE="start"
+SAFE_CAUSES={
+ "All currently available free Flash candidate endpoints were unavailable":"GEMINI_ENDPOINT_UNAVAILABLE",
+ "No approved free Gemini Flash model available":"GEMINI_MODEL_UNAVAILABLE",
+ "Gemini free-tier API key not present":"GEMINI_KEY_MISSING",
+ "Model API request rejected; provider response redacted":"MODEL_PROVIDER_REJECTED",
+ "Model API rejected or timed out; details redacted":"MODEL_PROVIDER_TIMEOUT",
+ "Groq response lacks validated JSON":"GROQ_JSON_REJECTED",
+ "Model response was not JSON":"MODEL_JSON_REJECTED",
+ "Model returned non-object":"MODEL_JSON_REJECTED",
+ "Model JSON missing or over size budget":"MODEL_JSON_REJECTED",
+ "Director storyboard required":"DIRECTOR_INVALID",
+ "Editor rejected one or more proposed FilmCraft edits":"REVIEW_REJECTED",
+ "Editor-review per-segment approval incomplete":"REVIEW_INCOMPLETE",
+ "Gemini Flash returned no usable source observations":"GEMINI_OBSERVATIONS_INVALID",
+}
+def mark(stage):
+ global ACTIVE_STAGE
+ if stage not in STAGES:raise ValueError("Unknown fixed diagnostic stage")
+ ACTIVE_STAGE=stage
+ print("V6_KV_STAGE "+stage,flush=True)
+def safe_failure(exc):
+ code=SAFE_CAUSES.get(str(exc),"BLOCKED_UNCLASSIFIED") if isinstance(exc,multimodel.V6Blocked) else "NON_MODEL_FAILURE"
+ return "V6_KV_PRIVATE_RENDER_FAILED stage="+ACTIVE_STAGE+" code="+code
 def sha(p):
  h=hashlib.sha256()
  with p.open("rb") as f:
@@ -55,10 +81,12 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
    "duration_seconds":min(120.,duration),"visible":description}]}
  brand=""  # Generic content: no brand context unless supplied by the owner.
  if fixture:
+  mark("model_policy")
   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture")
  if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true" or os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")=="true":
-  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",frames=frames,approved_api_cost=True)
+  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",frames=frames,approved_api_cost=True,on_stage=mark)
  # Approved free-tier fallback: existing Groq models. No Gemini paid fallback.
+ mark("model_policy")
  multimodel.read_config()
  multimodel.validate_source_manifest(manifest,external_gemini_frames=False)
  observed={"observations":[{"shot_id":"s1","visible":description}],
@@ -68,12 +96,15 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
          "Act as premium cinematic director. No fabricated shot or off-screen activity. "
          "Actual reviewed source "+json.dumps(manifest["shots"])+
          " Brand "+brand+" Creative direction "+brief)
+ mark("groq_director")
  director=multimodel.groq_call("openai/gpt-oss-120b",prompt,temperature=.65,max_tokens=1800)
  multimodel.validate_director(manifest,director)
  review_prompt=("Independently reject invented timecodes/effects. Return strict JSON with approved boolean, "
    "director_plan_sha256 and segment_decisions: index+approved for all segments. "
    "Use this exact director sha:"+multimodel.sha_json(director)+" and storyboard:"+json.dumps(director))
+ mark("groq_reviewer")
  review=multimodel.groq_call("openai/gpt-oss-20b",review_prompt,temperature=.12,max_tokens=1300)
+ mark("edl_compile")
  plan=multimodel.compile_reviewed_edl(manifest,director,review)
  plan.update({"model_roles":{"gemini":"SKIPPED_FREE_TIER_NOT_VERIFIED",
     "groq_director":"openai/gpt-oss-120b","groq_reviewer":"openai/gpt-oss-20b"},
@@ -87,7 +118,9 @@ def run(job_id,*,fixture=False):
  if not os.environ.get("FILMCRAFT_CLI"):raise ValueError("FilmCraft binary missing")
  work=Path(os.environ["RUNNER_TEMP"])/("mad-v6-"+job_id)
  work.mkdir(mode=0o700,parents=True,exist_ok=True)
+ mark("oidc")
  identity=token()
+ mark("job_claim")
  claim=call("/internal/v6/jobs/"+job_id+"/claim",identity)
  if claim.get("job_id")!=job_id or not claim.get("rights_confirmed") or not claim.get("people_consent"):
   raise RuntimeError("Unauthorized owner source")
@@ -97,6 +130,7 @@ def run(job_id,*,fixture=False):
  if not extension:raise RuntimeError("Unsupported source media")
  src=work/("source."+extension);out=work/"v6-output.mp4"
  try:
+  mark("source_download")
   with src.open("wb") as f:
    for i in range(claim["source_chunks"]):
     part=call("/internal/v6/jobs/"+job_id+"/source/"+str(i),identity,method="GET",claim=lease)
@@ -105,6 +139,7 @@ def run(job_id,*,fixture=False):
     f.write(part)
   if src.stat().st_size!=claim["source_bytes"] or sha(src)!=claim["source_sha256"]:
    raise RuntimeError("Source media SHA-256 verification failed")
+  mark("media_probe")
   m=filmcraft.MCP(os.environ["FILMCRAFT_CLI"],work)
   try:
    native=m.cmd("mediaBrowser.probe",{"path":str(src)}).get("info",{})
@@ -113,12 +148,16 @@ def run(job_id,*,fixture=False):
   finally:m.close()
   synthetic=fixture and claim.get("source_description","").startswith("SYNTHETIC QA:")
   if fixture and not synthetic:raise RuntimeError("Synthetic fixture cannot render real guest footage")
+  mark("frame_sampling")
   frames=[] if synthetic else filmcraft_frames(os.environ["FILMCRAFT_CLI"],work,src,duration,
     consent=bool(claim.get("free_gemini_consent")) and bool(claim.get("rights_confirmed")),
     source_sha256=claim["source_sha256"])
+  mark("model_policy")
   plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,fixture=synthetic,frames=frames)
+  mark("audio_compose")
   audio=cc0_compose(work/"v6-original-cc0-soundtrack.wav",max(3.0,sum(c["seconds"] for c in plan["cuts"])),
     select_audio_profile(claim["brief"]))
+  mark("filmcraft_render")
   rec=filmcraft.render(cli=os.environ["FILMCRAFT_CLI"],workdir=work,output=out,source=src,
      source_rights_cleared=True,source_sha256=claim["source_sha256"],
      cuts=plan["cuts"],operations=plan["operations"],hook=plan["hook"],
@@ -128,6 +167,7 @@ def run(job_id,*,fixture=False):
    raise RuntimeError("Native FilmCraft rendered output verification failed")
   digest=sha(out);n=math.ceil(out.stat().st_size/CHUNK)
   if digest!=rec.get("sha256") or not 1<=n<=20:raise RuntimeError("Output SHA/size invalid")
+  mark("output_upload")
   with out.open("rb") as f:
    for i in range(n):
     payload=f.read(CHUNK)
@@ -144,6 +184,7 @@ def run(job_id,*,fixture=False):
   receipt["product_context"]="generic"
   receipt["published"]=False
   receipt["owner_approval"]=False
+  mark("private_complete")
   result=call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,
     payload={"state":"review_ready","chunks":n,"bytes":out.stat().st_size,"sha256":digest,"receipt":receipt})
   if result.get("state")!="review_ready":raise RuntimeError("Private server output certification rejected")
@@ -161,4 +202,4 @@ if __name__=="__main__":
  a=p.parse_args()
  try:run(a.job_id,fixture=a.synthetic_fixture)
  except Exception as ex:
-  print("V6_KV_PRIVATE_RENDER_FAILED",type(ex).__name__,file=sys.stderr);sys.exit(2)
+  print(safe_failure(ex),file=sys.stderr,flush=True);sys.exit(2)
