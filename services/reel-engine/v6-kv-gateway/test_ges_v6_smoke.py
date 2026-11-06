@@ -20,8 +20,13 @@ def main():
         spec={"source":str(src),"source_sha256":hashlib.sha256(src.read_bytes()).hexdigest(),
               "music":str(music),"music_sha256":hashlib.sha256(music.read_bytes()).hexdigest(),
               "workdir":str(w),"output":str(out),
-              "cuts":[{"start":0.0,"seconds":3.0,"source_index":0}],
-              "operations":[[{"id":"c1","name":"color_grade","parameters":{"contrast":12}}]],
+              "cuts":[{"start":0.0,"seconds":1.5,"source_index":0},
+                      {"start":1.5,"seconds":1.5,"source_index":1}],
+              "operations":[[
+                  {"id":"c1","name":"color_grade","parameters":{"contrast":12}},
+                  {"id":"t1","name":"title","parameters":{"text":"VISIBLE SOURCE"}},
+                  {"id":"t2","name":"caption","parameters":{"text":"BREATHE"}}],
+                  [{"id":"t3","name":"title","parameters":{"text":"SCENE TWO"}}]],
               "hook":"VISIBLE FOOTAGE TEST","width":480,"height":270,"fps":24}
         (w/"spec.json").write_text(json.dumps(spec))
         run("/usr/bin/python3",str(root/"ges_v6_adapter.py"),"--spec",str(w/"spec.json"),"--receipt",str(w/"receipt.json"))
