@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""V6 Gemini Pro read-only API preflight. No inference, media transfer or billing changes.
+"""V6 free Gemini Flash read-only API preflight. No inference, media transfer or billing changes.
 
 Reuses the existing V4.2 authenticated REST transport without its video sampler.
 Online discovery must be explicitly requested; no API key is ever printed.
@@ -14,7 +14,7 @@ from urllib.parse import quote
 
 HERE = Path(__file__).resolve().parent
 V42 = HERE.parent / "reel-engine-v4_2" / "gemini_adapter.py"
-from v6_contract import V6Blocked, read_config, pro_models, select_pro_model
+from v6_contract import V6Blocked, read_config, free_flash_models, select_free_flash_model
 
 
 def adapter():
@@ -57,7 +57,7 @@ def preflight(*, online: bool, accept_api_terms: bool, model: str | None = None)
             "v6_policy": c["provider_policy"]["mode"],
             "gemini_model_selection": c["model_roles"]["research"]["model"],
             "gemini_api_key_verified": False,
-            "gemini_account_pro_entitlement": "owner_reported_not_verified",
+            "gemini_project_free_tier": "unverified_must_be_confirmed_before_inference",
             "api_billing_and_privacy_tier_verified": False,
             "model_inference_performed": False,
             "external_media_sent": False,
@@ -68,13 +68,13 @@ def preflight(*, online: bool, accept_api_terms: bool, model: str | None = None)
     v42 = adapter()
     key = v42.key_from_environment()
     available = discover_models(key, v42)
-    selected = select_pro_model(available, approved_model=model)
+    selected = select_free_flash_model(available, approved_model=model)
     return {
         "stage": "authenticated_model_list_only",
-        "gemini_pro_generation_model_candidate": selected,
-        "pro_candidate_count": len(pro_models(available)),
+        "gemini_free_generation_model_candidate": selected,
+        "free_candidate_count": len(free_flash_models(available)),
         "gemini_api_key_verified": True,
-        "gemini_account_pro_entitlement": "model_visibility_verified_not_subscription_verified",
+        "gemini_project_free_tier": "not_verified_by_model_discovery",
         "api_billing_and_privacy_tier_verified": False,
         "model_inference_performed": False,
         "external_media_sent": False,
@@ -86,7 +86,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--online-model-discovery", action="store_true")
     ap.add_argument("--acknowledge-api-terms", action="store_true")
-    ap.add_argument("--model", help="Optional exact Pro model from live available list")
+    ap.add_argument("--model", help="Optional exact free-tier Flash model from live available list")
     args = ap.parse_args(argv)
     try:
         result = preflight(online=args.online_model_discovery,
