@@ -31,6 +31,7 @@ SAFE_CAUSES={
  "Model returned non-object":"MODEL_JSON_REJECTED",
  "Model JSON missing or over size budget":"MODEL_JSON_REJECTED",
  "Director storyboard required":"DIRECTOR_INVALID",
+ "Opening hook missing":"DIRECTOR_HOOK_MISSING",
  "Editor rejected one or more proposed FilmCraft edits":"REVIEW_REJECTED",
  "Editor-review per-segment approval incomplete":"REVIEW_INCOMPLETE",
  "Gemini Flash returned no usable source observations":"GEMINI_OBSERVATIONS_INVALID",
@@ -104,14 +105,34 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
  multimodel.validate_source_manifest(manifest,external_gemini_frames=False)
  observed={"observations":[{"shot_id":"s1","visible":description}],
            "research_scope":"Human-reviewed and owner-authorized footage description; no independent visual inference."}
- prompt=("Return JSON {\"hook\":string,\"segments\":[{\"shot_id\":\"s1\",\"start_seconds\":number,"
-         "\"duration_seconds\":number,\"effects\":[{\"name\":\"color_grade\",\"parameters\":{\"contrast\":12}}]}]}. "
-         "Act as premium cinematic director. No fabricated shot or off-screen activity. "
-         "Actual reviewed source "+json.dumps(manifest["shots"])+
-         " Brand "+brand+" Creative direction "+brief)
+ # Supply concrete JSON values instead of pseudo-schema placeholders.
+ schema={"hook":"A moment to reset","segments":[{"shot_id":"s1","start_seconds":0.0,
+         "duration_seconds":min(4.0,duration),"effects":[{"name":"color_grade","parameters":{"contrast":12}}]}]}
+ prompt=("Act as a premium cinematic director. Return ONLY valid JSON with a non-empty "
+         "hook (1-90 characters) and 1-4 verified source segments. Each segment must include "
+         "shot_id, numeric start_seconds, numeric duration_seconds >= 0.4 and an effects list. "
+         "Allowed effect names: color_grade, motion, zoom, title, caption; each has a "
+         "parameters object. Never invent unseen footage, people, dialogue, or off-screen "
+         "activities. Timecodes must stay within the verified source. "
+         "EXAMPLE JSON shape with concrete values: "+json.dumps(schema)+
+         " Verified source: "+json.dumps(manifest["shots"])+
+         " Optional brand: "+brand+" Owner direction: "+brief)
  mark("groq_director")
- director=multimodel.groq_call("openai/gpt-oss-120b",prompt,temperature=.65,max_tokens=1800)
- multimodel.validate_director(manifest,director)
+ director=multimodel.groq_call("openai/gpt-oss-120b",prompt,temperature=.40,max_tokens=1800)
+ try:
+  multimodel.validate_director(manifest,director)
+ except multimodel.V6Blocked as ex:
+  if str(ex)!="Opening hook missing":raise
+  # One bounded hook-only correction; all other policy failures remain terminal.
+  print("V6_KV_DIRECTOR_SCHEMA_RETRY HOOK_REQUIRED",flush=True)
+  repair=("Your prior reply omitted a non-empty opening hook. Return ONLY "
+          "complete valid JSON: hook 1-90 characters and segments using ONLY "
+          "verified source facts/timecodes with supported effect names. "
+          "Concrete example JSON shape: "+json.dumps(schema)+
+          " Verified source: "+json.dumps(manifest["shots"])+
+          " Owner direction: "+brief)
+  director=multimodel.groq_call("openai/gpt-oss-120b",repair,temperature=.2,max_tokens=1600)
+  multimodel.validate_director(manifest,director)
  review_prompt=("Independently reject invented timecodes/effects. Return strict JSON with approved boolean, "
    "director_plan_sha256 and segment_decisions: index+approved for all segments. "
    "Use this exact director sha:"+multimodel.sha_json(director)+" and storyboard:"+json.dumps(director))
