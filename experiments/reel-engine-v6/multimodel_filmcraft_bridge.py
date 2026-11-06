@@ -110,11 +110,7 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
             "Every source shot must appear exactly once. Creative brief: "+
             brief[:1800]+"\nVerified input: "+json.dumps(facts))
     parts=[{"text":prompt}]+inline_parts(source["shots"],frames)
-    result=post_json(GEMINI_ENDPOINT+model+":generateContent",
-                     {"x-goog-api-key":key},
-                     {"contents":[{"parts":parts}],
-                      "generationConfig":{"responseMimeType":"application/json",
-                                          "temperature":0.2,"maxOutputTokens":1400}},timeout=65)
+    model,result=free_flash_generate(models,key,parts)
     try:
         answer=result["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError,IndexError,TypeError) as exc:
