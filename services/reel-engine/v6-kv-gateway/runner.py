@@ -133,6 +133,10 @@ def run(job_id,*,fixture=False):
     if result.get("stored") is not True:raise RuntimeError("Private result chunk not admitted")
   receipt={k:v for k,v in rec.items() if k not in ("output","project")}
   receipt["model_roles"]=plan["model_roles"]
+  receipt["gemini_native_frames_sent"]=plan.get("gemini_native_frames_sent",0)
+  receipt["music_cc0_track_id"]=music["track_id"] if music else None
+  receipt["music_license_url"]=music["license_url"] if music else None
+  receipt["music_license_check"]=music["license_check"] if music else None
   receipt["model_policy"]=plan.get("model_policy","gemini_free_flash_groq")
   receipt["source_sha256"]=claim["source_sha256"]
   receipt["published"]=False
