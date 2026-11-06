@@ -251,7 +251,7 @@ async function cleanup(e){
 export default {
  async fetch(req,e,ctx){
    const url=new URL(req.url),origin=req.headers.get("Origin")||"",cors=originHeaders(origin);
-   if(url.pathname==="/health")return toJson({service:"MAD V6 owner-private GitHub gateway",version:"6.0-beta",auth_bound:!!e.PROJECT_AUTH,github_private_vault_configured:!!token(e),d1_bound:!!e.DB,public_access:false,ready:!!(e.PROJECT_AUTH&&token(e)&&e.DB)});
+   if(url.pathname==="/health")return withCors(toJson({service:"MAD V6 owner-private GitHub gateway",version:"6.0-beta",auth_bound:!!e.PROJECT_AUTH,github_private_vault_configured:!!token(e),d1_bound:!!e.DB,public_access:false,ready:!!(e.PROJECT_AUTH&&token(e)&&e.DB)}),cors);
    if(!cors)return httpError("Origin forbidden",403);
    if(req.method==="OPTIONS")return new Response(null,{status:204,headers:cors});
    if(!(await owner(req,e)))return new Response(JSON.stringify({error:{message:"Owner authorization required"}}),{status:401,headers:{"content-type":"application/json",...cors}});
