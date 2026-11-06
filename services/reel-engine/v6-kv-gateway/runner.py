@@ -113,7 +113,8 @@ def run(job_id,*,fixture=False):
   finally:m.close()
   synthetic=fixture and claim.get("source_description","").startswith("SYNTHETIC QA:")
   if fixture and not synthetic:raise RuntimeError("Synthetic fixture cannot render real guest footage")
-  plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,fixture=synthetic)
+  frames=export_native_source_frames(cli=os.environ["FILMCRAFT_CLI"],workdir=work,source=src,duration=duration) if not synthetic else []
+  plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,fixture=synthetic,frames=frames)
   rec=filmcraft.render(cli=os.environ["FILMCRAFT_CLI"],workdir=work,output=out,source=src,
      source_rights_cleared=True,source_sha256=claim["source_sha256"],
      cuts=plan["cuts"],operations=plan["operations"],hook=plan["hook"],
