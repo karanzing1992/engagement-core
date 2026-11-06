@@ -82,6 +82,7 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
     available=discover_models(key,legacy_adapter())
     models=free_flash_models(available)[:3]
     if not models:raise V6Blocked("No approved Gemini Flash generation model")
+    model=models[0]
     # Only approved, human-reviewed descriptions, NEVER raw frames or private URLs.
     facts=[{"id":s["id"],"observed":s["visible"],
             "start_seconds":s["start_seconds"],
