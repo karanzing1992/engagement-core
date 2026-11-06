@@ -116,7 +116,7 @@ class IntegrationTests(unittest.TestCase):
     {"segment_index":0,"approved":True},{"segment_index":1,"approved":True}])
   edl=mm.compile_reviewed_edl(SOURCE,proposal,reviewed)
   self.assertEqual(len(edl["cuts"]),2)
-  self.assertEqual(edl["editor"],"MLT + frei0r")
+  self.assertEqual(edl["editor"],"FFmpeg")
  def test_strict_groq_reviewer_explicit_rejections_do_not_retry(self):
   p={"hook":"Stay present","segments":[{"shot_id":"s1","start_seconds":0.0,
    "duration_seconds":1.2,"effects":[]}]}
@@ -159,7 +159,7 @@ class IntegrationTests(unittest.TestCase):
   p={"hook":"Stay present","segments":[{"shot_id":"s1","start_seconds":0.0,
    "duration_seconds":1.2,"effects":[{"name":"zoom","parameters":{}}]}]}
   with patch.object(mm,"groq_call") as groq:
-   with self.assertRaisesRegex(mm.V6Blocked,"Unsupported MLT effect"):
+   with self.assertRaisesRegex(mm.V6Blocked,"Unsupported FFmpeg effect"):
     mm.groq_strict_review(SOURCE,p)
    groq.assert_not_called()
  def test_live_bridge_preserves_independent_strict_reviewer(self):
@@ -178,7 +178,7 @@ class IntegrationTests(unittest.TestCase):
   self.assertEqual([c[0] for c in calls],["openai/gpt-oss-120b","openai/gpt-oss-20b"])
   self.assertIsNone(calls[0][1])
   self.assertTrue(calls[1][1]["json_schema"]["strict"])
-  self.assertEqual(r["editor"],"MLT + frei0r")
+  self.assertEqual(r["editor"],"FFmpeg")
 
  def test_audio_profile_generic(self):
   self.assertEqual(audio.choose("A calm serene scenic sequence"),"ambient")
