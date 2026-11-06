@@ -169,8 +169,9 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
         if hasher.hexdigest()!=source_sha256:
             raise FilmCraftError("Private source SHA256 mismatch")
     if music is not None:
-        if not isinstance(music_rights,dict) or music_rights.get("human_verified") is not True:
-            raise FilmCraftError("Music license independent review missing")
+        if not isinstance(music_rights,dict) or not (music_rights.get("human_verified") is True or
+            (music_rights.get("automatic_cc0_metadata_checked") is True and music_rights.get("license")=="CC0")):
+            raise FilmCraftError("Music must have human clearance or bounded CC0 metadata evidence")
         if music_rights.get("license") not in ("CC0","PDM","CC BY"):
             raise FilmCraftError("No verified commercial music license")
         for field in ("creator","original_source_url","original_license_url"):
@@ -257,6 +258,8 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
             "wait":True,"hardwareEncoding":"off","audio":source_has_audio or bool(music)},timeout=600)
         if not output.is_file() or output.stat().st_size<1024:raise FilmCraftError("FilmCraft export missing")
         verified=m.cmd("mediaBrowser.probe",{"path":str(output)})
+        if music and not (verified.get("info",{}).get("audio_streams") or verified.get("info",{}).get("audio")):
+            raise FilmCraftError("Native mixed soundtrack absent from exported video")
         video=verified.get("info",{}).get("video",{})
         if video.get("width")!=width or video.get("height")!=height or "H.264" not in video.get("codec",""):
             raise FilmCraftError("FilmCraft export codec/geometry verification failed")
@@ -276,6 +279,9 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
             "source_music":"approved_recording" if music else "original_source_or_silence",
             "source_audio_detected":source_has_audio,
             "music_native_probed":bool(music),
+            "mixed_audio_stream_native_verified":bool(music and (verified.get("info",{}).get("audio_streams") or verified.get("info",{}).get("audio"))),
+            "soundtrack_license_method":"automatic_CC0_catalog" if music and music_rights.get("automatic_cc0_metadata_checked") else "human_review" if music else "none",
+            "soundtrack_sha256":music_rights.get("audio_sha256") if music else None,
             "project":str(project),"output":str(output),"published":False}
     finally:m.close()
 
