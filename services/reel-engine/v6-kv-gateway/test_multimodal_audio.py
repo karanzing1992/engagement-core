@@ -54,6 +54,21 @@ class IntegrationTests(unittest.TestCase):
    self.assertGreater(music["beat_seconds"],0)
    self.assertLess(music["peak"],0.89)
    self.assertTrue(music["filmcraft_rights"]["human_verified"])
+ def test_bounded_503_free_model_fallback(self):
+  urls=[]
+  catalog={"models":[{"name":"models/gemini-3.8-flash","supportedGenerationMethods":["generateContent"]},
+   {"name":"models/gemini-3.7-flash","supportedGenerationMethods":["generateContent"]}]}
+  def pretend(url,headers,payload,timeout=50):
+   urls.append(url)
+   if "gemini-3.8-flash" in url:raise mm.FreeModelTemporarilyUnavailable("Synthetic 503")
+   return {"candidates":[{"content":{"parts":[{"text":
+     '{"observations":[{"shot_id":"s1","visible":"abstract geometry"}],'
+     '"research_scope":"Grounded visual evidence from the sampled frames"}'}]}}]}
+  with patch.dict(os.environ,{"GEMINI_INFERENCE_OWNER_APPROVED":"true","GEMINI_API_KEY":"synthetic-test"}),patch.object(mm,"discover_models",return_value=catalog),patch.object(mm,"post_json",side_effect=pretend),patch.object(mm.time,"sleep",return_value=None):
+   model,_=mm.gemini_research(SOURCE,"Generic footage",approved_api_cost=True,frames=[FRAME])
+  self.assertEqual(model,"gemini-3.7-flash")
+  self.assertEqual(len(urls),3)
+  self.assertFalse(any("-pro" in z for z in urls))
  def test_audio_profile_generic(self):
   self.assertEqual(audio.choose("A calm serene scenic sequence"),"ambient")
   self.assertEqual(audio.choose("A high energy fitness reel"),"uplift")
