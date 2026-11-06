@@ -122,7 +122,7 @@ def run(job_id,*,fixture=False):
      duration=duration,external_ai_consent=True)
   plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,fixture=synthetic,frames=frames)
   audio=None
-  if os.environ.get("MAD_V6_CURATED_CC0_AUDIO")=="true":
+  if claim.get("audio_mode")=="original_cc0" or (claim.get("project_id")=="synthetic-owner-qa" and os.environ.get("MAD_V6_CURATED_CC0_AUDIO")=="true"):
    timeline_seconds=sum(float(cut["seconds"]) for cut in plan["cuts"])
    if os.environ.get("MAD_V6_AUDIO_SOURCE","original_cc0")=="original_cc0":
     audio=original_cc0_soundtrack(work,seconds=max(8.0,timeline_seconds+2),brief=claim["brief"])
