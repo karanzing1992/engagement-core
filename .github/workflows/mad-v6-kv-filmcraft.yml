@@ -61,8 +61,9 @@ jobs:
           test "$GITHUB_REPOSITORY" = 'karanzing1992/engagement-core'
           test "$GITHUB_REF" = 'refs/heads/main'
           if [[ "$GITHUB_EVENT_NAME" == "issues" ]]; then
-            [[ "$QA_ISSUE_TITLE" =~ ^\\[MAD-V6-SYNTHETIC-QA\\]\\ (v6job-[a-f0-9]{32})$ ]]
-            OWNER_JOB_ID="${BASH_REMATCH[1]}"
+            prefix='[MAD-V6-SYNTHETIC-QA] '
+            [[ "$QA_ISSUE_TITLE" == "$prefix"* ]]
+            OWNER_JOB_ID="${QA_ISSUE_TITLE#"$prefix"}"
           fi
           [[ "$OWNER_JOB_ID" =~ ^v6job-[a-f0-9]{32}$ ]]
           test -n "${REEL_ENGINE_KEY:-${GROQ_API_KEY:-}}"
