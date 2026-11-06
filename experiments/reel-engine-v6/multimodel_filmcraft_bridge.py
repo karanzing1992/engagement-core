@@ -281,21 +281,21 @@ def groq_strict_review(source,proposal,*,on_stage=None):
     for segment in proposal["segments"]:
         for effect in segment["effects"]:
             if effect["name"] not in ("color_grade","title","caption"):
-                raise V6Blocked("Unsupported MLT effect requested")
+                raise V6Blocked("Unsupported FFmpeg effect requested")
             if effect["name"] in ("title","caption"):
                 line=effect.get("parameters",{}).get("text","")
                 if not isinstance(line,str) or not 1<=len(line.strip())<=90:
-                    raise V6Blocked("MLT title text invalid")
+                    raise V6Blocked("FFmpeg title text invalid")
     if on_stage:on_stage("groq_reviewer")
     prompt=("Independently assess the exact immutable video edit plan for "
             "source-grounding, rights/consent, usable timecodes and actual "
-            "MLT/frei0r effects. Respond in the required strict JSON schema. "
+            "FFmpeg effects. Respond in the required strict JSON schema. "
             "Use approved=true and reason_code=APPROVED for each safe segment. "
             "Reject unsafe or infeasible segments using approved=false and a "
             "specific reason code. Overall approved must be false if ANY segment "
             "is rejected. Do not copy hashes, assign indices, modify footage, "
             "invent shots, or assume approval. The application binds decisions "
-            "to the exact plan and source independently. Supported MLT/frei0r effects "
+            "to the exact plan and source independently. Supported FFmpeg effects "
             "are color_grade, title, caption. A title/caption needs text. "
             "Owner-verified source rights and consent metadata: "+json.dumps({
                 "human_reviewed":source["human_reviewed"],
@@ -352,7 +352,7 @@ def compile_reviewed_edl(source, proposal, review):
     return {"cuts":cuts,"operations":operations,"hook":proposal["hook"],
             "requested_effects":sum(map(len,operations)),
             "director_sha256":sha_json(proposal),"review_sha256":sha_json(review),
-            "editor":"MLT + frei0r","source":source["source_sha256"],
+            "editor":"FFmpeg","source":source["source_sha256"],
             "artistic_approval":False}
 
 
@@ -396,7 +396,7 @@ def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only"
                 "\nReturn JSON: {\"hook\":string<=90,\"segments\":[{\"shot_id\":id,"
                 "\"start_seconds\":number,\"duration_seconds\":number,"
                 "\"effects\":[{\"name\":one of color_grade/title/caption,\"parameters\":object}]}]. "
-                "No invented timecodes/people. MLT/frei0r only; no music invented.")
+                "No invented timecodes/people. FFmpeg only; no music invented.")
         if on_stage:on_stage("groq_director")
         proposal=groq_call("openai/gpt-oss-120b",prompt,temperature=0.7,max_tokens=1800)
         validate_director(source,proposal)
