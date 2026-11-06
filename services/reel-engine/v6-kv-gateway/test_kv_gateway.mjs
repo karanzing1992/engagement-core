@@ -120,7 +120,7 @@ test("only signed GitHub issue events from repository owner can enter synthetic 
   const make=jwt=>new Request(base+"/internal/v6/jobs/v6job-"+"a".repeat(32)+"/claim",
     {method:"POST",headers:{Authorization:"Bearer "+jwt}});
   const authorized=await worker.fetch(make(ownerProof.token),e,{});
-  assert.equal(authorized.status,409);
+  assert.equal(authorized.status,403); // Owner issue cannot claim any non-synthetic job, even an absent one.
   const denied=await worker.fetch(make(other.token),e,{});
   assert.equal(denied.status,401);
  }finally{globalThis.fetch=original;db.close()}
