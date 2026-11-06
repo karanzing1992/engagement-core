@@ -72,6 +72,21 @@ def post_json(url, headers, payload, timeout=50):
         raise V6Blocked("Provider response not parseable") from exc
 
 
+def free_flash_generate(models,key,parts):
+    """Try only approved, discovered free Flash IDs; never paid models."""
+    for selected in models[:3]:
+        try:
+            response=post_json(GEMINI_ENDPOINT+selected+":generateContent",
+                {"x-goog-api-key":key},
+                {"contents":[{"parts":parts}],
+                 "generationConfig":{"responseMimeType":"application/json",
+                                     "temperature":0.2,"maxOutputTokens":1400}},timeout=65)
+            return selected,response
+        except V6Blocked:
+            continue
+    raise V6Blocked("All approved free Gemini Flash models unavailable; no paid fallback")
+
+
 def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
     if not approved_api_cost or not (os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED") == "true" or
         os.environ.get("GEMINI_OWNER_APPROVED_FREE_CALLS") == "true"):
