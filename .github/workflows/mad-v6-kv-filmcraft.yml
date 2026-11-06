@@ -22,6 +22,7 @@ jobs:
       GEMINI_PROJECT_FREE_TIER_VERIFIED: ${{ vars.GEMINI_PROJECT_FREE_TIER_VERIFIED }}
       GEMINI_OWNER_APPROVED_FREE_CALLS: "true"
       MAD_V6_CC0_AUDIO_ENABLED: "true"
+      MAD_V6_GROQ_ONLY_WHEN_GEMINI_UNAVAILABLE: ${{ github.event_name == 'issues' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
         with:
