@@ -130,12 +130,12 @@ async function dispatch(req,e,id){
     .bind(TIME(),id).run();
    return error("Existing GitHub Actions dispatch not ready",503);
  }
- return json({job_id:id,state:"dispatching",renderer:"GStreamer GES",published:false},202);
+ return json({job_id:id,state:"dispatching",renderer:"MLT + frei0r",published:false},202);
 }
 function publicState(j){
  const now=TIME(),expiry=j.ready_at?j.expires_at:null;
  const state=(expiry!==null&&now>=expiry)||j.state==="expired"?"expired":j.state;
- return {job_id:j.job_id,state,renderer:"GStreamer GES",version:"v6-kv",
+ return {job_id:j.job_id,state,renderer:"MLT + frei0r",version:"v6-kv",
          download_available:state==="review_ready"&&expiry>now,
          expiry_at:expiry,seconds_remaining:expiry===null?null:Math.max(0,expiry-now),
          output_sha256:state==="review_ready"?j.output_sha256:null,
@@ -243,7 +243,7 @@ async function internal(req,e,path){
  if(p[4]==="complete"&&req.method==="POST"){
   const body=await req.json().catch(()=>({}));
   if(body.state==="failed"){
-   await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='failed',error_code='PRIVATE_GSTREAMER_FAILED',updated_at=? WHERE job_id=? AND claim_id=?")
+   await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='failed',error_code='PRIVATE_MLT_FAILED',updated_at=? WHERE job_id=? AND claim_id=?")
     .bind(now,id,lease).run();
    return json({job_id:id,state:"failed"});
   }
@@ -253,12 +253,13 @@ async function internal(req,e,path){
      arr.length!==body.chunks||arr.reduce((s,v)=>s+v.bytes,0)!==body.bytes||
      arr.some((v,i)=>v.idx!==i))return error("Verified final MP4 chunks/sha required",422);
   const visual=body.receipt?.visual_presence_check;
-  if(body.receipt?.engine!=="GStreamer Editing Services"||body.receipt?.gstreamer_only!==true||
+  if(body.receipt?.engine!=="MLT Framework + frei0r"||body.receipt?.mlt_only!==true||
+    body.receipt?.frei0r_verified!==true||body.receipt?.gstreamer_only!==false||
     body.receipt?.filmcraft_only!==false||body.receipt?.ffmpeg_invocations!==0||
     body.receipt?.output_audio_verified!==true||visual?.visible!==true||
     !Number.isInteger(visual?.frames_examined)||visual.frames_examined<3||
     body.receipt?.published!==false||body.receipt?.sha256!==body.sha256)
-      return error("GStreamer video frames, audio or signed receipt not certified",422);
+      return error("MLT video frames, audio or signed receipt not certified",422);
   const receipt=JSON.stringify(body.receipt);
   if(receipt.length>15000)return error("Private receipt too large",413);
   const result=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='review_ready',output_chunks=?,output_bytes=?,output_sha256=?,receipt_json=?,ready_at=?,expires_at=?,updated_at=? WHERE job_id=? AND claim_id=? AND state='rendering'")
