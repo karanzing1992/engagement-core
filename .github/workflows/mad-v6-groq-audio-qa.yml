@@ -1,0 +1,49 @@
+name: MAD V6 | Independent Groq and Openverse CC0 QA
+on:
+  push:
+    branches: [feature/mad-v6-live-models-native-frames-audio-20261106]
+    paths:
+      - experiments/reel-engine-v6/live_groq_smoke.py
+      - services/reel-engine/audio_runtime_v6.py
+      - .github/workflows/mad-v6-groq-audio-qa.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  director-editor-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      REEL_ENGINE_KEY: ${{ secrets.REEL_ENGINE_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Actually call 120B and 20B, validate exact EDL and reviewer hash
+        run: python3 experiments/reel-engine-v6/live_groq_smoke.py
+  discover-cc0-recording:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Search and fetch original CC0 music via existing Openverse library adapter
+        run: |
+          python3 - <<'PY'
+          import sys,tempfile
+          from pathlib import Path
+          sys.path.insert(0,'services/reel-engine')
+          from audio_runtime_v6 import select_cc0
+          with tempfile.TemporaryDirectory(prefix='mad-v6-cc0-audio-') as root:
+            t=select_cc0(Path(root),query='ambient music',minimum_duration=3.0)
+            assert t['license']=='CC0'
+            print('MAD_V6_CC0_AUDIO_SOURCE_PASS',t['bytes'],t['track_id'])
+          PY
