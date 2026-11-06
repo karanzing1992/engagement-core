@@ -27,6 +27,21 @@ TEMPLATES={
 # Intentionally small certified list; the full frei0r/Kdenlive ecosystem is
 # discoverable but not indiscriminately enabled for AI-directed media.
 ALLOWED=frozenset({"color_grade","title","caption"})
+def choose_template(brief):
+    if not isinstance(brief,str):return "wellness-cinema"
+    b=brief.casefold()
+    if any(x in b for x in ("guest","testimonial","interview","review","talking")):
+        return "guest-story"
+    if any(x in b for x in ("recovery","recover","ice bath","sauna","reset","cold plunge")):
+        return "recovery-reset"
+    if any(x in b for x in ("fast","beat","hype","dynamic","fitness","party")):
+        return "social-kinetic"
+    if any(x in b for x in ("forest","jungle","nature","garden","earth")):
+        return "nature-minimal"
+    if any(x in b for x in ("luxury","editorial","premium","elegant")):
+        return "earth-editorial"
+    return "wellness-cinema"
+
 def sha256(path):
     h=hashlib.sha256()
     with Path(path).open("rb") as f:
