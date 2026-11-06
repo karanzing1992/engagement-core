@@ -73,7 +73,6 @@ def admit(track: dict, evidence: dict, audio_path: Path, expected_sha256: str) -
         raise AudioBlocked("Music SHA256 differs from reviewed source")
     try:
         # V5 library contains reusable metadata/evidence checks only.
-        base.read_evidence_record = None  # No legacy media editing or network calls.
         # read_evidence expects an evidence JSON file, so we check equivalent fields here.
         if evidence.get("reviewer_confirmed_rights") is not True:
             raise AudioBlocked("Independent reviewer must approve recording")
@@ -104,6 +103,7 @@ def admit(track: dict, evidence: dict, audio_path: Path, expected_sha256: str) -
         "audio_sha256": expected_sha256,
         "filmcraft_rights": {
             "human_verified": True, "license": label,
+            "audio_sha256": expected_sha256,
             "creator": track["original_source_page"],
             "creator_name": track.get("creator", ""),
             "original_source_url": track["original_source_page"],
