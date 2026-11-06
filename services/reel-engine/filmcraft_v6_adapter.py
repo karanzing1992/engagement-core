@@ -181,12 +181,13 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
         raise FilmCraftError("FilmCraft may export only to isolated job workdir")
     m=MCP(cli,workdir)
     try:
-        probe=None;source_id=None
+        probe=None;source_id=None;source_has_audio=False
         if source:
             if not source.is_file() or source.stat().st_size<1024:raise FilmCraftError("Private source missing")
             probe=m.cmd("mediaBrowser.probe",{"path":str(source.resolve())})
             info=probe.get("info",{})
             if not info.get("video"):raise FilmCraftError("FilmCraft failed video source probe")
+            source_has_audio=bool(info.get("audio"))
             duration=info.get("duration",0)/TICKS_PER_SECOND
             if not 3<=duration<=480:raise FilmCraftError("Source duration outside owner-beta admission")
         else:
@@ -206,7 +207,7 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
         for i,(cut,op) in enumerate(zip(cuts,operations)):
             params={"item":source_id,"track":"V1","seconds":timeline,
                 "sourceIn":{"seconds":float(cut.get("start",0))},
-                "duration":{"seconds":float(cut["seconds"])},"audio":bool(source),"video":True,
+                "duration":{"seconds":float(cut["seconds"])},"audio":source_has_audio,"video":True,
                 "matchSequence":False}
             placed=m.cmd("timeline.place",params)
             ids=placed.get("clips",[])
@@ -229,17 +230,31 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
             applied.append("opening_title")
         if music:
             if not music.is_file() or music.stat().st_size<1024:raise FilmCraftError("Approved music file absent")
+            expect=music_rights.get("audio_sha256") if music_rights else None
+            if not isinstance(expect,str) or len(expect)!=64:
+                raise FilmCraftError("Approved soundtrack SHA256 missing")
+            mh=hashlib.sha256()
+            with music.open("rb") as f:
+                for part in iter(lambda:f.read(1024*1024),b""):mh.update(part)
+            if mh.hexdigest()!=expect:raise FilmCraftError("Approved soundtrack SHA256 mismatch")
+            music_info=m.cmd("mediaBrowser.probe",{"path":str(music.resolve())}).get("info",{})
+            if not music_info.get("audio"):raise FilmCraftError("FilmCraft native audio probe rejected soundtrack")
+            if music_info.get("duration",0)/TICKS_PER_SECOND < total:
+                raise FilmCraftError("Approved music shorter than timeline; no silent truncation")
             m.tool("media_import",{"paths":[str(music.resolve())]})
             music_id=find_item(m.tool("project_inspect",{}),music.name)
             if not isinstance(music_id,int):raise FilmCraftError("Music import not confirmed")
-            m.cmd("timeline.place",{"item":music_id,"track":"A2","seconds":0,
+            music_placed=m.cmd("timeline.place",{"item":music_id,"track":"A2","seconds":0,
                  "duration":{"seconds":total},"video":False,"audio":True,"matchSequence":False})
-            applied.append("approved_audio_placed")
+            music_clips=music_placed.get("clips",[])
+            if not music_clips:raise FilmCraftError("FilmCraft native music track absent")
+            m.cmd("clip.audioGain",{"clips":music_clips,"mode":"adjust","db":-6.0})
+            applied.append("approved_audio_placed_and_gain_reduced")
         project=workdir/"filmcraft-private.fcproj"
         m.cmd("file.saveAs",{"path":str(project)})
         m.cmd("file.exportMedia",{"path":str(output),"format":"h264","width":width,
             "height":height,"fps":fps,"range":"custom","startSeconds":0,"endSeconds":total,
-            "wait":True,"hardwareEncoding":"off","audio":bool(source) or bool(music)},timeout=600)
+            "wait":True,"hardwareEncoding":"off","audio":source_has_audio or bool(music)},timeout=600)
         if not output.is_file() or output.stat().st_size<1024:raise FilmCraftError("FilmCraft export missing")
         verified=m.cmd("mediaBrowser.probe",{"path":str(output)})
         video=verified.get("info",{}).get("video",{})
@@ -259,6 +274,8 @@ def render(*,cli:str,workdir:Path,output:Path,source:Path|None=None,
             "creative_complete":False,
             "independent_visual_and_audio_review":"PENDING",
             "source_music":"approved_recording" if music else "original_source_or_silence",
+            "source_audio_detected":source_has_audio,
+            "music_native_probed":bool(music),
             "project":str(project),"output":str(output),"published":False}
     finally:m.close()
 
