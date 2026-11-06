@@ -89,7 +89,7 @@ test("owner source upload -> signed OIDC GStreamer-output handoff -> range previ
   const stored=await sign("/internal/v6/jobs/"+id+"/output/0",{method:"PUT",claim:job.claim_id,
     headers:{"X-Chunk-SHA256":SHA(output)},body:output});
   assert.equal(stored.status,200);
-  const receipt={engine:"MLT Framework + frei0r",mlt_only:true,frei0r_verified:true,gstreamer_only:false,filmcraft_only:false,output_audio_verified:true,visual_presence_check:{visible:true,frames_examined:3},ffmpeg_invocations:0,published:false,sha256:SHA(output)};
+  const receipt={engine:"ffmpeg",video_stream_verified:true,audio_stream_verified:true,full_decode_passed:true,output_audio_verified:true,visual_presence_check:{visible:true,frames_examined:3},ffmpeg_invocations:4,audio_mode:"source_ambience_only",music_mixed:false,published:false,sha256:SHA(output)};
   const completed=await sign("/internal/v6/jobs/"+id+"/complete",{method:"POST",claim:job.claim_id,
    headers:{"Content-Type":"application/json"},
    body:toJSON({state:"review_ready",chunks:1,bytes:output.length,sha256:SHA(output),receipt})});
@@ -105,7 +105,7 @@ test("owner source upload -> signed OIDC GStreamer-output handoff -> range previ
   assert.equal(expired.status,410);
   let cleanupTask=null;await worker.scheduled({},env,{waitUntil:p=>{cleanupTask=p}});await cleanupTask;
   assert.equal(storage.storage.size,0);
-  console.log("V6_KV_SIGNED_E2E_SIMULATED_PASS owner auth/source SHA/OIDC/GStreamer receipt/206/410/KV deletion");
+  console.log("V6_KV_SIGNED_E2E_SIMULATED_PASS owner auth/source SHA/OIDC/FFmpeg receipt/206/410/KV deletion");
  }finally{globalThis.fetch=old;db.close()}
 });
 
