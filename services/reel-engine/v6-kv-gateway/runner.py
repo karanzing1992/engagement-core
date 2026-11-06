@@ -124,7 +124,15 @@ def run(job_id,*,fixture=False):
   audio=None
   if os.environ.get("MAD_V6_CURATED_CC0_AUDIO")=="true":
    timeline_seconds=sum(float(cut["seconds"]) for cut in plan["cuts"])
-   audio=verified_cc0_audio(work,minimum_seconds=timeline_seconds)
+   if os.environ.get("MAD_V6_AUDIO_SOURCE","original_cc0")=="original_cc0":
+    audio=original_cc0_soundtrack(work,seconds=max(8.0,timeline_seconds+2),brief=claim["brief"])
+   else:
+    try:
+     audio=verified_cc0_audio(work,minimum_seconds=timeline_seconds)
+    except AudioRuntimeError:
+     if os.environ.get("MAD_V6_ALLOW_ORIGINAL_CC0_FALLBACK")!="true":raise
+     audio=original_cc0_soundtrack(work,seconds=max(8.0,timeline_seconds+2),brief=claim["brief"])
+     audio["source_fallback"]="commons_unavailable"
    print("MAD_V6_CC0_AUDIO_SOURCE_READY",audio["audio_sha256"],flush=True)
   rec=filmcraft.render(cli=os.environ["FILMCRAFT_CLI"],workdir=work,output=out,source=src,
      source_rights_cleared=True,source_sha256=claim["source_sha256"],
