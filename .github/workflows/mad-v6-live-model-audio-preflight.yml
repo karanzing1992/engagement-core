@@ -1,0 +1,45 @@
+name: MAD V6 | Live Free Model & CC0 Audio Preflight
+on:
+  push:
+    branches: [feature/mad-v6-live-models-native-frames-audio-20261106]
+    paths:
+      - experiments/reel-engine-v6/**
+      - services/reel-engine/audio_runtime_v6.py
+      - services/reel-engine/frame_sampling_v6.py
+      - services/reel-engine/v6-kv-gateway/**
+      - .github/workflows/mad-v6-live-model-audio-preflight.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-free-inference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      REEL_ENGINE_KEY: ${{ secrets.REEL_ENGINE_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GEMINI_OWNER_APPROVED_FREE_CALLS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile all changed sources, then call Gemini/Groq only with artificial source descriptions
+        run: |
+          python3 -m py_compile experiments/reel-engine-v6/live_provider_smoke.py experiments/reel-engine-v6/gemini_frames_v6.py services/reel-engine/frame_sampling_v6.py services/reel-engine/audio_runtime_v6.py services/reel-engine/v6-kv-gateway/runner.py
+          python3 experiments/reel-engine-v6/live_provider_smoke.py
+      - name: Query Openverse CC0 catalog and retrieve short ambient soundtrack
+        run: |
+          python3 - <<'PY'
+          import sys,tempfile
+          from pathlib import Path
+          sys.path.insert(0,'services/reel-engine')
+          from audio_runtime_v6 import select_cc0
+          with tempfile.TemporaryDirectory(prefix='mad-v6-cc0-') as p:
+            track=select_cc0(Path(p),query='ambient music',minimum_duration=3.0)
+            assert track['license']=='CC0' and track['bytes']>2048
+            print('MAD_V6_CC0_LIBRARY_AUTOMATED_INGEST_PASS',track['bytes'],track['license'],track['track_id'])
+          PY
