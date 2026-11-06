@@ -60,7 +60,7 @@ jobs:
             f.writeframes(b''.join(struct.pack('<h',round(math.sin(2*math.pi*440*t/sr)*600)) for t in range(sr*4)))
           sha=hashlib.sha256(target.read_bytes()).hexdigest()
           rights={'human_verified':True,'license':'CC0',
-                  'creator':'MAD synthetic QA fixture only; no external recording',
+                  'creator':'https://example.org/mad-v6-synthetic-audio-qa/creator',
                   'original_source_url':'https://example.org/mad-v6-synthetic-audio-qa',
                   'original_license_url':'https://creativecommons.org/publicdomain/zero/1.0/',
                   'audio_sha256':sha,'synthetic_audio_fixture_only':True}
