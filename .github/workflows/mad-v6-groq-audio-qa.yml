@@ -5,6 +5,9 @@ on:
     paths:
       - experiments/reel-engine-v6/live_groq_smoke.py
       - services/reel-engine/audio_runtime_v6.py
+      - services/reel-engine/v6-kv-gateway/native_audio_frame_qa.py
+      - services/reel-engine/frame_sampling_v6.py
+      - services/reel-engine/filmcraft_v6_adapter.py
       - services/reel-engine/audio_catalog_diagnostic_v6.py
       - .github/workflows/mad-v6-groq-audio-qa.yml
   workflow_dispatch:
@@ -52,3 +55,29 @@ jobs:
             assert t['license']=='CC0'
             print('MAD_V6_CC0_AUDIO_SOURCE_PASS',t['bytes'],t['track_id'])
           PY
+
+  native-filmcraft-video-audio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned native FilmCraft without FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/filmcraft"
+          cd "$RUNNER_TEMP/filmcraft"
+          curl -fLsS --retry 2 --max-time 180 -o filmcraft.tar.gz 'https://github.com/storytold/filmcraft/releases/download/v0.16.0/filmcraft-0.16.0-linux-x86_64.tar.gz'
+          echo '588390eee5d7e1634f05794c4f877ddf29494d9cf74405111d67c16cbe215ae9  filmcraft.tar.gz' | sha256sum -c -
+          tar -xzf filmcraft.tar.gz
+          echo "FILMCRAFT_CLI=$RUNNER_TEMP/filmcraft/filmcraft-0.16.0-linux-x86_64/bin/filmcraft-cli" >> "$GITHUB_ENV"
+      - name: Verify original FilmCraft source frames + native CC0 audio import + encoded audio stream
+        run: python3 services/reel-engine/v6-kv-gateway/native_audio_frame_qa.py
+      - name: No synthetic videos or audio uploaded as CI artifacts
+        if: always()
+        run: echo 'FilmCraft QA media is runner-local only, not published'
