@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MAD V6 signed KV runner. MLT + frei0r is sole editor; Gst decode QA only."""
+"""MAD V6 signed KV runner. Exclusive FFmpeg editor and FFmpeg frame QA."""
 from __future__ import annotations
 import argparse,hashlib,json,os,sys,math,time
 from pathlib import Path
@@ -9,16 +9,16 @@ from urllib.parse import urlencode
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/"services/reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
-import mlt_v6_adapter as mlt
+import ffmpeg_v6_adapter as ffmpeg_editor
+import backend_selection
 import multimodel_filmcraft_bridge as multimodel
-from ges_frame_samples import extract as ges_frames
-from original_cc0_audio import compose as cc0_compose,choose as select_audio_profile
+from ffmpeg_frame_samples import extract as ffmpeg_frames
 
 GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
 CHUNK=4*1024*1024
 # Diagnostic output contains only fixed labels and allowlisted codes, never footage or provider data.
-STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","frame_sampling","model_policy","gemini_research","groq_director","groq_reviewer","edl_compile","audio_compose","filmcraft_render","filmcraft_source_preflight","filmcraft_music_rights","filmcraft_mcp_init","filmcraft_source_probe","filmcraft_edl_validate","filmcraft_sequence","filmcraft_source_import","filmcraft_timeline_place","filmcraft_effects","filmcraft_hook","filmcraft_music_mix","filmcraft_export","filmcraft_verify_output","output_upload","private_complete","gstreamer_render","mlt_render"))
+STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","frame_sampling","model_policy","gemini_research","groq_director","groq_reviewer","edl_compile","audio_compose","filmcraft_render","filmcraft_source_preflight","filmcraft_music_rights","filmcraft_mcp_init","filmcraft_source_probe","filmcraft_edl_validate","filmcraft_sequence","filmcraft_source_import","filmcraft_timeline_place","filmcraft_effects","filmcraft_hook","filmcraft_music_mix","filmcraft_export","filmcraft_verify_output","output_upload","private_complete","ffmpeg_render","audio_library"))
 ACTIVE_STAGE="start"
 SAFE_CAUSES={
  "All currently available free Flash candidate endpoints were unavailable":"GEMINI_ENDPOINT_UNAVAILABLE",
@@ -37,8 +37,8 @@ SAFE_CAUSES={
  "Groq 20B review missing or director hash mismatch":"REVIEW_DIGEST_OR_APPROVAL_MISMATCH",
  "Independent reviewer rejected proposed edit":"REVIEW_REJECTED",
  "Strict reviewer response invalid":"REVIEW_SCHEMA_INVALID",
- "Unsupported MLT effect requested":"MLT_DIRECTOR_EFFECT_UNSUPPORTED",
- "MLT title text invalid":"MLT_TITLE_TEXT_INVALID",
+ "Unsupported FFmpeg effect requested":"FFMPEG_DIRECTOR_EFFECT_UNSUPPORTED",
+ "FFmpeg title text invalid":"FFMPEG_TITLE_TEXT_INVALID",
  "MLT renderer rejected creative template":"MLT_TEMPLATE_NOT_ALLOWLISTED",
  "Duplicate creative instruction identifier":"EDL_DUPLICATE_EFFECT_ID",
  "Director invented edit time outside reviewed footage":"DIRECTOR_TIMECODE_INVALID",
@@ -65,7 +65,7 @@ FILMCRAFT_SAFE_CAUSES={
 }
 def safe_failure(exc):
  if isinstance(exc,multimodel.V6Blocked):code=SAFE_CAUSES.get(str(exc),"BLOCKED_UNCLASSIFIED")
- elif isinstance(exc,mlt.RenderBlocked):code=str(exc) if str(exc).startswith("MLT_") else "MLT_REJECTED"
+ elif isinstance(exc,ffmpeg_editor.RenderBlocked):code=str(exc) if str(exc).startswith("FFMPEG_") else "FFMPEG_REJECTED"
  else:code="NON_MODEL_FAILURE"
  return "V6_KV_PRIVATE_RENDER_FAILED stage="+ACTIVE_STAGE+" code="+code
 def recoverable_gemini_timeout(exc):
@@ -91,7 +91,7 @@ def call(path,identity,method="POST",claim=None,payload=None,data=None,digest=No
   raise ValueError("Disallowed private runner endpoint or ambiguous payload")
  method=method.upper()
  content=json.dumps(payload,separators=(",",":")).encode() if payload is not None else data
- headers={"Authorization":"Bearer "+identity,"User-Agent":"MAD-V6-Private-KV-MLT"}
+ headers={"Authorization":"Bearer "+identity,"User-Agent":"MAD-V6-Private-KV-FFmpeg"}
  if claim:headers["X-V6-Claim"]=claim
  if digest:headers["X-Chunk-SHA256"]=digest
  if content is not None:headers["Content-Type"]="application/json" if payload is not None else "application/octet-stream"
@@ -169,7 +169,7 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
 
 def run(job_id,*,fixture=False):
  if not job_id.startswith("v6job-") or len(job_id)!=38:raise ValueError("Invalid private V6 job")
- mlt.verify_backend() # fail closed if native MLT/frei0r is missing
+ backend_selection.select_renderer("ffmpeg");ffmpeg_editor.verify_backend() # fail closed on missing FFmpeg
  work=Path(os.environ["RUNNER_TEMP"])/("mad-v6-"+job_id)
  work.mkdir(mode=0o700,parents=True,exist_ok=True)
  mark("oidc")
@@ -194,36 +194,36 @@ def run(job_id,*,fixture=False):
   if src.stat().st_size!=claim["source_bytes"] or sha(src)!=claim["source_sha256"]:
    raise RuntimeError("Source media SHA-256 verification failed")
   mark("media_probe")
-  _gst,metadata=mlt._probe(src,2.5)
+  metadata=ffmpeg_editor.probe(src)
   duration=metadata["duration"]
   synthetic=fixture and claim.get("source_description","").startswith("SYNTHETIC QA:")
   if fixture and not synthetic:raise RuntimeError("Synthetic fixture cannot render owner footage")
   mark("frame_sampling")
-  frames=[] if synthetic else ges_frames(work,src,duration,
+  frames=[] if synthetic else ffmpeg_frames(work,src,duration,
     consent=bool(claim.get("free_gemini_consent")) and bool(claim.get("rights_confirmed")),
     source_sha256=claim["source_sha256"])
   mark("model_policy")
   plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,fixture=synthetic,frames=frames)
-  mark("audio_compose")
-  audio=cc0_compose(work/"v6-original-cc0-soundtrack.wav",max(3.0,sum(c["seconds"] for c in plan["cuts"])),
-    select_audio_profile(claim["brief"]))
-  mark("mlt_render")
-  music_rights=audio["filmcraft_rights"]
-  if music_rights.get("human_verified") is not True or music_rights.get("license")!="CC0":
-   raise RuntimeError("Original CC0 music provenance missing")
+  mark("audio_library")
+  # Existing V5/V6 Openverse discovery is not a transferred, rights-reviewed file.
+  # Never synthesize a substitute soundtrack or mislabel source audio as CC0.
+  if claim.get("audio_mode")!="source_ambience_only":
+   raise RuntimeError("Private licensed music delivery not configured")
+  mark("ffmpeg_render")
   spec={"source":str(src),"source_sha256":claim["source_sha256"],
-    "template_id":mlt.choose_template(claim["brief"]),
+    "template_id":ffmpeg_editor.choose_template(claim["brief"]),
     "workdir":str(work),"output":str(out),
-    "music":audio["file"],"music_sha256":audio["sha256"],
     "cuts":plan["cuts"],"operations":plan["operations"],"hook":plan["hook"],
     "width":1080,"height":1920,"fps":30}
-  rec=mlt.render(spec)
-  if (rec.get("rendered") is not True or rec.get("mlt_only") is not True
-      or rec.get("frei0r_verified") is not True
+  rec=ffmpeg_editor.render(spec)
+  if (rec.get("rendered") is not True or rec.get("engine")!="ffmpeg"
+      or rec.get("video_stream_verified") is not True
+      or rec.get("audio_stream_verified") is not True
+      or rec.get("full_decode_passed") is not True
       or rec.get("visual_presence_check",{}).get("visible") is not True
       or rec.get("output_audio_verified") is not True
-      or rec.get("ffmpeg_invocations")!=0 or not out.exists()):
-   raise RuntimeError("MLT output video/audio visual certification failed")
+      or rec.get("ffmpeg_invocations",0)<1 or not out.exists()):
+   raise RuntimeError("FFmpeg private media certification failed")
   digest=sha(out);n=math.ceil(out.stat().st_size/CHUNK)
   if digest!=rec.get("sha256") or not 1<=n<=20:raise RuntimeError("Output SHA/size invalid")
   mark("output_upload")
@@ -237,8 +237,9 @@ def run(job_id,*,fixture=False):
   receipt["model_roles"]=plan["model_roles"]
   receipt["model_policy"]=plan.get("model_policy","gemini_free_flash_groq")
   receipt["source_sha256"]=claim["source_sha256"]
-  receipt["audio_library"]={"title":audio["title"],"license":"CC0","bpm":audio["bpm"],
-    "sha256":audio["sha256"],"source":audio["original_source_url"],"native_audio_mix":rec.get("music_native_probed") is True}
+  receipt["audio_library"]={"discovery":"Openverse/Wikimedia",
+   "mode":"source_ambience_only","licensed_track":False,"music_mixed":False,
+   "composed_audio":False,"requires_owner_verified_asset":True}
   receipt["gemini_frames_sent"]=len(frames)
   receipt["product_context"]="generic"
   receipt["published"]=False
@@ -247,7 +248,7 @@ def run(job_id,*,fixture=False):
   result=call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,
     payload={"state":"review_ready","chunks":n,"bytes":out.stat().st_size,"sha256":digest,"receipt":receipt})
   if result.get("state")!="review_ready":raise RuntimeError("Private server output certification rejected")
-  print("MAD_V6_PRIVATE_KV_MLT_COMPLETED",job_id,"published=false","fixture="+str(synthetic))
+  print("MAD_V6_PRIVATE_KV_FFMPEG_COMPLETED",job_id,"published=false","fixture="+str(synthetic))
   return result
  except Exception:
   try:call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,payload={"state":"failed"})
@@ -255,7 +256,7 @@ def run(job_id,*,fixture=False):
   raise
  finally:
   src.unlink(missing_ok=True);out.unlink(missing_ok=True)
-  (work/"v6-original-cc0-soundtrack.wav").unlink(missing_ok=True)
+  # No procedural music source is ever created.
 if __name__=="__main__":
  p=argparse.ArgumentParser();p.add_argument("--job-id",required=True);p.add_argument("--synthetic-fixture",action="store_true")
  a=p.parse_args()
