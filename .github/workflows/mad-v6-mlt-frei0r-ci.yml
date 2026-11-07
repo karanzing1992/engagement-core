@@ -1,34 +1,14 @@
-name: MAD V6 MLT frei0r Native Video/Audio Certification
+# LEGACY REEL ENGINE WORKFLOW RETIRED 2026-11-07: V7 exclusive.
+# Original blob SHA 298617f9691b2100873c15d9792dbb83a4ab473f, retrievable from Git history; no data deleted.
+# V7 signed OIDC path mad-v6-kv-filmcraft.yml and V7-dependent KV CI are PROTECTED.
+name: DEPRECATED | mad-v6-mlt-frei0r-ci.yml
 on:
-  pull_request:
-    paths:
-      - 'services/reel-engine/v6-kv-gateway/mlt_v6_adapter.py'
-      - 'services/reel-engine/v6-kv-gateway/test_mlt_v6_smoke.py'
-      - '.github/workflows/mad-v6-mlt-frei0r-ci.yml'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  mlt-native-visible-video:
+  retired:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Install native open-source MLT / frei0r + independent GStreamer decoder
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends melt frei0r-plugins libmlt7 libmlt-data python3-gi gir1.2-gst-plugins-base-1.0 gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
-          command -v melt
-          melt -query filters | grep -E '(frei0r.contrast0r|dynamictext)' | head -n 5
-      - name: Static source and native MLT correctness
-        run: |
-          set -euo pipefail
-          /usr/bin/python3 -m py_compile services/reel-engine/v6-kv-gateway/mlt_v6_adapter.py services/reel-engine/v6-kv-gateway/test_mlt_v6_smoke.py
-          /usr/bin/python3 services/reel-engine/v6-kv-gateway/test_mlt_v6_smoke.py
-      - name: Privacy guarantee
-        if: always()
-        run: echo 'No real customer footage; only ephemeral synthetic temporary files, no output artifacts'
+      - run: echo 'Standalone legacy V6 Reel Engine workflow retired; use V7.'

@@ -1,74 +1,14 @@
-name: MAD V5 | Verified REEL_ENGINE_KEY inference and private synthetic render
+# LEGACY REEL ENGINE WORKFLOW RETIRED 2026-11-07: V7 exclusive.
+# Original blob SHA d39a655c2bad7d3fcab9bafbbce93acd4ac2c311, retrievable from Git history; no data deleted.
+# Do NOT disable the V7 OIDC-pinned owner runner mad-v6-kv-filmcraft.yml.
+name: DEPRECATED | mad-v5-verified-key-private-synthetic-cert.yml
 on:
-  push:
-    branches:
-      - feat/mad-v5-verified-key-synthetic-cert-20261104
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  isolated-certification:
-    if: github.repository == 'karanzing1992/engagement-core' && github.ref == 'refs/heads/feat/mad-v5-verified-key-synthetic-cert-20261104'
+  retired:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Verify configured models with the verified owner key
-        run: python3 experiments/reel-engine-v5/groq_models_preflight.py
-      - name: Install bounded synthetic renderer dependencies
-        run: |
-          if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; then
-            sudo apt-get update -qq
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
-          fi
-          python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
-      - name: Minimal real Groq inference, no prompts or replies in logs
-        run: |
-          python3 - <<'PY'
-          import os
-          from groq import Groq
-          client=Groq(api_key=os.environ['GROQ_API_KEY'],timeout=30,max_retries=0)
-          response=client.chat.completions.create(
-              model='openai/gpt-oss-20b',
-              messages=[{'role':'user','content':'For an isolated synthetic service smoke test, respond exactly: READY'}],
-              max_completion_tokens=128,
-              reasoning_effort='low')
-          choice=response.choices[0].message.content or ''
-          if 'READY' not in choice.upper():
-              raise RuntimeError('Minimal Groq inference returned no expected completion')
-          print('MAD_V5_MINIMAL_GROQ_INFERENCE_PASS model=openai/gpt-oss-20b')
-          PY
-      - name: Run live synthetic-only 120B direction and private FFmpeg render
-        run: |
-          python3 experiments/reel-engine-v5/git_cloud_runner.py \
-            --mode live \
-            --profile instagram_reel \
-            --brief 'Synthetic-only technical certification using generated color fixtures; no real people, guest footage, music, or publishing' \
-            --out-dir "$RUNNER_TEMP/mad-v5-private-synthetic"
-      - name: Verify complete private render receipt, without publishing artifacts
-        run: |
-          python3 - <<'PY'
-          import json,os,pathlib
-          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'mad-v5-private-synthetic'
-          receipt=json.loads((root/'v5-technical-receipt.json').read_text())
-          video=receipt['video']
-          assert receipt['status']=='SYNTHETIC_TECHNICAL_CERTIFICATION_ONLY'
-          assert receipt['mode']=='live' and receipt['model_inference'] is True
-          assert receipt['profile']=='instagram_reel'
-          assert receipt['director_planning_validated'] is True
-          assert video['decoded'] is True and video['dimensions']==[1080,1920]
-          assert video['codec']=='h264' and video['audio_codec']=='aac'
-          assert receipt['real_footage_certified'] is False
-          assert receipt['private_media_uploaded'] is False
-          assert receipt['published'] is False and receipt['publishing_enabled'] is False
-          assert (root/'v5-synthetic-diagnostic.mp4').is_file()
-          print('MAD_V5_PRIVATE_SYNTHETIC_RENDER_PASS sha256='+video['sha256'])
-          print('MAD_V5_NO_GUEST_MEDIA_NO_PUBLICATION_PASS')
-          PY
-      # Synthetic bytes remain in the temporary GitHub runner directory.
-      # No public artifact, guest queue claim, Cloudflare temporary endpoint or publication.
+      - run: echo 'Legacy V1-V6 Reel Engine workflow retired; use V7.'

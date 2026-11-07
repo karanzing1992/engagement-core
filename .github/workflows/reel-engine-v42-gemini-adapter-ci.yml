@@ -1,29 +1,14 @@
-name: Reel Engine V4.2 - Gemini Adapter Offline QA
-
+# LEGACY REEL ENGINE WORKFLOW RETIRED 2026-11-07: V7 exclusive.
+# Original blob SHA 7495d11f1febfb6c848485549f7bc83507bd3d39, retrievable from Git history; no data deleted.
+# V7 production OIDC-pinned owner runner / V7 CI are retained unchanged.
+name: DEPRECATED | reel-engine-v42-gemini-adapter-ci.yml
 on:
-  push:
-    branches:
-      - feature/reel-engine-v42-gemini-first-20261102
-      - feature/reel-v42-multimodel-director-20261102
-    paths:
-      - experiments/reel-engine-v4_2/**
-      - .github/workflows/reel-engine-v42-gemini-adapter-ci.yml
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  offline-tests:
+  retired:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - name: Gemini provider tests (no credentials or footage)
-        working-directory: experiments/reel-engine-v4_2
-        run: |
-          set -euo pipefail
-          python3 -m unittest -v test_gemini_adapter.py test_creative_director.py
-          python3 gemini_adapter.py preflight
-          python3 -m py_compile gemini_adapter.py creative_director.py
-          python3 creative_director.py --shots fixture_verified_shots.json --brand README.md --brief 'Use the sample synthetic shots' --output /tmp/reel-v42-preflight.json
+      - run: echo 'Legacy Reel Engine workflow retired; V7 only.'

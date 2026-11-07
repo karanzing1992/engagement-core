@@ -1,112 +1,14 @@
-name: LEGACY ARCHIVE | V6 FilmCraft Synthetic Smoke (Manual Rollback Only)
-# Historical FilmCraft fixture retained for owner-approved rollback only.
-# Not an active V6 renderer or release check.
+# LEGACY REEL ENGINE WORKFLOW RETIRED 2026-11-07: V7 exclusive.
+# Original blob SHA 658caa6222256d8e50251fc42cae262f84c66c06, retrievable from Git history; no data deleted.
+# V7 signed OIDC path mad-v6-kv-filmcraft.yml and V7-dependent KV CI are PROTECTED.
+name: DEPRECATED | mad-v6-filmcraft-smoke.yml
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  model-audio-editor-contracts:
+  retired:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Verify V6 source rights, model roles, effects and licensed audio gates
-        run: |
-          set -euo pipefail
-          python3 -m unittest discover -s experiments/reel-engine-v6 -p 'test_*.py' -v
-          python3 experiments/reel-engine-v6/audio_library_v6.py
-
-  filmcraft-native-smoke:
-    needs: model-audio-editor-contracts
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install pinned FilmCraft v0.16.0 (no FFmpeg/FFprobe)
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/filmcraft"
-          cd "$RUNNER_TEMP/filmcraft"
-          curl -fLsS --retry 2 --connect-timeout 12 --max-time 180 \
-            -o filmcraft.tar.gz \
-            'https://github.com/storytold/filmcraft/releases/download/v0.16.0/filmcraft-0.16.0-linux-x86_64.tar.gz'
-          echo '588390eee5d7e1634f05794c4f877ddf29494d9cf74405111d67c16cbe215ae9  filmcraft.tar.gz' | sha256sum -c -
-          python3 - <<'PY'
-          import tarfile
-          with tarfile.open('filmcraft.tar.gz') as tf:
-              for e in tf.getmembers():
-                  assert not e.name.startswith('/') and '..' not in e.name.split('/')
-                  assert not (e.issym() or e.islnk() or e.isdev())
-          PY
-          tar -xzf filmcraft.tar.gz
-          cli="$RUNNER_TEMP/filmcraft/filmcraft-0.16.0-linux-x86_64/bin/filmcraft-cli"
-          test -x "$cli"
-          echo "FILMCRAFT_CLI=$cli" >> "$GITHUB_ENV"
-      - name: Native FilmCraft-only 2-second synthetic title and export
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/v6-smoke"
-          python3 experiments/reel-engine-v6/multimodel_filmcraft_bridge.py \
-            --source-manifest experiments/reel-engine-v6/fixtures/moksha_synthetic_manifest.json \
-            --brief "A cinematic, serene synthetic forest-themed reel for Moksha" \
-            --brand "Moksha Wellness, Arambol Goa, nature-led cinematic wellness" \
-            --mode fixture --output "$RUNNER_TEMP/v6-smoke/plan.json"
-          python3 - <<'PY'
-          import json,os,pathlib
-          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"v6-smoke"
-          p=json.loads((root/"plan.json").read_text())
-          assert p["editor"]=="MLT + frei0r"  # V6 fixture metadata; historical FilmCraft adapter test remains isolated
-          assert p["requested_effects"]==1
-          assert p["live_model_inference"] is False
-          (root/"cuts.json").write_text(json.dumps(p["cuts"]))
-          (root/"ops.json").write_text(json.dumps(p["operations"]))
-          print("V6_GEMINI_GROQ_FIXTURE_PLAN_COMPILED_FOR_FILMCRAFT")
-          PY
-          python3 services/reel-engine/filmcraft_v6_adapter.py \
-            --cli "$FILMCRAFT_CLI" \
-            --workdir "$RUNNER_TEMP/v6-smoke" \
-            --width 480 --height 270 --fps 24 \
-            --cuts-json "$RUNNER_TEMP/v6-smoke/cuts.json" \
-            --operations-json "$RUNNER_TEMP/v6-smoke/ops.json" \
-            --hook "MOKSHA - SYNTHETIC V6" \
-            --output synthetic-v6-filmcraft.mp4
-          python3 - <<'PY'
-          import json,os,pathlib
-          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"v6-smoke"
-          receipt=json.loads((root/"filmcraft-receipt.json").read_text())
-          assert receipt["filmcraft_only"] is True
-          assert receipt["ffmpeg_invocations"] == 0
-          assert receipt["rendered"] and receipt["bytes"] >= 1024
-          assert receipt["width"]==480 and receipt["height"]==270
-          assert receipt["published"] is False
-          assert receipt["operations_requested"] == 1
-          assert receipt["operations_command_accepted"] == 1
-          assert receipt["operations_visually_verified"] == 0
-          assert receipt["creative_complete"] is False
-          assert receipt["creative_complete"] is False
-          assert pathlib.Path(receipt["output"]).is_file()
-          print("MAD_V6_FILMCRAFT_SYNTHETIC_EXPORT_VERIFIED",receipt["sha256"])
-          PY
-      - name: Archive synthetic-only preview and verification receipt
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mad-v6-native-filmcraft-synthetic
-          path: |
-            ${{ runner.temp }}/v6-smoke/synthetic-v6-filmcraft.mp4
-            ${{ runner.temp }}/v6-smoke/filmcraft-receipt.json
-          retention-days: 1
-          if-no-files-found: error
+      - run: echo 'Standalone legacy V6 Reel Engine workflow retired; use V7.'
