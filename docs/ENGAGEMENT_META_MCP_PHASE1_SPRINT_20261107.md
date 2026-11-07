@@ -1,10 +1,16 @@
-# Engagement Core — Meta/WhatsApp MCP Phase 1 Sprint Checkpoint
+# META CORE — Phase 1 WhatsApp MCP Sprint Checkpoint
 
 **Date:** 2026-11-07  
-**Owner workstream:** Engagement Core; **future integration target:** separately developed WACRM  
+**Internal project name:** META CORE  
+**Owning platform:** Engagement Core  
+**Future integration target:** separately developed WACRM  
 **Repository:** `karanzing1992/engagement-core`  
 **Branch:** `feat/meta-whatsapp-mcp-phase1-20261107`  
 **Lifecycle:** SOURCE_ONLY. No Meta calls, number changes, WACRM deployment, plugin update or production authorization.
+
+## Internal naming and boundaries
+
+**META CORE** is the canonical internal name for the reusable official Meta Graph API and MCP integration library. WhatsApp Business is **Phase 1**; Instagram, Facebook Messenger and other Meta channels are planned subsequent adapters, subject to their own provider permissions and QA. This is **not** a rename of Engagement Core or WACRM, and does not represent a separate CRM or customer-data store. Retain the existing repository, feature branch, source paths and draft PR identifiers for continuity; provider-facing app registration, public product names, OAuth identities, tokens and production deployments remain unchanged.
 
 ## Decision
 
@@ -19,7 +25,7 @@ Adapt the maintained first-party WACRM transport and the open-source WBMCP offic
 - Meta App Review approval was reported by the owner on 7 November; **direct provider permission and production-number readback have not been performed**. Do not upgrade provider status without evidence.
 - `Ashwakaal — Support Channels` remains an entirely separate workstream; no shared credentials, messages, contacts or support accounts.
 
-## Delivered in this source branch
+## Delivered in this META CORE source branch
 
 1. `integrations/meta/whatsapp-mcp/package.json`: pinned upstream SDK (not installed or deployed).
 2. `src/adapter.mjs`: read allowlist, preview-only sends, tenant-grant callback, per-tenant credential resolver, restricted SDK flags and redacted failure responses.
