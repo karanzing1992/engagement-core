@@ -53,13 +53,16 @@ function connectionConfig(connection, previewMode = false) {
 }
 
 /**
- * Authentication and tenant grants MUST be enforced by the caller before
- * resolveConnection. That resolver must never return another tenant's token.
+ * The host MUST supply its authenticated principal and a trusted
+ * authorizeTenant callback before credentials are resolved. That resolver must never return another tenant's token.
  * No remote OAuth/MCP endpoint is registered by this source-only module.
  */
-export function createEngagementWhatsAppAdapter({ resolveConnection, sdkFactory } = {}) {
+export function createEngagementWhatsAppAdapter({ resolveConnection, authorizeTenant, sdkFactory } = {}) {
   if (typeof resolveConnection !== 'function') {
     throw new TypeError('resolveConnection(tenantId) is required');
+  }
+  if (typeof authorizeTenant !== 'function') {
+    throw new TypeError('authorizeTenant(principal, tenantId, toolName) is required');
   }
   if (sdkFactory !== undefined && typeof sdkFactory !== 'function') {
     throw new TypeError('sdkFactory must be a function');
@@ -80,7 +83,7 @@ export function createEngagementWhatsAppAdapter({ resolveConnection, sdkFactory 
       ...READ_TOOLS.map(name => ({ name, permission: 'read' })),
       ...PREVIEW_TOOLS.map(name => ({ name, permission: 'preview_only' })),
     ],
-    async invoke({ tenantId, toolName, args = {} } = {}) {
+    async invoke({ tenantId, toolName, args = {}, principal } = {}) {
       if (!readSet.has(toolName) && !previewSet.has(toolName)) {
         return rejected('tool_not_allowed', 'Tool not available in Phase 1');
       }
@@ -89,6 +92,13 @@ export function createEngagementWhatsAppAdapter({ resolveConnection, sdkFactory 
       }
       if (previewSet.has(toolName) && args.dryRun !== true) {
         return rejected('outbound_disabled', 'Only dry-run previews are supported');
+      }
+      try {
+        if (await authorizeTenant(principal, tenantId, toolName) !== true) {
+          return rejected('forbidden', 'No grant for this tenant and operation');
+        }
+      } catch (_) {
+        return rejected('forbidden', 'No grant for this tenant and operation');
       }
       let client;
       try {
