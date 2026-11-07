@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Public Andaz screenshots to owner's authorized free Gemini API; no website writes."""
-import os,json,base64,hashlib,urllib.request,urllib.error,sys,datetime
+import os,json,base64,hashlib,urllib.request,urllib.error,sys,datetime,time
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 BASE='https://andaz-vibe-creative-preview.vercel.app/'
@@ -41,7 +41,7 @@ def run():
                 ctx.close()
         finally:chrome.close()
     offered=request(key,API+'/models?pageSize=100',timeout=18)
-    allowed=('gemini-3.8-flash','gemini-2.5-flash','gemini-2.5-flash-lite')
+    allowed=('gemini-3.8-flash','gemini-3.6-flash','gemini-2.5-flash-lite','gemini-2.5-flash')
     available={x.get('name','').split('/')[-1] for x in offered.get('models',[]) if 'generateContent' in x.get('supportedGenerationMethods',[])}
     model=next((x for x in allowed if x in available),None)
     if not model:raise RuntimeError('NO_APPROVED_FREE_FLASH_MODEL')
@@ -51,7 +51,25 @@ def run():
         parts.extend([{'text':name},{'inline_data':{'mime_type':'image/jpeg','data':base64.b64encode(blob).decode()}}])
     req={'contents':[{'role':'user','parts':parts}],'generationConfig':{'temperature':0.2,'maxOutputTokens':2800,'responseMimeType':'application/json'}}
     if len(json.dumps(req))>12000000:raise RuntimeError('REQUEST_SIZE_LIMIT')
-    response=request(key,API+'/models/'+model+':generateContent',req,timeout=85)
+    response=None
+    error_states=[]
+    for candidate in allowed:
+        if candidate not in available:continue
+        print('GEMINI_AUTHORIZED_FLASH_TRY',candidate,flush=True)
+        for attempt in range(2 if candidate=='gemini-3.8-flash' else 1):
+            try:
+                response=request(key,API+'/models/'+candidate+':generateContent',req,timeout=85)
+                model=candidate
+                break
+            except RuntimeError as exc:
+                code=str(exc)
+                error_states.append({'model':candidate,'error':code})
+                print('GEMINI_INFERENCE_ATTEMPT_BLOCKED',candidate,code,flush=True)
+                if code not in ('GEMINI_HTTP_503','GEMINI_HTTP_404','GEMINI_HTTP_429'):raise
+                if code=='GEMINI_HTTP_429':raise
+                if code=='GEMINI_HTTP_503' and attempt==0 and candidate=='gemini-3.8-flash':time.sleep(5)
+        if response is not None:break
+    if response is None:raise RuntimeError('FREE_FLASH_UNAVAILABLE')
     text=''.join(p.get('text','') for p in (response.get('candidates') or [{}])[0].get('content',{}).get('parts',[]))
     obj=json.loads(text)
     if obj.get('verdict') not in ('APPROVE','REVISE','REJECT') or not obj.get('findings'):raise RuntimeError('GEMINI_REVIEW_INVALID')
