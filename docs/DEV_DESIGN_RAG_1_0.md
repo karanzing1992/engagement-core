@@ -87,12 +87,12 @@ The original three Andaz Gemini artistic reviews **54 REJECT, 68 REVISE, 96 APPR
 
 The global registry \`policy.json\` fixes:
 - **Artistic score >=95/100** from an independent reviewer, for the **exact artifact SHA** being released.
-- Independent artistic verdict **APPROVE**. All independent critiques of that same artifact must pass: any later or lower review cannot be ignored.
+- Independent artistic verdict **APPROVE**. All independent artistic critiques of that same artifact must pass: any later or lower review cannot be ignored. Likewise, every required technical review of the same artifact must pass; an additional failed technical receipt cannot be overwritten by a different passing receipt.
 - Required technical review kinds: \`playwright\`, \`axe_wcag\`, \`lighthouse_mobile\`, \`lighthouse_desktop\`, \`keyboard\`; each must carry a passing receipt for that artifact.
 - No pending/failed review ingestion.
 - **Separate final owner release approval**, not granted by this design-RAG CLI.
 
-A missing review, a score of 94, REVISE, a failed/absent technical test, wrong artifact digest, unindexed result or absent owner approval **all cause BLOCKED**. Project manifests cannot lower the global artistic floor or turn off owner approval; policy tampering causes registry startup failure.
+A missing review, a score of 94, REVISE, any failed/absent technical test (even if other receipts of the same type passed), wrong artifact digest, unindexed result or absent owner approval **all cause BLOCKED**. Project manifests cannot lower the global artistic floor or turn off owner approval; policy tampering causes registry startup failure.
 
 **Enforcement integration:** The CLI provides a fail-closed \`gate\` command suitable for CI and the design orchestration release step. The pure-Python GitHub Actions workflow tests the policy and security invariants on branch/PR. This branch **does not silently change an existing unrelated project's deployment workflow or GitHub branch-protection settings**; every consuming development/release pipeline must explicitly call this gate and prove a consumer ACK before it is considered tool-wide adopted in that pipeline.
 
@@ -107,7 +107,7 @@ A Gemini artistic APPROVE is not evidence that GDPR/security/legal/checkout/real
 - Historical reviews ingested: **14 total** = 3 artistic, 3 accessibility, 1 functional, 1 performance, 1 UX and five individual technical release-gate kinds (Playwright, axe WCAG, mobile Lighthouse, desktop Lighthouse, keyboard).
 - Review backlog after verified backfill: **0**.
 - Local embeddings only; no paid LLM/API indexing calls.
-- Source-level isolated security/policy/review unit tests: **27/27 passed** after last review-hook update. Both [independent GitHub CI run #42368196372](https://github.com/karanzing1992/engagement-core/actions/runs/42368196372) and [follow-up run #42368558422](https://github.com/karanzing1992/engagement-core/actions/runs/42368558422) completed SUCCESS.
+- Source-level isolated security/policy/review unit tests: **28/28 passed** after last review-hook update. Both [independent GitHub CI run #42368196372](https://github.com/karanzing1992/engagement-core/actions/runs/42368196372) and [follow-up run #42368558422](https://github.com/karanzing1992/engagement-core/actions/runs/42368558422) completed SUCCESS.
 - Real Dell four-layer \`LightRAG.aquery(mode=naive,only_need_context=True)\` retrieval: **PASS**. Tested source-backed WCAG, hospitality patterns, Andaz brand and project-specific Gemini evidence, with **no Andaz brand leakage into shared generic or hospitality graph context**.
 - GitHub isolated certification workflow \`.github/workflows/dev-design-rag-v1-certify.yml\` verified SUCCESS on development branch. No project branch protection was altered.
 - V3 homepage **live design quality gate readback**: independent Gemini **96/100 and APPROVE**, all five mandatory technical stages present and PASS, **0 unindexed reviews**, and **owner approval false**; overall gate correctly **BLOCKED** solely at owner approval. Historical sitewide V1/V2 findings remain separate.
