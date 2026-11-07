@@ -1,0 +1,54 @@
+name: Andaz | Gemini Vision Artistic Audit (Owner-Scoped, Read-Only)
+on:
+  push:
+    branches:
+      - audit/andaz-gemini-vision-20261107
+    paths:
+      - 'experiments/andaz-vision-audit/**'
+      - '.github/workflows/andaz-gemini-vision-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: andaz-gemini-vision-audit-20261107
+  cancel-in-progress: false
+jobs:
+  art-review:
+    if: github.repository == 'karanzing1992/engagement-core' && github.ref == 'refs/heads/audit/andaz-gemini-vision-20261107'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact owner-only audit branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated open-source screenshot dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check playwright==1.58.0
+          command -v google-chrome
+      - name: Run owner-attested FREE Gemini API vision on public Andaz screenshots
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_OWNER_FREE_ATTESTED: 'true'
+          GEMINI_OWNER_INFERENCE_APPROVED: 'true'
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY}" = 'karanzing1992/engagement-core'
+          test "${GITHUB_REF}" = 'refs/heads/audit/andaz-gemini-vision-20261107'
+          test -n "${GEMINI_API_KEY:-}"
+          python3 experiments/andaz-vision-audit/gemini_vision_review.py
+      - name: Archive only public images and sanitized artistic review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: andaz-gemini-art-review-20261107
+          path: experiments/andaz-vision-audit/output/
+          retention-days: 7
+          if-no-files-found: warn
