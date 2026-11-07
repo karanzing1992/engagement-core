@@ -318,7 +318,17 @@ def run(job_id,*,fixture=False):
             "mode":"licensed_music","licensed_track":True,
             "music_mixed":True,"composed_audio":False,
             "automatic_source_verified":True,
-            "discovery":{**leads,"used_in_render":True}}
+            "discovery":{**leads,"used_in_render":True,
+             "actual_selected":{"id":candidate["id"],
+                "title":verified["provenance"]["title"],
+                "creator":verified["provenance"]["creator"],
+                "license":verified["provenance"]["license"],
+                "source_page":verified["provenance"]["source"]},
+             "actual_selection_method":(
+                 "ai_selected_and_verified" if
+                 candidate["id"]==((leads.get("selected") or {}).get("id")) and
+                 leads.get("selection")=="groq_120b" else
+                 "rights_verified_fallback")}}
          break
         except (source_music.AutoLicenseBlocked,ffmpeg_editor.RenderBlocked,
                 ValueError,RuntimeError):
