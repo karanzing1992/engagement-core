@@ -159,6 +159,40 @@ def groq_call(model, prompt, *, temperature, max_tokens, response_format=None):
         raise V6Blocked("Groq response lacks validated JSON") from exc
 
 
+
+def gemini_music_choice(_model, prompt, *, temperature=0.1, max_tokens=220):
+    """Free-tier, owner-approved metadata-only music choice after Groq exhaustion.
+
+    The upstream discovery layer still validates the exact candidate ID, and
+    this function cannot download media, approve licenses or publish.
+    """
+    if (os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")!="true" or
+        os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")!="true"):
+        raise V6Blocked("Owner approval for allowlisted Gemini Flash request required")
+    key=os.environ.get("GEMINI_API_KEY")
+    if not key:
+        raise V6Blocked("Gemini free-tier API key not present")
+    available=free_flash_models(discover_models(key,legacy_adapter()))
+    if not available:
+        raise V6Blocked("No approved free Gemini Flash model available")
+    for candidate in available[:2]:
+        try:
+            payload=post_json(GEMINI_ENDPOINT+candidate+":generateContent",
+                {"x-goog-api-key":key},
+                {"contents":[{"parts":[{"text":prompt[:4500]}]}],
+                 "generationConfig":{"responseMimeType":"application/json",
+                                     "temperature":0.1,"maxOutputTokens":256}},timeout=25)
+            answer=payload["candidates"][0]["content"]["parts"][0]["text"]
+            return decode_json(answer)
+        except (FreeModelTemporarilyUnavailable,KeyError,IndexError,TypeError):
+            continue
+        except V6Blocked as error:
+            if str(error)=="Model API rejected or timed out; details redacted":
+                continue
+            raise
+    raise V6Blocked("All currently available free Flash candidate endpoints were unavailable")
+
+
 def validate_observations(source, research):
     observations=research.get("observations")
     by_source={s["id"]:s for s in source["shots"]}

@@ -308,7 +308,9 @@ def run(job_id,*,fixture=False):
       leads=music_discovery.discover(claim["brief"],plan["hook"],
        music_provider.search,multimodel.groq_call,
        guidance=knowledge.get("music_search",{}).get("context",""),
-       internal=True)
+       internal=True,
+       alternate_call=(multimodel.gemini_music_choice if
+                       gemini_free_path_authorized() else None))
       pool=leads.pop("_candidate_pool",[])
       audio_receipt["discovery"]=leads
       if os.environ.get("MAD_V7_AUTO_SOURCE_MUSIC_ENABLED","false")=="true":
