@@ -32,6 +32,31 @@ class EnginePolicyTests(unittest.TestCase):
         atomic_write(self.root/"policy.json",json.dumps(p))
         self.registry=Registry(self.root)
 
+    def test_register_new_brand_and_project_isolated(self):
+        result=self.registry.register_brand("new-brand","New UX Product","owner2")
+        self.assertEqual(result["status"],"REGISTERED")
+        result=self.registry.register_project("new-mobile","new-brand","mobile_native","owner2")
+        self.assertEqual(result["artistic_minimum"],95)
+        other=Registry(self.root)
+        self.assertEqual(other.scopes("new-mobile","owner")[1],Scope("type","mobile_native"))
+        self.assertTrue((self.root/"graphs"/"brands"/"new-brand").is_dir())
+        self.assertTrue((self.root/"graphs"/"projects"/"new-mobile").is_dir())
+        self.assertNotEqual(other.scope_dir(Scope("project","new-mobile")),
+                            other.scope_dir(Scope("project","andaz-vibe-stay")))
+        self.assertRaises(IsolationError,other.scopes,"new-mobile","andaz_design_agent")
+
+    def test_cross_owner_brand_registration_blocked(self):
+        self.registry.register_brand("other-brand","Other brand","owner2")
+        with self.assertRaises(IsolationError):
+            self.registry.register_project("bad-project","other-brand","saas_dashboard","wrong_owner")
+        self.assertNotIn("bad-project",Registry(self.root).config["projects"])
+
+    def test_duplicate_registration_rejected(self):
+        with self.assertRaises(IsolationError):
+            self.registry.register_brand("andaz","Andaz","karanzing1992")
+        with self.assertRaises(IsolationError):
+            self.registry.register_project("andaz-vibe-stay","andaz","hospitality","karanzing1992")
+
     def test_toolwide_unoverridable_95(self):
         self.assertEqual(ART_MIN,95)
         self.assertEqual(self.registry.config["quality"]["artistic_minimum"],95)
