@@ -196,4 +196,19 @@ class V8CreativeTests(unittest.TestCase):
   self.assertEqual(r["render"]["source_audio_preserved_by_contract"],True)
   self.assertFalse(r["published"])
 
+ def test_18_dialogue_sound_continuity_and_no_transitions_override_style(self):
+  from director import compile_optional_presentation
+  dialogue=self.evidence("Make a cinematic story; preserve original dialogue and full video")
+  p=self.plan(dialogue,"dissolve",music_gain=0)
+  compiled,log=compile_optional_presentation(dialogue,p)
+  self.assertEqual(compiled["segments"][1]["transition"],"dip-to-black")
+  self.assertTrue(any(x["reason"]=="continuous_source_audio_takes_precedence" for x in log))
+  self.assertTrue(validate_plan(dialogue,compiled))
+  without=self.evidence("Create a cinematic story with no transitions and no music")
+  p2=self.plan(without,"dip-to-black",music_gain=0)
+  compiled2,log2=compile_optional_presentation(without,p2)
+  self.assertEqual(compiled2["segments"][1]["transition"],"cut")
+  self.assertTrue(any(x["reason"]=="owner_explicitly_requested_no_transitions" for x in log2))
+  self.assertTrue(validate_plan(without,compiled2))
+
 if __name__=="__main__":unittest.main()
