@@ -34,18 +34,18 @@ class StageDiagnosticTests(unittest.TestCase):
         self.assertNotIn(secret,fail)
 
     def test_redacts_exception_strings_for_other_types(self):
-        runner.ACTIVE_STAGE="ffmpeg_render"
+        runner.ACTIVE_STAGE="cinematic_finish"
         secret="SECRET_GUEST_PATH"
         fail=runner.safe_failure(RuntimeError(secret))
         self.assertEqual(fail,
-            "V6_KV_PRIVATE_RENDER_FAILED stage=ffmpeg_render code=NON_MODEL_FAILURE")
+            "V6_KV_PRIVATE_RENDER_FAILED stage=cinematic_finish code=NON_MODEL_FAILURE")
         self.assertNotIn(secret,fail)
 
     def test_allowlisted_ffmpeg_failure_without_exposure(self):
-        runner.ACTIVE_STAGE="ffmpeg_render"
+        runner.ACTIVE_STAGE="cinematic_finish"
         error=runner.ffmpeg_editor.RenderBlocked("FFMPEG_TITLE_INVALID")
         self.assertEqual(runner.safe_failure(error),
-            "V6_KV_PRIVATE_RENDER_FAILED stage=ffmpeg_render code=FFMPEG_TITLE_INVALID")
+            "V6_KV_PRIVATE_RENDER_FAILED stage=cinematic_finish code=FFMPEG_TITLE_INVALID")
         error=runner.ffmpeg_editor.RenderBlocked("secret guest folder")
         self.assertNotIn("secret guest folder",runner.safe_failure(error))
 

@@ -1,0 +1,42 @@
+name: MAD V7 | Private Cinematic FFmpeg Media QA
+on:
+  pull_request:
+    paths:
+      - 'services/reel-engine/v7-cinema/**'
+      - '.github/workflows/mad-v7-cinema-ci.yml'
+      - 'docs/MAD_REEL_ENGINE_V7_20261107.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cinematic-v7-isolated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check open-source renderer availability
+        run: |
+          set -euo pipefail
+          if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
+          command -v ffmpeg
+          command -v ffprobe
+          ffmpeg -hide_banner -filters | grep -F ' drawtext '
+      - name: V7 actual synthetic 2-shot audio/video render and fail-closed creative QA
+        run: |
+          set -euo pipefail
+          python3 services/reel-engine/v7-cinema/test_v7_cinema.py
+      - name: V6 private-media regression
+        run: |
+          set -euo pipefail
+          python3 services/reel-engine/v6-kv-gateway/test_ffmpeg_v6_smoke.py
+      - name: Prevent media artifact exposure
+        if: always()
+        run: echo 'Synthetic media only, no public artifacts, owner approval before release'

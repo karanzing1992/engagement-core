@@ -1,8 +1,8 @@
 import {seedSynthetic} from "./synthetic_seed.mjs";
 // MAD V6 Cloudflare KV media gateway, independent of V5 routes.
 // Owner PWA + signed GitHub OIDC: no GitHub vault credential or model keys.
-const ORIGINS=new Set(["https://mad-v6-owner-private-beta.pages.dev"]);
-const PREVIEW=/^https:\/\/[a-z0-9-]+\.mad-v6-owner-private-beta\.pages\.dev$/;
+const ORIGINS=new Set(["https://mad-v6-owner-private-beta.pages.dev","https://mad-v7-owner-private-beta.pages.dev"]);
+const PREVIEW=/^https:\/\/[a-z0-9-]+\.(?:mad-v6-owner-private-beta|mad-v7-owner-private-beta)\.pages\.dev$/;
 const JOB=/^v6job-[a-f0-9]{32}$/;
 const SHA=/^[a-f0-9]{64}$/;
 const CHUNK=4*1024*1024,MAX=80*1024*1024,RENDER_WINDOW=86400,DELIVERY_WINDOW=1800;
@@ -173,12 +173,12 @@ async function dispatch(req,e,id){
     .bind(TIME(),id).run();
    return error("Existing GitHub Actions dispatch not ready",503);
  }
- return json({job_id:id,state:"dispatching",renderer:"FFmpeg",published:false},202);
+ return json({job_id:id,state:"dispatching",renderer:"FFmpeg V7 Cinematic",published:false},202);
 }
 function publicState(j){
  const now=TIME(),expiry=j.ready_at?j.expires_at:null;
  const state=(expiry!==null&&now>=expiry)||j.state==="expired"?"expired":j.state;
- return {job_id:j.job_id,state,renderer:"FFmpeg",version:"v6-kv",
+ return {job_id:j.job_id,state,renderer:"FFmpeg V7 Cinematic",version:"v7-ffmpeg-private",
          download_available:state==="review_ready"&&expiry>now,
          expiry_at:expiry,seconds_remaining:expiry===null?null:Math.max(0,expiry-now),
          output_sha256:state==="review_ready"?j.output_sha256:null,
@@ -318,7 +318,9 @@ async function internal(req,e,path){
   }else if(body.receipt?.audio_mode!=="source_ambience_only"||body.receipt?.music_mixed!==false)
     return error("Unexpected soundtrack receipt",422);
   const visual=body.receipt?.visual_presence_check;
-  if(body.receipt?.engine!=="ffmpeg"||body.receipt?.video_stream_verified!==true||
+  if(body.receipt?.engine!=="ffmpeg"||body.receipt?.version!=="v7-source-beta"||
+    body.receipt?.cinematic_finish_applied!==true||body.receipt?.release_lane!=="v7-private"||
+    body.receipt?.video_stream_verified!==true||
     body.receipt?.audio_stream_verified!==true||body.receipt?.full_decode_passed!==true||
     !Number.isInteger(body.receipt?.ffmpeg_invocations)||body.receipt.ffmpeg_invocations<1||
     body.receipt?.output_audio_verified!==true||visual?.visible!==true||
@@ -351,7 +353,7 @@ async function cleanup(e){
 export default {
  async fetch(req,e,ctx){
   const u=new URL(req.url),origin=req.headers.get("origin")||"",headers=cors(origin);
-  if(u.pathname==="/health")return withCors(json({service:"MAD V6 private KV",ready:!!(e.DB&&e.MEDIA_KV&&e.PROJECT_AUTH),
+  if(u.pathname==="/health")return withCors(json({service:"MAD V7 private KV",ready:!!(e.DB&&e.MEDIA_KV&&e.PROJECT_AUTH),
     storage:"cloudflare_kv",dispatch_connected:!!e.DISPATCH_API,requires_github_vault_token:false,published:false}),headers);
   if(u.pathname.startsWith("/internal/v6/")){
    if(!e.DB||!e.MEDIA_KV)return error("Private bridge unavailable",503);
