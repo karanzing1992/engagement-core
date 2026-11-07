@@ -80,6 +80,30 @@ class DiscoveryContract(unittest.TestCase):
         self.assertFalse(out["used_in_render"])
         self.assertLessEqual(len(out["provider_queries"]),3)
 
+    def test_commons_auto_candidate_survives_eight_openverse_results(self):
+        # Openverse often supplies Jamendo tracks before Commons files.
+        # Prior truncation excluded the only track that could auto-verify.
+        first=[{**candidate(i=f"{n:032x}"),
+             "original_source_page":f"https://www.jamendo.com/track/{n}",
+             "source_media_url":f"https://prod-1.storage.jamendo.com/?trackid={n}"}
+             for n in range(1,7)]
+        second=[{**candidate(i=f"{n:032x}"),
+             "original_source_page":f"https://www.jamendo.com/track/{n}"}
+             for n in range(7,13)]
+        commons={**candidate(i="b"*32,title="Forest soundscape"),
+            "source_media_url":"https://upload.wikimedia.org/wikipedia/commons/a/a1/Forest_soundscape.ogg"}
+        terms=iter([first,second])
+        def search(query,**kwargs):
+            if kwargs["provider"]=="wikimedia":
+                return {"candidates":[commons]}
+            return {"candidates":next(terms)}
+        out=d.discover("cinematic sauna","steam",search,
+             lambda model,prompt,**kw:{"id":commons["id"]},internal=True)
+        self.assertEqual(out["selection"],"groq_120b")
+        self.assertEqual(out["selected"]["id"],commons["id"])
+        self.assertEqual(out["_candidate_pool"][0]["id"],commons["id"])
+        self.assertEqual(len(out["_candidate_pool"]),8)
+
     def test_preapproved_catalog_is_separate_from_discovery(self):
         unreviewed=candidate()
         self.assertEqual(auto.eligible([unreviewed]),[])
