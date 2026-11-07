@@ -185,7 +185,7 @@ class StageDiagnosticTests(unittest.TestCase):
             x=bridge.gemini_music_choice("ignored-model","Return exact candidate JSON")
         self.assertEqual(x["id"],"b"*32)
         self.assertEqual(post.call_count,1)
-        self.assertIn("gemini",post.call_args.args[0])
+        self.assertTrue(post.call_args.args[0].startswith(bridge.GEMINI_ENDPOINT))
 
     def test_gemini_music_selector_rejects_unapproved_tier(self):
         from unittest.mock import patch
