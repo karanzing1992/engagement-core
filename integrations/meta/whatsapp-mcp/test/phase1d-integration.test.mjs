@@ -25,7 +25,7 @@ test('Phase 1-D real pinned SDK: A/B tenant isolated Graph v26 GET dispatch and 
   const credentialReads = [];
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
-    const headers = new Headers(init.headers);
+    const headers = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined));
     const auth = headers.get('authorization') || '';
     calls.push({ method: init.method || 'GET', url, auth });
     assert.equal(url.origin, 'https://graph.facebook.com');
@@ -34,7 +34,8 @@ test('Phase 1-D real pinned SDK: A/B tenant isolated Graph v26 GET dispatch and 
     assert.ok(auth.startsWith('Bearer synthetic-access-token-brand_'), 'tenant bearer');
     const tenant = auth.includes('brand_a') ? 'brand_a' : 'brand_b';
     assert.ok(url.pathname.includes(routes[tenant].wabaId), 'WABA belongs to token tenant');
-    return new Response(JSON.stringify({ data: [{ name: 'synthetic_template', id: '400000000001' }], paging: {} }),
+    return new Response(JSON.stringify({ data: [{ id: '400000000001', name: 'synthetic_template', language: 'en_US',
+      category: 'UTILITY', status: 'APPROVED', components: [] }], paging: { cursors: { after: 'next' } } }),
       { status: 200, headers: { 'content-type': 'application/json' } });
   };
   try {
