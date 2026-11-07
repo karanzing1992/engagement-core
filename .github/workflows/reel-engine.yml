@@ -1,37 +1,14 @@
-name: Reel Engine Container
-
+# LEGACY REEL ENGINE WORKFLOW RETIRED 2026-11-07: V7 exclusive.
+# Original blob SHA 30aefe515302eb7282a024bb952468771472b7db, retrievable from Git history; no data deleted.
+# V7 production OIDC-pinned owner runner / V7 CI are retained unchanged.
+name: DEPRECATED | reel-engine.yml
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
-  packages: write
-
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  retired:
+    if: ${{ false }}
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set image name
-        id: image
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/reel-engine" >> "$GITHUB_OUTPUT"
-
-      - name: Build
-        run: docker build -t "${{ steps.image.outputs.name }}:${{ github.sha }}" services/reel-engine
-
-      - name: Push commit tag
-        run: docker push "${{ steps.image.outputs.name }}:${{ github.sha }}"
-
-      - name: Tag and push latest
-        if: github.ref == 'refs/heads/main'
-        run: |
-          docker tag "${{ steps.image.outputs.name }}:${{ github.sha }}" "${{ steps.image.outputs.name }}:latest"
-          docker push "${{ steps.image.outputs.name }}:latest"
+      - run: echo 'Legacy Reel Engine workflow retired; V7 only.'
