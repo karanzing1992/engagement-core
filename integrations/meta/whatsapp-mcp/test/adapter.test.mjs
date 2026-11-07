@@ -7,6 +7,7 @@ function setup() {
   const calls = [];
   const adapter = createEngagementWhatsAppAdapter({
     resolveConnection: async tenant => tenant === 'brand_a' ? credentials : null,
+    authorizeTenant: (principal, tenant) => principal === 'operator_a' && tenant === 'brand_a',
     sdkFactory: config => {
       calls.push({ kind: 'sdk', config });
       return { callTool: async (name, args) => {
@@ -27,7 +28,7 @@ test('tool inventory has only curated read and preview tools', () => {
 
 test('read uses tenant-specific credentials, safe SDK flags and allowed tool', async () => {
   const { adapter, calls } = setup();
-  const result = await adapter.invoke({ tenantId: 'brand_a', toolName: 'whatsapp_get_business_account', args: {} });
+  const result = await adapter.invoke({ tenantId: 'brand_a', principal: 'operator_a', toolName: 'whatsapp_get_business_account', args: {} });
   assert.equal(result.ok, true);
   assert.equal(calls[0].config.readOnly, true);
   assert.equal(calls[0].config.enableDangerousTools, false);
@@ -37,14 +38,14 @@ test('read uses tenant-specific credentials, safe SDK flags and allowed tool', a
 
 test('outbound without dry run is rejected before secret access', async () => {
   const { adapter, calls } = setup();
-  const result = await adapter.invoke({ tenantId: 'brand_a', toolName: 'whatsapp_send_text_message', args: { recipient_phone_number: '+15551234567', message_body: 'No real send' } });
+  const result = await adapter.invoke({ tenantId: 'brand_a', principal: 'operator_a', toolName: 'whatsapp_send_text_message', args: { recipient_phone_number: '+15551234567', message_body: 'No real send' } });
   assert.equal(result.error.code, 'outbound_disabled');
   assert.equal(calls.length, 0);
 });
 
 test('dry-run preview cannot inherit caller confirmation', async () => {
   const { adapter, calls } = setup();
-  const result = await adapter.invoke({ tenantId: 'brand_a', toolName: 'whatsapp_send_template_message', args: { recipient_phone_number: '+15551234567', template_name: 'sample', language_code: 'en_US', dryRun: true, confirm: true } });
+  const result = await adapter.invoke({ tenantId: 'brand_a', principal: 'operator_a', toolName: 'whatsapp_send_template_message', args: { recipient_phone_number: '+15551234567', template_name: 'sample', language_code: 'en_US', dryRun: true, confirm: true } });
   assert.equal(result.ok, true);
   assert.equal(calls[0].config.readOnly, false);
   assert.equal(calls[0].config.enableDangerousTools, true);
@@ -56,7 +57,7 @@ test('dry-run preview cannot inherit caller confirmation', async () => {
 test('rejects phone lifecycle, template creation and all unlisted tools', async () => {
   const { adapter, calls } = setup();
   for (const toolName of ['whatsapp_register_phone_number', 'whatsapp_deregister_phone_number', 'whatsapp_create_message_template', 'whatsapp_subscribe_app', '__proto__']) {
-    const result = await adapter.invoke({ tenantId: 'brand_a', toolName, args: {} });
+    const result = await adapter.invoke({ tenantId: 'brand_a', principal: 'operator_a', toolName, args: {} });
     assert.equal(result.error.code, 'tool_not_allowed');
   }
   assert.equal(calls.length, 0);
@@ -65,17 +66,24 @@ test('rejects phone lifecycle, template creation and all unlisted tools', async 
 test('missing or wrong tenant is isolated and upstream is not reached', async () => {
   const { adapter, calls } = setup();
   for (const tenantId of ['brand_b', '../brand_a', '', undefined]) {
-    const result = await adapter.invoke({ tenantId, toolName: 'whatsapp_get_business_account' });
-    assert.equal(result.error.code, 'connection_unavailable');
+    const result = await adapter.invoke({ tenantId, principal: 'operator_a', toolName: 'whatsapp_get_business_account' });
+    assert.ok(['connection_unavailable', 'forbidden'].includes(result.error.code));
   }
   assert.equal(calls.length, 0);
 });
 
 test('invalid input, incomplete connection, and SDK failures are safely redacted', async () => {
   const { adapter } = setup();
-  assert.equal((await adapter.invoke({ tenantId: 'brand_a', toolName: 'whatsapp_get_business_account', args: [] })).error.code, 'invalid_input');
-  const unavailable = createEngagementWhatsAppAdapter({ resolveConnection: async () => credentials, sdkFactory: () => ({ callTool: () => { throw new Error('private secret string'); } }) });
-  const result = await unavailable.invoke({ tenantId: 'brand_a', toolName: 'whatsapp_get_business_account' });
+  assert.equal((await adapter.invoke({ tenantId: 'brand_a', principal: 'operator_a', toolName: 'whatsapp_get_business_account', args: [] })).error.code, 'invalid_input');
+  const unavailable = createEngagementWhatsAppAdapter({ resolveConnection: async () => credentials, authorizeTenant: () => true, sdkFactory: () => ({ callTool: () => { throw new Error('private secret string'); } }) });
+  const result = await unavailable.invoke({ tenantId: 'brand_a', principal: 'operator_a', toolName: 'whatsapp_get_business_account' });
   assert.equal(result.error.code, 'upstream_unavailable');
   assert.ok(!JSON.stringify(result).includes('private secret'));
+});
+
+test('cross-principal access is rejected before fetching tenant secret', async () => {
+  const { adapter, calls } = setup();
+  const result = await adapter.invoke({ tenantId: 'brand_a', principal: 'operator_b', toolName: 'whatsapp_get_business_account' });
+  assert.equal(result.error.code, 'forbidden');
+  assert.equal(calls.length, 0);
 });
