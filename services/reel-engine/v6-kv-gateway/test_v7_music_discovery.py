@@ -45,6 +45,32 @@ class DiscoveryContract(unittest.TestCase):
         self.assertIn(("ambient","openverse"),calls)
         self.assertNotIn("audio_url",str(out))
 
+    def test_canonical_self_published_catalog_queried_even_if_openverse_has_commons(self):
+        calls=[]
+        first=candidate(title="Indexed external track")
+        genuine=candidate(i="b"*32,title="Self-published original recording")
+        def search(term,**kw):
+            calls.append((term,kw["provider"]))
+            if kw["provider"]=="wikimedia":
+                return {"candidates":[genuine]}
+            return {"candidates":[first]}
+        out=d.discover("cinematic wellness ritual","warm peaceful",
+                       search,lambda *a,**k:{"id":genuine["id"]},internal=True)
+        self.assertEqual(out["selected"]["id"],genuine["id"])
+        self.assertIn(('lofi ambient incategory:"Self-published work"',"wikimedia"),calls)
+        self.assertEqual(out["_candidate_pool"][0]["id"],genuine["id"])
+
+    def test_model_cannot_choose_candidate_outside_eight_item_allowlist(self):
+        def search(term,**kw):
+            if kw["provider"]=="wikimedia":
+                return {"candidates":[candidate(i=f"{n:032x}") for n in range(11,23)]}
+            return {"candidates":[]}
+        result=d.discover("cinematic wellness ritual","quiet",
+                          search,lambda *a,**k:{"id":f"{22:032x}"},internal=True)
+        self.assertEqual(result["selection"],"deterministic_fallback")
+        self.assertIn(result["selected"]["id"],
+                      {row["id"] for row in result["_candidate_pool"]})
+
     def test_wikimedia_fallback_on_empty_openverse(self):
         calls=[]
         def search(term,**kwargs):
