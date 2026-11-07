@@ -21,7 +21,8 @@ function database(){
 }
 const kv=()=>{const storage=new Map();return {storage,async put(k,v){storage.set(k,Buffer.from(v))},
  async get(k,type){const value=storage.get(k);if(!value)return null;return type==="json"?JSON.parse(value.toString("utf8")):Uint8Array.from(value).buffer},
- async delete(k){storage.delete(k)}}};
+ async delete(k){storage.delete(k)},async list({prefix,limit=100}){return {keys:
+ Array.from(storage.keys()).filter(k=>k.startsWith(prefix)).slice(0,limit).map(name=>({name})),list_complete:true}}}};
 function client(path,opts={}){
  const headers={Origin:origin,Authorization:owner,...opts.headers};
  return new Request(base+path,{method:opts.method||"GET",headers,body:opts.body});
@@ -219,6 +220,14 @@ test("owner-verified Openverse track transfer -> signed FFmpeg mix receipt; fals
   const media=await sign("/internal/v6/jobs/"+id+"/music",{claim:j.claim_id});
   assert.equal(media.status,200);
   assert.equal(SHA(await media.arrayBuffer()),SHA(audio));
+  const lib=await sign("/internal/v6/jobs/"+id+"/music-library",{claim:j.claim_id});
+  assert.equal(lib.status,200);
+  const library=(await lib.json()).tracks;
+  assert.equal(library.length,1);
+  assert.equal(library[0].sha256,SHA(audio));
+  const libraryAudio=await sign("/internal/v6/jobs/"+id+"/music-library/"+SHA(audio),{claim:j.claim_id});
+  assert.equal(libraryAudio.status,200);
+  assert.equal(SHA(await libraryAudio.arrayBuffer()),SHA(audio));
   const out=Buffer.concat([bytes,Buffer.from("VERIFIED SYNTHETIC RESULT")]);
   assert.equal((await sign("/internal/v6/jobs/"+id+"/output/0",{method:"PUT",claim:j.claim_id,
    headers:{"X-Chunk-SHA256":SHA(out)},body:out})).status,200);
@@ -233,6 +242,13 @@ test("owner-verified Openverse track transfer -> signed FFmpeg mix receipt; fals
   assert.equal((await complete(receipt)).status,200);
   db.prepare("UPDATE mad_v6_kv_jobs SET expires_at=? WHERE job_id=?").run(md()-1,id);
   let cleaning=null;await worker.scheduled({},env,{waitUntil:p=>cleaning=p});await cleaning;
+  assert.equal(storage.storage.size,2);
+  const listed=await worker.fetch(client("/v7/music-library"),env,{});
+  assert.equal(listed.status,200);
+  assert.equal((await listed.json()).count,1);
+  const revoked=await worker.fetch(client("/v7/music-library/"+SHA(audio),
+    {method:"DELETE"}),env,{});
+  assert.equal(revoked.status,200);
   assert.equal(storage.storage.size,0);
  }finally{globalThis.fetch=original;db.close()}
 });
