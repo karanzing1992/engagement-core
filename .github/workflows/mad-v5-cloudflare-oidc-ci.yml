@@ -1,66 +1,14 @@
-name: MAD V5 | Cloudflare OIDC Bridge Contracts
+# LEGACY REEL ENGINE WORKFLOW RETIRED 2026-11-07: V7 exclusive.
+# Original blob SHA f17623b1a7bee4ed193d2121faff99fdec4ffb7c, retrievable from Git history; no data deleted.
+# Do NOT disable the V7 OIDC-pinned owner runner mad-v6-kv-filmcraft.yml.
+name: DEPRECATED | mad-v5-cloudflare-oidc-ci.yml
 on:
-  pull_request:
-    paths:
-      - 'experiments/reel-engine-v5/cloudflare-oidc/**'
-      - 'services/reel-engine/cloudflare_bridge_runner.py'
-      - 'experiments/reel-engine-v5/git_cloud_runner.py'
-      - '.github/workflows/mad-v5-cloudflare-bridge.yml'
-      - '.github/workflows/mad-v5-cloudflare-oidc-ci.yml'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  contracts:
+  retired:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 7
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Syntax and Python cross-source import contract
-        run: |
-          set -euo pipefail
-          node --check experiments/reel-engine-v5/cloudflare-oidc/worker.mjs
-          node - <<'JS'
-          const fs=require('node:fs');
-          const source=fs.readFileSync('experiments/reel-engine-v5/cloudflare-oidc/worker.mjs','utf8');
-          if(!source.includes("redirect:'manual'")||!source.includes('r.status!==200')||source.includes("redirect:'error'"))throw Error('Unsupported Cloudflare JWKS redirect policy');
-          if(source.includes('x-mad-oidc-stage'))throw Error('Temporary authentication diagnostic still exposed');
-          console.log('CLOUDFLARE_JWKS_MANUAL_REDIRECT_FAIL_CLOSED_PASS');
-          JS
-          python3 -m py_compile services/reel-engine/cloudflare_bridge_runner.py experiments/reel-engine-v5/git_cloud_runner.py
-          python3 - <<'PY'
-          import importlib.util, json, pathlib, tempfile
-          path = pathlib.Path("services/reel-engine/cloudflare_bridge_runner.py")
-          spec = importlib.util.spec_from_file_location("bridge", path)
-          bridge = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(bridge)
-          assert bridge.AUDIENCE == "mad-v5-cloudflare-bridge/v1"
-          assert bridge.ENDPOINT.startswith("https://mad-reel-v5-oidc-bridge.")
-          with tempfile.TemporaryDirectory() as tmp:
-            file = pathlib.Path(tmp)/"owner-event.json"
-            e = {"repository":{"full_name":"karanzing1992/engagement-core","owner":{"login":"karanzing1992"}},
-                 "issue":{"number":121,"state":"open","title":"[MAD-V5-CF] synthetic",
-                          "user":{"login":"karanzing1992"},
-                          "body":json.dumps({"schema_version":1,"project_id":"moksha_wellness",
-                             "mode":"live","profile":"synthetic_test","prompt":"Owner approved synthetic model test"})}}
-            file.write_text(json.dumps(e))
-            d = bridge.parse_issue(file)
-            assert d["issue_number"] == 121 and d["mode"]=="live"
-            e["issue"]["user"]["login"]="attacker"
-            file.write_text(json.dumps(e))
-            try: bridge.parse_issue(file); raise AssertionError("Attacker accepted")
-            except ValueError: pass
-          print("CLOUDFLARE_BRIDGE_SOURCE_AND_OWNER_NEGATIVES_PASS")
-          PY
-      - name: Install pinned Pillow for synthetic Groq visual fixture contracts
-        run: python3 -m pip install --disable-pip-version-check 'Pillow==11.3.0'
-      - name: Run existing V5 model/renderer offline contracts
-        run: |
-          set -euo pipefail
-          (cd experiments/reel-engine-v5 && python3 -m unittest -v test_v5_orchestrator.py test_git_cloud_runner.py)
+      - run: echo 'Legacy V1-V6 Reel Engine workflow retired; use V7.'
