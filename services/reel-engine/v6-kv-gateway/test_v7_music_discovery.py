@@ -228,5 +228,25 @@ class SyntheticEndToEndFFmpeg(unittest.TestCase):
         self.assertEqual(result["selection_attempts"],["invalid_allowlist_choice","selected"])
         self.assertFalse(result["used_in_render"])
 
+
+    def test_gemini_makes_allowlisted_music_choice_when_groq_unavailable(self):
+        first=candidate(i="a"*32,title="Slow ambient")
+        second=candidate(i="b"*32,title="Gentle piano")
+        attempts=[]
+        def groq(*a,**k):
+            attempts.append("groq")
+            raise RuntimeError("Provider throttled")
+        def gemini(*a,**k):
+            attempts.append("gemini")
+            return {"id":second["id"]}
+        result=d.discover("cinematic nature","quiet",
+            lambda *a,**k:{"candidates":[first,second]},groq,
+            alternate_call=gemini,internal=True)
+        self.assertEqual(result["selection"],"gemini_free_flash")
+        self.assertEqual(result["selected"]["id"],second["id"])
+        self.assertEqual(attempts,["groq","gemini"])
+        self.assertEqual(result["selection_attempts"],["provider_unavailable","selected"])
+        self.assertFalse(result["used_in_render"])
+
 if __name__=="__main__":
     unittest.main(verbosity=2)
