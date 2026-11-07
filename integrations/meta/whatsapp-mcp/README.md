@@ -4,6 +4,14 @@
 
 A tenant-scoped **integration adapter**, not a replacement CRM, WhatsApp inbox, webhook receiver, WACRM broker, or standalone publicly registered MCP service.
 
+## Production-readiness review (latest Phase 1-D checkpoint, 2026-11-07)
+
+**Current: `SOURCE_AND_EPHEMERAL_WP_STAGING_CERTIFIED / CONNECTED_PRODUCTION_NO_GO`.** The installed Node adapter and HMAC-signed, tokenless WACRM Central read client passed **39/39** tests and a clean high/critical npm audit. The WACRM owning draft passed **101/101 offline PHP checks plus 23/23 integration checks on real disposable WordPress 6.9 and MySQL 8**. Read-only templates are scoped to the verified WABA, with explicit HMAC activation grants, replay denial, bounded inputs, encrypted token custody, no bearer in the new signup response, and hard rejection of WACRM Central Crypto's legacy Base64 plaintext fallback.
+
+All tests use **synthetic Meta transports/accounts**; the WordPress run is ephemeral CI, **not an owner-owned staging deployment**. No live Graph calls, credential distribution, registrations, message sends, customer data or production changes. The two PRs remain draft/unmerged pending authenticated staging, OAuth/client isolation, Meta scope/coexistence verification, independent review and owner release approval. See [production-readiness report](../../../docs/META_CORE_PRODUCTION_READINESS_20261107.md) and [WACRM custody PR #134](https://github.com/karanzing1992/moksha_wordpress/pull/134).
+
+The original Phase 1-D and Phase 1-C reports below are retained for historical evidence and must not be used as the latest release decision.
+
 ## Phase 1-D verified source checkpoint (2026-11-07)
 
 **Current status: `SOURCE_ONLY / NODE_29_OF_29 / ZOD_AUDIT_HIGH_0 / WACRM_PHP_68_OF_68 / CONNECTED_NO_GO / PRODUCTION_NO_GO`.** The clean Dell clone executed the installed pinned Dojo SDK/MCP with **synthetic two-tenant Graph v26** reads and HMAC relay fixtures: **29/29 tests passed**, `npm audit --omit=dev --audit-level=high` found **0 vulnerabilities**. Lockfile SHA-256 is `1e20985b6a8f04be559e0646892c88f0e65b6db295a958ec313e68ef02534f6c`. The transitive Zod tree is overridden to **4.6.7**, outside Dojo's declared Zod 3 semver range; audit is clean for this candidate but all upstream operations are **not** validated. Hardened input bounds precede SDK parsing.
