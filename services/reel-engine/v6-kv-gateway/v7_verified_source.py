@@ -205,7 +205,8 @@ def _source_meta(track:dict,opener=None)->dict:
         raise AutoLicenseBlocked("COMMONS_TITLE_INVALID")
     params=urllib.parse.urlencode({
         "action":"query","format":"json","titles":title,
-        "prop":"imageinfo|categories","cllimit":"max",\n        "iiprop":"url|mediatype|extmetadata|mime|size|sha1"})
+        "prop":"imageinfo|categories","cllimit":"max",
+        "iiprop":"url|mediatype|extmetadata|mime|size|sha1"})
     api="https://commons.wikimedia.org/w/api.php?"+params
     _url(api,"commons.wikimedia.org")
     try:
