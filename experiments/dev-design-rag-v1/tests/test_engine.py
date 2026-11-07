@@ -216,6 +216,14 @@ class ReviewsTests(unittest.TestCase):
         self.assertEqual(v["status"],"BLOCKED")
         self.assertEqual(v["review_count"],7)
 
+    def test_failed_technical_review_cannot_be_hidden_by_pass(self):
+        self.add_pass_reviews(score=99)
+        self.ledger.submit(self.review(id="second-playwright-failure",kind="playwright",passed=False))
+        asyncio.run(self.fake_reconcile())
+        result=self.ledger.gate("andaz-vibe-stay",ART,owner_approval=True)
+        self.assertFalse(result["checks"]["all_required_tests_pass"])
+        self.assertEqual(result["status"],"BLOCKED")
+
     def test_pending_ingest_blocks_approval(self):
         self.add_pass_reviews()
         self.ledger.submit(self.review(id="new_pending",kind="ux",passed=True))
