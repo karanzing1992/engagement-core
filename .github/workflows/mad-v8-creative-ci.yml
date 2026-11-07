@@ -22,6 +22,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install open-source FFmpeg on clean hosted runner
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Verify FFmpeg and FFprobe
         run: ffmpeg -hide_banner -version | head -1 && ffprobe -hide_banner -version | head -1
       - name: V8 source, editor, real AV and owner consent tests (no secrets)
