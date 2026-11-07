@@ -32,6 +32,7 @@ STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","fr
 ACTIVE_STAGE="start"
 SAFE_CAUSES={
  "All currently available free Flash candidate endpoints were unavailable":"GEMINI_ENDPOINT_UNAVAILABLE",
+ "V7 required Reel RAG unavailable":"V7_RAG_UNAVAILABLE",
  "No approved free Gemini Flash model available":"GEMINI_MODEL_UNAVAILABLE",
  "Gemini free-tier API key not present":"GEMINI_KEY_MISSING",
  "Model API request rejected; provider response redacted":"MODEL_PROVIDER_REJECTED",
@@ -224,6 +225,9 @@ def run(job_id,*,fixture=False):
   knowledge=reel_rag.collect(claim["brief"],claim["source_description"],work,
          enable=os.environ.get("MAD_V7_TXTAI_MICRO_RAG_ENABLED","false")=="true")
   print("MAD_V7_REEL_MICRO_RAG_STATUS "+knowledge["status"],flush=True)
+  # Never silently bypass the owner-enabled knowledge gate in a real V7 render.
+  if os.environ.get("MAD_V7_TXTAI_MICRO_RAG_ENABLED","false")=="true" and knowledge["status"]!="ready":
+   raise multimodel.V6Blocked("V7 required Reel RAG unavailable")
   mark("model_policy")
   plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,
                   fixture=synthetic,frames=frames,guidance=knowledge["roles"])
