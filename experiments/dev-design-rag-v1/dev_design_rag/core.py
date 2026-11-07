@@ -164,6 +164,37 @@ class Registry:
         os.chmod(path, 0o700)
         return path
 
+    def register_brand(self, brand_id: str, display_name: str, owner: str) -> dict:
+        name_ok(brand_id)
+        name_ok(owner)
+        if not isinstance(display_name,str) or not (2 <= len(display_name) <= 120):
+            raise ValueError("INVALID_BRAND_NAME")
+        if brand_id in self.config["brands"]:
+            raise IsolationError("BRAND_ALREADY_REGISTERED")
+        self.config["brands"][brand_id]={"owner":owner,"name":display_name}
+        atomic_write(self.policy_path,json.dumps(self.config,indent=2))
+        # Store created independently; never copy a different brand graph.
+        path=self.scope_dir(Scope("brand",brand_id))
+        return {"status":"REGISTERED","brand":brand_id,"graph_path":str(path)}
+
+    def register_project(self, project_id: str, brand_id: str, project_type: str, owner: str) -> dict:
+        name_ok(project_id);name_ok(brand_id);name_ok(project_type);name_ok(owner)
+        if project_id in self.config["projects"]:
+            raise IsolationError("PROJECT_ALREADY_REGISTERED")
+        if brand_id not in self.config["brands"]:
+            raise IsolationError("BRAND_NOT_REGISTERED")
+        if project_type not in self.config["types"]:
+            raise IsolationError("PROJECT_TYPE_NOT_REGISTERED")
+        if self.config["brands"][brand_id]["owner"]!=owner:
+            raise IsolationError("CROSS_OWNER_BRAND_BINDING_DENIED")
+        self.config["projects"][project_id]={"brand":brand_id,"type":project_type,"owner":owner}
+        self.config["principals"]["owner"]["projects"].append(project_id)
+        atomic_write(self.policy_path,json.dumps(self.config,indent=2))
+        path=self.scope_dir(Scope("project",project_id))
+        self.artifact_dir(project_id)
+        return {"status":"REGISTERED","project":project_id,"type":project_type,
+                "brand":brand_id,"graph_path":str(path),"artistic_minimum":ART_MIN}
+
     def artifact_dir(self, project: str) -> Path:
         name_ok(project)
         if project not in self.config["projects"]:
