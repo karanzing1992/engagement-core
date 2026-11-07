@@ -65,7 +65,7 @@ def rank(candidates: list[dict], brief: str, hook: str) -> list[dict]:
     return [x[3] for x in sorted(scores)]
 
 
-def choose(records: object, brief: str, hook: str, groq_call) -> tuple[list[dict], dict]:
+def choose(records: object, brief: str, hook: str, groq_call, *, guidance: str = "") -> tuple[list[dict], dict]:
     """AI must return an exact eligible SHA; invalid output cannot inject media."""
     candidates = eligible(records)
     if not candidates:
