@@ -41,11 +41,11 @@ def run():
                 ctx.close()
         finally:chrome.close()
     offered=request(key,API+'/models?pageSize=100',timeout=18)
-    allowed=('gemini-3.8-flash','gemini-3.6-flash','gemini-2.5-flash-lite','gemini-2.5-flash')
+    allowed=('gemini-3.6-flash','gemini-2.5-flash-lite')
     available={x.get('name','').split('/')[-1] for x in offered.get('models',[]) if 'generateContent' in x.get('supportedGenerationMethods',[])}
     model=next((x for x in allowed if x in available),None)
     if not model:raise RuntimeError('NO_APPROVED_FREE_FLASH_MODEL')
-    print('GEMINI_ALLOWED_MODEL_SELECTED',model,flush=True)
+    print('GEMINI_ALLOWED_MODEL_SELECTED',model,'candidate_count',sum(x in available for x in allowed),flush=True)
     parts=[{'text':PROMPT}]
     for name,blob,_ in images:
         parts.extend([{'text':name},{'inline_data':{'mime_type':'image/jpeg','data':base64.b64encode(blob).decode()}}])
@@ -66,7 +66,7 @@ def run():
                 error_states.append({'model':candidate,'error':code})
                 print('GEMINI_INFERENCE_ATTEMPT_BLOCKED',candidate,code,flush=True)
                 if code not in ('GEMINI_HTTP_503','GEMINI_HTTP_404','GEMINI_HTTP_429'):raise
-                if code=='GEMINI_HTTP_429':raise
+                if code=='GEMINI_HTTP_429':continue
                 if code=='GEMINI_HTTP_503' and attempt==0 and candidate=='gemini-3.8-flash':time.sleep(5)
         if response is not None:break
     if response is None:raise RuntimeError('FREE_FLASH_UNAVAILABLE')
