@@ -72,8 +72,25 @@ class UserBetaContracts(unittest.TestCase):
         self.assertIn("GITHUB_DISPATCH_TIMEOUT", wake)
         self.assertIn("const MAX_ATTEMPTS=4;", wake)
 
-    def test_github_private_ffmpeg_install_is_bounded_without_apt(self):
+    def test_retired_legacy_ffmpeg_runner_is_disabled_and_v7_runner_preserved(self):
+        # V5 owner media path is archived, not operational. V7 is the only
+        # signed owner render path and its legacy filename is OIDC-pinned.
         script=WORKFLOW.read_text()
+        if "DEPRECATED | MAD V5 Cloudflare OIDC runner (V7 only)" in script:
+            self.assertNotIn("schedule:", script)
+            self.assertNotIn("types: [opened", script)
+            self.assertNotIn("types: [edited", script)
+            self.assertIn("if: ${{ false }}", script)
+            v7=(DIR.parents[2] / ".github/workflows/mad-v6-kv-filmcraft.yml").read_text()
+            self.assertIn("name: MAD V6 KV FFmpeg Owner Runner", v7)
+            self.assertIn("name: Install and verify FFmpeg and FFprobe", v7)
+            self.assertIn("ffmpeg -hide_banner -version", v7)
+            self.assertIn("ffprobe -hide_banner -version", v7)
+            self.assertIn("services/reel-engine/v6-kv-gateway/runner.py --job-id", v7)
+            self.assertIn("github.event_name == 'workflow_dispatch'", v7)
+            return
+        # Compatibility while older base commits are under test: retain the
+        # historical bounded-install assertion, no legacy service execution.
         private=script.split("name: Install render dependencies for accepted real-media owner job",1)[1]
         private=private.split("name: Download verified private source",1)[0]
         self.assertIn("timeout 120 npm install",private)
