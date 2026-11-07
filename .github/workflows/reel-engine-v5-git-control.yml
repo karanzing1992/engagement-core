@@ -1,137 +1,14 @@
-name: Reel Engine V5 | GitHub Control & Synthetic Video Integration
-
+# DEPRECATED operational workflow: retired by V7-only owner instruction.
+# Original blob 9d6492fb508c0b41c6253d79b23266cdf85a6b0e; restore from Git history only with owner authorization.
+# This does not alter the pinned V7 workflow mad-v6-kv-filmcraft.yml.
+name: DEPRECATED | reel-engine-v5-git-control.yml
 on:
-  push:
-    branches: [feature/reel-v5-git-endtoend-20261102]
-    paths:
-      - 'experiments/reel-engine-v5/**'
-      - 'ops/media/v5_issue_gate.py'
-      - 'ops/media/test_v5_issue_gate.py'
-      - '.github/workflows/reel-engine-v5-git-control.yml'
-  pull_request:
-    paths:
-      - 'experiments/reel-engine-v5/**'
-      - 'ops/media/v5_issue_gate.py'
-      - 'ops/media/test_v5_issue_gate.py'
-      - '.github/workflows/reel-engine-v5-git-control.yml'
-  issues:
-    types: [opened, edited]
   workflow_dispatch:
-    inputs:
-      mode:
-        description: Synthetic test with offline fixture or live Groq 120B
-        required: true
-        type: choice
-        options: [fixture, live, multimodal]
-        default: fixture
-      profile:
-        description: Synthetic verification output profile
-        required: true
-        type: choice
-        options: [synthetic_test, instagram_reel]
-        default: synthetic_test
-
 permissions:
   contents: read
-  issues: write
-
-concurrency:
-  group: reel-v5-remote-${{ github.event.issue.number || github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  verify-and-render:
-    if: github.event_name != 'issues' || (github.event.issue.user.login == github.repository_owner && contains(github.event.issue.labels.*.name, 'reel-v5-run'))
+  legacy-disabled:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 22
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install pinned Pillow for synthetic model contract checks
-        run: python3 -m pip install --disable-pip-version-check 'Pillow==11.3.0'
-      - name: Install free FFmpeg binary
-        run: |
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
-          ffmpeg -version | head -1
-      - name: Existing V5 + private renderer contracts and owner issue relay tests
-        run: |
-          set -euo pipefail
-          (cd experiments/reel-engine-v5 && python3 -m unittest -v test_v5_orchestrator.py test_music_provider.py test_git_cloud_runner.py)
-          (cd ops/media && python3 -m unittest -v test_reel_engine_router.py test_v5_issue_gate.py)
-          (cd services/reel-engine && python3 -m unittest -v test_multi_renderer.py)
-          python3 -m py_compile experiments/reel-engine-v5/git_cloud_runner.py ops/media/v5_issue_gate.py
-      - name: Validate issue intake, when submitted through owner GitHub issue
-        if: github.event_name == 'issues'
-        run: |
-          set -euo pipefail
-          python3 ops/media/v5_issue_gate.py --event "$GITHUB_EVENT_PATH" --output "$RUNNER_TEMP/v5-approved-job.json"
-      - name: Set safe render mode and output profile
-        id: job
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          MANUAL_MODE: ${{ inputs.mode }}
-          MANUAL_PROFILE: ${{ inputs.profile }}
-        run: |
-          set -euo pipefail
-          if [ "$EVENT_NAME" = "issues" ]; then
-            mode="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["mode"])' "$RUNNER_TEMP/v5-approved-job.json")"
-            profile="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["profile"])' "$RUNNER_TEMP/v5-approved-job.json")"
-          else
-            mode="${MANUAL_MODE:-fixture}"
-            profile="${MANUAL_PROFILE:-synthetic_test}"
-          fi
-          case "$mode" in fixture|live|multimodal) ;; *) exit 2;; esac
-          case "$profile" in synthetic_test|instagram_reel) ;; *) exit 2;; esac
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "profile=$profile" >> "$GITHUB_OUTPUT"
-      - name: Install Groq provider SDK only if live synthetic mode requested
-        if: steps.job.outputs.mode == 'live' || steps.job.outputs.mode == 'multimodal'
-        run: python3 -m pip install --disable-pip-version-check 'groq==0.37.1'
-      - name: Verify Pillow for Groq-only synthetic-frame analysis
-        if: steps.job.outputs.mode == 'multimodal'
-        run: python3 -m pip install --disable-pip-version-check 'Pillow==11.3.0'
-      - name: V5 director to guarded EDL to existing FFmpeg renderer to independent QA
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          RUN_MODE: ${{ steps.job.outputs.mode }}
-          RUN_PROFILE: ${{ steps.job.outputs.profile }}
-        run: |
-          set -euo pipefail
-          python3 experiments/reel-engine-v5/git_cloud_runner.py \
-            --mode "$RUN_MODE" --profile "$RUN_PROFILE" --out-dir "$RUNNER_TEMP/v5-output"
-          python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));assert d["status"]=="SYNTHETIC_TECHNICAL_CERTIFICATION_ONLY" and d["video"]["decoded"] and not d["real_footage_certified"] and not d["published"]' \
-            "$RUNNER_TEMP/v5-output/v5-technical-receipt.json"
-      - name: Archive synthetic-only MP4 and audit receipt
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: reel-v5-synthetic-technical-${{ github.run_number }}
-          path: |
-            ${{ runner.temp }}/v5-output/v5-synthetic-diagnostic.mp4
-            ${{ runner.temp }}/v5-output/v5-technical-receipt.json
-          if-no-files-found: error
-          retention-days: 7
-      - name: Return control-plane result to owner's GitHub issue
-        if: success() && github.event_name == 'issues'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE: ${{ github.event.issue.number }}
-          REPO: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          gh issue comment "$ISSUE" --repo "$REPO" --body \
-            "V5 GitHub synthetic technical integration passed. Receipt + MP4: $RUN_URL (Actions artifact, 7-day retention). This is NOT real-footage, music-rights or artistic/release certification. No social publishing."
-
-      - name: Return failed certification status to owner's GitHub issue
-        if: failure() && github.event_name == 'issues'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE: ${{ github.event.issue.number }}
-          REPO: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          gh issue comment "$ISSUE" --repo "$REPO" --body \
-            "V5 synthetic certification FAILED or was blocked. Inspect job logs: $RUN_URL. No production, private-media, music-rights or artistic certification is implied; no social publishing."
+      - run: echo 'Earlier Reel Engine versions retired; V7 is exclusive.'
