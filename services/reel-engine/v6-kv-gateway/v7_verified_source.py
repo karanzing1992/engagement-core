@@ -206,7 +206,7 @@ def _source_meta(track:dict,opener=None)->dict:
     params=urllib.parse.urlencode({
         "action":"query","format":"json","titles":title,
         "prop":"imageinfo|categories","cllimit":"max",
-        "iiprop":"url|mediatype|extmetadata|mime|size|sha1"})
+        "iiprop":"url|user|mediatype|extmetadata|mime|size|sha1"})
     api="https://commons.wikimedia.org/w/api.php?"+params
     _url(api,"commons.wikimedia.org")
     try:
@@ -225,6 +225,11 @@ def _source_meta(track:dict,opener=None)->dict:
                          str(cat.get("title","")),re.I) for cat in categories
                if isinstance(cat,dict)):
             raise AutoLicenseBlocked("SOURCE_LICENSE_REVIEW_PENDING")
+        # For automatic reuse, prefer first-party audio actually released by its
+        # artist. A lack of a review-pending tag alone is not source proof.
+        if not any(str(cat.get("title","")).casefold()=="category:self-published work"
+                   for cat in categories if isinstance(cat,dict)):
+            raise AutoLicenseBlocked("SOURCE_ORIGIN_NOT_SELF_PUBLISHED")
         info=pages[0]["imageinfo"][0]
     except (KeyError,IndexError,ValueError,TypeError) as exc:
         if isinstance(exc,AutoLicenseBlocked):raise
@@ -254,8 +259,18 @@ def _source_meta(track:dict,opener=None)->dict:
     creator=unescape(re.sub(r"<[^>]*>"," ",artist)).strip()
     if not creator or len(creator)>150 or "requires verification" in creator.lower():
         raise AutoLicenseBlocked("SOURCE_CREATOR_UNVERIFIED")
+    # Recordings must be represented as the uploader's own original work.
+    # This is evidence of a first-party CC grant, not a copyright guarantee.
+    from html import unescape as html_unescape
+    credit=html_unescape(re.sub(r"<[^>]*>"," ",str((ext.get("Credit") or {}).get("value",""))))
+    uploader=info.get("user")
+    normalized=lambda value:"".join(re.findall(r"[a-z0-9]+",str(value).casefold()))
+    if (not re.search(r"\bown\s+work\b",credit,re.I)
+        or not isinstance(uploader,str) or not normalized(uploader)
+        or normalized(uploader)!=normalized(creator)):
+        raise AutoLicenseBlocked("SOURCE_ORIGINAL_AUTHOR_NOT_CORROBORATED")
     restriction=" ".join(str((ext.get(k) or {}).get("value","")) for k in ("Restrictions","ImageDescription"))
-    if re.search(r"copyright violation|deletion request|non.?commercial|no.?derivative|rights reserved",restriction,re.I):
+    if re.search(r"copyright violation|deletion request|non.?commercial|no.?derivative|rights reserved|ai.generated|musiclm|suno generated|udio generated",restriction,re.I):
         raise AutoLicenseBlocked("SOURCE_EXPLICIT_RESTRICTION")
     size=info.get("size")
     if type(size) is not int or not 1024<=size<=MAX_BYTES:
@@ -266,6 +281,8 @@ def _source_meta(track:dict,opener=None)->dict:
     return {"source_page":orig.split("?",1)[0],"title":title[5:][:150],
             "creator":creator,"media_url":original,"license":lic,
             "license_url":label,"size":size,"sha1":original_sha1,
+            "license_label":str((ext.get("LicenseShortName") or {}).get("value",""))[:50],
+            "uploader":uploader,"source_review":"self_published_original_author",
             "source_kind":"wikimedia_commons"}
 
 def admit(track:dict,workdir:Path,required_seconds:float,*,opener=None,probe=None)->dict:
@@ -293,13 +310,16 @@ def admit(track:dict,workdir:Path,required_seconds:float,*,opener=None,probe=Non
         p=probe(output,require_video=False)
         if float(p["duration"])<float(required_seconds)-.1:
             raise AutoLicenseBlocked("AUTO_MUSIC_TOO_SHORT")
-        lic={"by":"CC BY","cc0":"CC0","pdm":"PDM"}[meta["license"]]
-        credit=f'{meta["title"]} — {meta["creator"]} | {lic} | {meta["license_url"]} | {meta["source_page"]}'
+        lic=meta["license_label"]
+        credit=(f'{meta["title"]} — {meta["creator"]} | {lic} | '
+            f'{meta["license_url"]} | {meta["source_page"]} | '
+            'Adapted excerpt, mixed and mastered for short-form video.')
         if len(credit)>850:
             raise AutoLicenseBlocked("CREDIT_TOO_LONG")
         rights={"human_verified":False,"automatic_source_verified":True,
            "verification_method":"commons_api_live",
-           "license":lic,"original_source_url":meta["source_page"],
+           "license":lic,"source_review":meta["source_review"],
+           "original_source_url":meta["source_page"],
            "source_license_proof_url":meta["source_page"],
            "original_license_url":meta["license_url"],
            "attribution_approved":bool(credit),
@@ -308,7 +328,9 @@ def admit(track:dict,workdir:Path,required_seconds:float,*,opener=None,probe=Non
            "provenance":{"mode":"source_auto_verified","automatic_source_verified":True,
              "verification_method":"commons_api_live","source":meta["source_page"],
              "media_url":meta["media_url"],"title":meta["title"],"creator":meta["creator"],
-             "license":meta["license"],"license_url":meta["license_url"],
+             "license":meta["license"],"license_label":lic,
+             "source_review":meta["source_review"],"uploader":meta["uploader"],
+             "license_url":meta["license_url"],
              "sha256":digest,"original_sha1":original_sha1,
               "transfer_method":"serial_http_range", "attribution_required":meta["license"]=="by",
              "credit_text":credit,"attribution_in_manifest":True,
