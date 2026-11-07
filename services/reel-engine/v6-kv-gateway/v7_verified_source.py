@@ -311,6 +311,7 @@ def admit(track:dict,workdir:Path,required_seconds:float,*,opener=None,probe=Non
         if float(p["duration"])<float(required_seconds)-.1:
             raise AutoLicenseBlocked("AUTO_MUSIC_TOO_SHORT")
         lic=meta["license_label"]
+        engine_license={"by":"CC BY","cc0":"CC0","pdm":"PDM"}[meta["license"]]
         credit=(f'{meta["title"]} — {meta["creator"]} | {lic} | '
             f'{meta["license_url"]} | {meta["source_page"]} | '
             'Adapted excerpt, mixed and mastered for short-form video.')
@@ -318,7 +319,8 @@ def admit(track:dict,workdir:Path,required_seconds:float,*,opener=None,probe=Non
             raise AutoLicenseBlocked("CREDIT_TOO_LONG")
         rights={"human_verified":False,"automatic_source_verified":True,
            "verification_method":"commons_api_live",
-           "license":lic,"source_review":meta["source_review"],
+           "license":engine_license,"license_label":lic,
+           "source_review":meta["source_review"],
            "original_source_url":meta["source_page"],
            "source_license_proof_url":meta["source_page"],
            "original_license_url":meta["license_url"],
