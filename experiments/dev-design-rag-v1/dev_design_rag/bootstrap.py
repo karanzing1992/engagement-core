@@ -85,6 +85,26 @@ def legacy_reviews() -> list[dict]:
             "findings":findings,"source_url":url,"timestamp":"2026-11-07T11:00:00Z",
             "artifact_sha":digest,"evidence":{"historical_backfill":True,"public_audit_receipt":True}
         })
+    # Tool-native mandatory review categories are imported as distinct,
+    # immutable receipts. These were previously verified for the V3 homepage
+    # and should not be confused with full site-wide production acceptance.
+    home_digest="7d4126dcef1ef9b0e9e3320accd055bee413c161b1a7955df63feb67f8589624"
+    source_url="https://github.com/karanzing1992/andaz-vibe-stay/issues/4#issuecomment-6705885652"
+    for kind,detail in [
+        ("playwright","V3 homepage 320/390/768/1440px; HTTP200, zero horizontal overflow"),
+        ("axe_wcag","V3 homepage four widths; zero axe-core reported violations"),
+        ("lighthouse_mobile","V3 homepage local mobile Lighthouse all four categories 100"),
+        ("lighthouse_desktop","V3 homepage local desktop Lighthouse all four categories 100"),
+        ("keyboard","V3 mobile menu opens and Escape closes at 320/390px")
+    ]:
+        records.append({
+            "project":"andaz-vibe-stay","review_id":"andaz-v3-"+kind.replace("_","-")+"-qa-20261107",
+            "kind":kind,"scope":"homepage","artifact_sha":home_digest,
+            "source_url":source_url,"reviewer":"verified_dell_qa_pipeline",
+            "passed":True,"findings":[],"timestamp":"2026-11-07T11:30:00Z",
+            "evidence":{"historical_backfill":True,"actual_test_summary":detail,
+                        "needs_owner_release":True}
+        })
     return records
 
 async def run(args):
