@@ -1,26 +1,14 @@
-name: MAD V5 | Groq-only model-list preflight (no inference)
+# LEGACY REEL ENGINE WORKFLOW RETIRED 2026-11-07: V7 exclusive.
+# Original blob SHA 9ac5d99641f0eab72fb6a6de1f0f42b53de59708, retrievable from Git history; no data deleted.
+# Do NOT disable the V7 OIDC-pinned owner runner mad-v6-kv-filmcraft.yml.
+name: DEPRECATED | mad-v5-groq-model-preflight.yml
 on:
-  push:
-    branches:
-      - feat/mad-v5-groq-only-task-router-20261104
-      - main
-    paths:
-      - experiments/reel-engine-v5/v5_config.json
-      - experiments/reel-engine-v5/groq_models_preflight.py
-      - .github/workflows/mad-v5-groq-model-preflight.yml
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  groq-model-list:
+  retired:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Read-only Groq model list for this existing owner account
-        env:
-          GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
-        run: python3 experiments/reel-engine-v5/groq_models_preflight.py
+      - run: echo 'Legacy V1-V6 Reel Engine workflow retired; use V7.'
