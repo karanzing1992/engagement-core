@@ -27,7 +27,7 @@ class StageDiagnosticTests(unittest.TestCase):
 
     def test_redacts_unknown_model_exceptions(self):
         runner.ACTIVE_STAGE="groq_director"
-        secret=[REDACTED]
+        secret="SECRET_ACCOUNT_GUEST_DO_NOT_EMIT"
         fail=runner.safe_failure(runner.multimodel.V6Blocked(secret))
         self.assertEqual(fail,
             "V6_KV_PRIVATE_RENDER_FAILED stage=groq_director code=BLOCKED_UNCLASSIFIED")
@@ -35,7 +35,7 @@ class StageDiagnosticTests(unittest.TestCase):
 
     def test_redacts_exception_strings_for_other_types(self):
         runner.ACTIVE_STAGE="cinematic_finish"
-        secret=[REDACTED]
+        secret="SECRET_GUEST_PATH"
         fail=runner.safe_failure(RuntimeError(secret))
         self.assertEqual(fail,
             "V6_KV_PRIVATE_RENDER_FAILED stage=cinematic_finish code=NON_MODEL_FAILURE")
