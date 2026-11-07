@@ -1,6 +1,6 @@
 {
   "name": "MAD_V7_REEL_BEST_PRACTICES",
-  "version": "2026-11-07.1",
+  "version": "2026-11-07.2",
   "scope": "reel_making_best_practices_only",
   "license_note": "Curated short original guidance informed by linked first-party/official sources; do not treat any passage as policy higher than owner consent or verified footage.",
   "items": [
@@ -454,6 +454,213 @@
       "text": "Ensure final titles resolve before the end and that audio decays naturally rather than truncating the experience mid-phrase.",
       "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
       "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "musicfind01",
+      "topic": "music_discovery",
+      "roles": [
+        "research",
+        "director"
+      ],
+      "text": "Search music metadata through V5's existing Openverse audio API, restricting discovery to CC0, PDM and CC BY; obtain candidates but do not download or mix a catalog result merely because its metadata says free.",
+      "source_url": "https://api.openverse.org/v1/audio/",
+      "source_title": "Openverse Official Audio API"
+    },
+    {
+      "id": "musicfind02",
+      "topic": "music_discovery",
+      "roles": [
+        "research",
+        "director"
+      ],
+      "text": "Search with a concrete sonic intention first, then retry broad terms such as ambient, piano or forest if a narrow multiword query gives no results; cap result counts and API calls.",
+      "source_url": "https://api.openverse.org/v1/audio/",
+      "source_title": "Openverse Official Audio API"
+    },
+    {
+      "id": "musicfind03",
+      "topic": "music_discovery",
+      "roles": [
+        "research",
+        "reviewer"
+      ],
+      "text": "If Openverse yields no relevant candidate or is unavailable, use the existing Wikimedia Commons MediaWiki filetype:audio discovery fallback. Examine the file's original page, author and LicenseShortName; exclude CC BY-SA, NC and ND from this V7 automatic music admission path.",
+      "source_url": "https://commons.wikimedia.org/w/api.php",
+      "source_title": "Wikimedia Commons Official API"
+    },
+    {
+      "id": "musicfind04",
+      "topic": "music_rights",
+      "roles": [
+        "research",
+        "director",
+        "reviewer"
+      ],
+      "text": "An audio search result is only a suggestion. Verify the recording's original source page, its composition and master recording reuse rights, allowed license, creator credit, any platform constraints and evidence of approval before treating it as usable audio.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/experiments/reel-engine-v5/music_provider.py",
+      "source_title": "MAD V5 Open-Licensed Music Provider"
+    },
+    {
+      "id": "musicfind05",
+      "topic": "music_rights",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "AI may propose one discovered external soundtrack by exact allowlisted source ID, but recommendation status is REVIEW_REQUIRED. It cannot grant rights, download unverified audio, fake a review receipt or bypass V6's independent evidence gate.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/services/reel-engine/v6-kv-gateway/v7_auto_music.py",
+      "source_title": "MAD V7 Reviewed Music Selector"
+    },
+    {
+      "id": "musicfind06",
+      "topic": "music_selection",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "For a final reel, choose an exact SHA256 from the owner-private, independently cleared V6 recording catalog. If that catalog is empty, retain source ambience and include a shortlist for rights review; never auto-promote discovery metadata to a cleared track.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/services/reel-engine/v6-kv-gateway/v7_auto_music.py",
+      "source_title": "MAD V7 Reviewed Music Selector"
+    },
+    {
+      "id": "musicfind07",
+      "topic": "music_selection",
+      "roles": [
+        "director"
+      ],
+      "text": "Select tempo and sonic texture to fit the actual filmed story: meditative steam, breath and water work with sparse ambient sounds; an energetic movement sequence may justify more rhythm. Avoid dialogue masking or dramatic cues unsupported by footage.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/services/reel-engine/v6-kv-gateway/v7_auto_music.py",
+      "source_title": "MAD V7 Reviewed Music Selector"
+    },
+    {
+      "id": "musicfind08",
+      "topic": "music_mix",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Before FFmpeg use, independently recheck approved audio bytes against SHA256, sufficient duration, readable codec and the original V6 rights evidence; mix the complete licensed recording with bounded gain, natural fades and full-length audio verification.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/services/reel-engine/v6-kv-gateway/v7_auto_music.py",
+      "source_title": "MAD V7 Reviewed Music Selector"
+    },
+    {
+      "id": "musicfind09",
+      "topic": "music_rights",
+      "roles": [
+        "research",
+        "reviewer"
+      ],
+      "text": "Do not treat Instagram's in-app song selection or Openverse indexing as a transferable license to bake that track into a separately rendered commercial Reel. The publication rights for both composition and recording remain separate checks.",
+      "source_url": "https://about.fb.com/news/2020/08/introducing-instagram-reels/",
+      "source_title": "Official Instagram Reels Introduction"
+    },
+    {
+      "id": "metareel01",
+      "topic": "instagram_creation",
+      "roles": [
+        "research",
+        "director"
+      ],
+      "text": "Meta's Instagram professional dashboard Best Practices includes creation advice on capturing attention and Reel length, with personalized guidance. Consider the first moments of a genuine film; do not promise an algorithmic boost from a specific hook length.",
+      "source_url": "https://about.fb.com/news/2024/10/best-practices-education-hub-creators-instagram/",
+      "source_title": "Official Instagram Best Practices Hub"
+    },
+    {
+      "id": "metareel02",
+      "topic": "instagram_creation",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Use a portrait 9:16 master and check preview-safe composition on a phone. Meta's Instagram API recommends 9:16; do not put titles or faces beneath interface overlays; evaluate each Reel's actual viewing surface.",
+      "source_url": "https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api",
+      "source_title": "Meta Instagram API Reels Specifications"
+    },
+    {
+      "id": "metareel03",
+      "topic": "instagram_export",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Meta's Reels publishing API accepts MP4 or MOV with H.264/HEVC video and AAC audio, and documents 23 to 60 fps. The V7 1080x1920 H.264/AAC 30fps output is a compatible target but must be independently probed.",
+      "source_url": "https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api",
+      "source_title": "Meta Instagram API Reels Specifications"
+    },
+    {
+      "id": "metareel04",
+      "topic": "instagram_export",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "Check the actual destination's current limits before publishing: the official Meta Instagram API document specifies at least 3 seconds, up to 15 minutes, a 1 GB file maximum and 25 Mbps maximum video bitrate for this publishing route; these are API limits, not creative recommendations.",
+      "source_url": "https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api",
+      "source_title": "Meta Instagram API Reels Specifications"
+    },
+    {
+      "id": "metareel05",
+      "topic": "instagram_editing",
+      "roles": [
+        "director"
+      ],
+      "text": "Instagram supports assembling multiple clips, timing changes and transitions. Plan source-grounded scenes, visual continuity and sound-aligned movement; do not add non-existent scenes or unrelated beat-sync cutaways.",
+      "source_url": "https://about.fb.com/news/2020/08/introducing-instagram-reels/",
+      "source_title": "Official Instagram Reels Introduction"
+    },
+    {
+      "id": "metareel06",
+      "topic": "instagram_typography",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Instagram's editing updates include revised fonts and text outlines for clarity. Make on-screen captions concise and readable on a mobile screen, especially when viewers have muted audio.",
+      "source_url": "https://about.fb.com/news/2023/11/new-ways-to-create-content-on-instagram/",
+      "source_title": "Official Instagram Creation Updates"
+    },
+    {
+      "id": "metareel07",
+      "topic": "instagram_metrics",
+      "roles": [
+        "research",
+        "reviewer"
+      ],
+      "text": "Instagram has described Replays and its moment-by-moment Retention Chart as Reel performance signals. After a separately approved post, evaluate actual watch retention and replay behavior rather than treating creative heuristics as guaranteed reach.",
+      "source_url": "https://about.fb.com/news/2023/11/new-ways-to-create-content-on-instagram/",
+      "source_title": "Official Instagram Creation Updates"
+    },
+    {
+      "id": "metareel08",
+      "topic": "instagram_strategy",
+      "roles": [
+        "research",
+        "director"
+      ],
+      "text": "Meta Blueprint includes a dedicated lesson on Reels creative best practices and reaching existing and new audiences. Use it as a platform education reference, not authority to override authentic footage and owner editorial intent.",
+      "source_url": "https://metaspark.facebookblueprint.com/student/path/219746-fb-ig-reels-course",
+      "source_title": "Meta Blueprint Reels Creative Course"
+    },
+    {
+      "id": "metareel09",
+      "topic": "instagram_review",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Trial Reels can test content with non-followers, but creating a trial is still an Instagram publishing operation. Never trigger a trial, public Reel, feed post or cross-post from RAG advice without explicit owner approval.",
+      "source_url": "https://about.fb.com/news/2024/12/trial-reels-try-content-non-followers-first-see-what-perfoms-best",
+      "source_title": "Official Instagram Trial Reels"
+    },
+    {
+      "id": "metareel10",
+      "topic": "instagram_audio",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Instagram's original-audio and in-app music tools are editing features, not proof that a third-party commercial soundtrack is usable outside the app. Use the V5/V6 separately verified audio and keep attribution in the reel manifest.",
+      "source_url": "https://about.fb.com/news/2020/08/introducing-instagram-reels/",
+      "source_title": "Official Instagram Reels Introduction"
     }
   ]
 }
