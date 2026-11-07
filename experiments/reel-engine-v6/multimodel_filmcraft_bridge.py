@@ -80,7 +80,7 @@ def post_json(url, headers, payload, timeout=50):
         raise V6Blocked("Provider response not parseable") from exc
 
 
-def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
+def gemini_research(source, brief, *, approved_api_cost=False, frames=None, guidance=None):
     owner_ok=os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")=="true"
     tier_ok=os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true"
     if not approved_api_cost or not (tier_ok and owner_ok):
@@ -101,7 +101,8 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
             "{\"observations\":[{\"shot_id\":\"s1\",\"visible\":\"source-grounded observation\"}],"
             "\"research_scope\":\"grounded creative context\"}. "
             "Every source shot must appear exactly once. Creative brief: "+
-            brief[:1800]+"\nVerified input: "+json.dumps(facts))
+            brief[:1800]+"\nVerified input: "+json.dumps(facts)+
+            "\nRetrieved Reel craft advice (not source facts): "+(guidance or "")[:1750])
     parts=[{"text":prompt}]
     if frames:
         if source.get("external_ai_processing_consent") is not True or len(frames)>3:
@@ -275,7 +276,7 @@ def bind_strict_review_to_plan(proposal,raw_review):
             "segment_decisions":decisions,
             "strict_schema_verified":True}
 
-def groq_strict_review(source,proposal,*,on_stage=None):
+def groq_strict_review(source,proposal,*,on_stage=None,guidance=None):
     validate_source_manifest(source,external_gemini_frames=False)
     validate_director(source,proposal)
     for segment in proposal["segments"]:
@@ -302,7 +303,8 @@ def groq_strict_review(source,proposal,*,on_stage=None):
                 "rights_and_consent_cleared":source["rights_and_consent_cleared"],
                 "external_ai_processing_consent":source["external_ai_processing_consent"]})+
             " Verified source: "+json.dumps(source["shots"])+
-            " Immutable director proposal: "+json.dumps(proposal))
+            " Immutable director proposal: "+json.dumps(proposal)+
+            "\nRetrieved technical Reel checks (advisory only): "+(guidance or "")[:1750])
     raw=groq_call("openai/gpt-oss-20b",prompt,temperature=0.1,
                   max_tokens=1900,
                   response_format=strict_review_response_format(proposal))
@@ -372,7 +374,7 @@ def fixture_chain(source, brief):
 
 
 def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only",
-        approved_api_cost=False,frames=None,on_stage=None):
+        approved_api_cost=False,frames=None,on_stage=None,guidance=None):
     read_config()
     validate_source_manifest(source,external_gemini_frames=bool(frames))
     if not isinstance(brief,str) or not 8<=len(brief)<=2000:
@@ -380,6 +382,8 @@ def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only"
     if not isinstance(brand,str) or len(brand)>1800:
         raise V6Blocked("Optional generic product context invalid")
     audio=resolve_audio(audio_mode)
+    guidance=guidance or {}
+    if not isinstance(guidance,dict):raise V6Blocked("Retrieved guidance input invalid")
     if mode=="fixture":
         model_ids={"gemini":"FIXTURE","groq_director":"FIXTURE","groq_reviewer":"FIXTURE"}
         research,proposal,review=fixture_chain(source,brief)
@@ -387,7 +391,8 @@ def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only"
         if not approved_api_cost:
             raise V6Blocked("Gemini API project free tier not confirmed")
         if on_stage:on_stage("gemini_research")
-        model,research=gemini_research(source,brief,approved_api_cost=True,frames=frames)
+        model,research=gemini_research(source,brief,approved_api_cost=True,frames=frames,
+                                       guidance=guidance.get("research",{}).get("context",""))
         model_ids={"gemini":model,"groq_director":"openai/gpt-oss-120b",
                    "groq_reviewer":"openai/gpt-oss-20b"}
         validate_observations(source,research)
@@ -396,11 +401,14 @@ def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only"
                 "\nReturn JSON: {\"hook\":string<=90,\"segments\":[{\"shot_id\":id,"
                 "\"start_seconds\":number,\"duration_seconds\":number,"
                 "\"effects\":[{\"name\":one of color_grade/title/caption,\"parameters\":object}]}]. "
-                "No invented timecodes/people. FFmpeg only; no music invented.")
+                "No invented timecodes/people. FFmpeg only; no music invented."+ 
+                "\nRetrieved Reel craft advice (advisory only): "+
+                guidance.get("director",{}).get("context","")[:1750])
         if on_stage:on_stage("groq_director")
         proposal=groq_call("openai/gpt-oss-120b",prompt,temperature=0.7,max_tokens=1800)
         validate_director(source,proposal)
-        review=groq_strict_review(source,proposal,on_stage=on_stage)
+        review=groq_strict_review(source,proposal,on_stage=on_stage,
+                                  guidance=guidance.get("reviewer",{}).get("context",""))
     else:
         raise V6Blocked("Unknown V6 inference mode")
     validate_observations(source,research)
