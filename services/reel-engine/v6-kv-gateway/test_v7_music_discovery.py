@@ -77,11 +77,12 @@ class DiscoveryContract(unittest.TestCase):
         def search(query,**kwargs):
             if kwargs["provider"]=="wikimedia":
                 return {"candidates":[candidate(i="b"*32,title="Original wellness melody")]}
+            base=1 if query=="ambient" else 7
             return {"candidates":[candidate(i=f"{j:032x}",title=f"External indexed {j}")
-                                  for j in range(1,7)]}
+                                  for j in range(base,base+6)]}
         out=d.discover("calm ritual","",search,
-              lambda *a,**k:{"id":f"{6:032x}"},internal=True)
-        self.assertNotEqual(out["selected"]["id"],f"{6:032x}")
+              lambda *a,**k:{"id":f"{12:032x}"},internal=True)
+        self.assertNotEqual(out["selected"]["id"],f"{12:032x}")
         self.assertEqual(out["selection"],"deterministic_fallback")
 
     def test_noncommercial_and_sharealike_not_shortlisted(self):
