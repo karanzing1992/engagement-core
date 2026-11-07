@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""V7 bounded music search and model shortlist; existing V5 providers only.
+"""V7 bounded rights-first music search and model shortlist; existing V5 providers.
 
 This does NOT admit or download a discovered recording. The production render
 can mix only V6 rights-cleared audio whose bytes and SHA are checked independently.
@@ -69,7 +69,7 @@ def auto_admission_candidates(pool:object)->list[dict]:
 
 
 def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:bool=False)->dict:
-    """Search V5 public metadata, then ask Groq to pick a REVIEW_REQUIRED lead.
+    """Search V5 public metadata and self-published Commons, then ask Groq to rank a lead.
 
     At most two Openverse API calls and one Commons fallback. No audio bytes
     fetched, no rights evidence forged and no license state mutated.
@@ -91,19 +91,21 @@ def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:b
                     break
         if len(candidates)>=MAX_CANDIDATES:
             break
-    if not any(_https(t.get("source_media_url","")) and
-            urlsplit(t["original_source_page"]).hostname=="commons.wikimedia.org"
-            for t in candidates.values()):
-        attempted.append("wikimedia:ambient")
-        try:
-            result=search_fn("ambient",limit=6,provider="wikimedia")
-            rows=result.get("candidates",[]) if isinstance(result,dict) else []
-        except Exception:
-            rows=[]
-        for item in rows[:6]:
-            value=_candidate(item)
-            if value and value["title"] and value["creator"]:
-                candidates[value["id"]]=value
+    # Source claims alone are not copyright evidence. The original Commons
+    # file page must still pass V7 self-published uploader/artist + SHA1 gates.
+    # Keep one bounded Commons lookup for independently auditable ORIGINAL
+    # recordings; generic ambient search mainly surfaces third-party imports
+    # that are still pending upstream license review.
+    attempted.append("wikimedia:Purrple Cat")
+    try:
+        result=search_fn("Purrple Cat",limit=8,provider="wikimedia")
+        rows=result.get("candidates",[]) if isinstance(result,dict) else []
+    except Exception:
+        rows=[]
+    for item in rows[:8]:
+        value=_candidate(item)
+        if value and value["title"] and value["creator"]:
+            candidates[value["id"]]=value
     if not candidates:
         return {"status":"no_candidates","rights_status":"DISCOVERY_ONLY_UNVERIFIED",
                 "candidate_count":0,"provider_queries":attempted,"used_in_render":False}
@@ -129,8 +131,8 @@ def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:b
     try:
         result=groq_call("openai/gpt-oss-120b",prompt,temperature=.1,max_tokens=160)
         choice=result.get("id") if isinstance(result,dict) else None
-        if isinstance(choice,str) and choice in candidates:
-            selected=candidates[choice]
+        if isinstance(choice,str) and choice in {x["id"] for x in choices}:
+            selected=next(x for x in choices if x["id"]==choice)
             method="groq_120b"
     except Exception:
         pass
