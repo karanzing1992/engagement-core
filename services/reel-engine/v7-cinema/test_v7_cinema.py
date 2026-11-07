@@ -71,16 +71,29 @@ class V7CinematicTests(unittest.TestCase):
         self.assertEqual(rec["music_gain_relative_to_source"],.07)
         self.assertFalse(rec["transitions_independently_reviewed"])
         self.assertAlmostEqual(rec["duration_seconds"],3.2,delta=.15)
-        def rms(path):
+        def source_tone_amplitude(path):
             result=subprocess.run(["ffmpeg","-hide_banner","-loglevel","error",
                 "-ss","0.5","-t","1.0","-i",str(path),
                 "-vn","-ac","1","-ar","8000","-f","s16le","-"],
                 check=True,capture_output=True,timeout=30)
             values=array("h");values.frombytes(result.stdout)
-            return math.sqrt(sum(v*v for v in values)/max(1,len(values)))
-        # The old mixer reduced the owner source to .25 and music to .70;
-        # this test requires the protected source to stay acoustically present.
-        self.assertGreater(rms(Path(s["output"]))/rms(self.raw),.60)
+            # Frequency-selective amplitude: soundtrack 880 Hz cannot masquerade
+            # as a preserved 440 Hz source dialogue analogue.
+            n=len(values)
+            cos=sum(v*math.cos(2*math.pi*440*i/8000) for i,v in enumerate(values))
+            sin=sum(v*math.sin(2*math.pi*440*i/8000) for i,v in enumerate(values))
+            return 2*math.hypot(cos,sin)/n
+        # Legacy .25 source gain + default amix normalization would be ~.125.
+        self.assertGreater(source_tone_amplitude(Path(s["output"]))/
+                           source_tone_amplitude(self.raw),.65)
+        def mean_luminance(second):
+            result=subprocess.run(["ffmpeg","-hide_banner","-loglevel","error",
+                "-ss",str(second),"-i",s["output"],"-frames:v","1",
+                "-vf","scale=32:18,format=gray","-f","rawvideo","-"],
+                check=True,capture_output=True,timeout=30)
+            return sum(result.stdout)/len(result.stdout)
+        # Do not accept a receipt-only transition; actual frames must dip.
+        self.assertLess(mean_luminance(1.6),mean_luminance(1.0)*.60)
 
     def test_scene_detection_finds_real_boundary(self):
         scene = self.work / "synthetic-black-white.mp4"
