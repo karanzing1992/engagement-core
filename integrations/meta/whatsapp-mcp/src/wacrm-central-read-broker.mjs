@@ -20,19 +20,33 @@ const expectedPath = '/wp-json/wacrm-central/v1/meta-core/read';
 function reject(code) {
   return { ok: false, error: { code, message: 'META CORE read unavailable' } };
 }
-function validArgs(name, args) {
-  if (!args || typeof args !== 'object' || Array.isArray(args) ||
-      Object.getPrototypeOf(args) !== Object.prototype) return false;
-  const entries = Object.entries(args);
-  if (name === 'whatsapp_list_templates') {
-    if (entries.length > 2 || entries.some(([key]) => !['limit', 'after'].includes(key))) return false;
-    return (!Object.hasOwn(args, 'limit') ||
-      (Number.isInteger(args.limit) && args.limit >= 1 && args.limit <= 100)) &&
-      (!Object.hasOwn(args, 'after') ||
-      (typeof args.after === 'string' && cursorPattern.test(args.after)));
-  }
-  return name === 'whatsapp_get_template' && entries.length === 1 &&
-    typeof args.templateId === 'string' && idPattern.test(args.templateId);
+function cleanArgs(name, args) {
+  try {
+    if (!args || typeof args !== 'object' || Array.isArray(args) ||
+        Object.getPrototypeOf(args) !== Object.prototype) return null;
+    const d = Object.getOwnPropertyDescriptors(args);
+    const keys = Object.keys(d);
+    if (name === 'whatsapp_list_templates') {
+      if (keys.length > 2 || keys.some(key => !['limit', 'after'].includes(key))) return null;
+      if (keys.some(key => !Object.hasOwn(d[key], 'value'))) return null;
+      const clean = {};
+      if (Object.hasOwn(d, 'limit')) {
+        if (!Number.isInteger(d.limit.value) || d.limit.value < 1 || d.limit.value > 100) return null;
+        clean.limit = d.limit.value;
+      }
+      if (Object.hasOwn(d, 'after')) {
+        if (typeof d.after.value !== 'string' || !cursorPattern.test(d.after.value)) return null;
+        clean.after = d.after.value;
+      }
+      return clean;
+    }
+    if (name === 'whatsapp_get_template' && keys.length === 1 &&
+        keys[0] === 'templateId' && Object.hasOwn(d.templateId, 'value') &&
+        typeof d.templateId.value === 'string' && idPattern.test(d.templateId.value)) {
+      return { templateId: d.templateId.value };
+    }
+  } catch (_) { /* Proxy traps or malformed descriptors fail closed. */ }
+  return null;
 }
 
 async function boundedResponseText(response, maxBytes = 131072) {
@@ -79,8 +93,9 @@ export function createWacrmCentralBrokerReadAdapter({
     listTools: () => CENTRAL_BROKER_READ_TOOLS.map(name => ({ name, permission: 'read' })),
     async invoke({ principal, tenantId, toolName, args = {} } = {}) {
       if (!allowed.has(toolName)) return reject('tool_not_allowed');
+      const safeArgs = cleanArgs(toolName, args);
       if (typeof tenantId !== 'string' || !tenantPattern.test(tenantId) ||
-          !validArgs(toolName, args)) return reject('invalid_input');
+          safeArgs === null) return reject('invalid_input');
       try {
         if (await authorizeTenant(principal, tenantId, toolName) !== true) return reject('forbidden');
       } catch (_) { return reject('forbidden'); }
@@ -96,7 +111,7 @@ export function createWacrmCentralBrokerReadAdapter({
       // Only the server constructs the signed request. No browser-supplied
       // access token, WABA, phone, URL, audience, client or signing key.
       const raw = JSON.stringify({
-        tenantId, activationId: route.activationId, toolName, args
+        tenantId, activationId: route.activationId, toolName, args: safeArgs
       });
       if (Buffer.byteLength(raw) > 16384) return reject('invalid_input');
       const timestamp = String(now());
