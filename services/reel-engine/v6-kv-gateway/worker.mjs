@@ -1,8 +1,8 @@
 import {seedSynthetic} from "./synthetic_seed.mjs";
 // MAD V6 Cloudflare KV media gateway, independent of V5 routes.
 // Owner PWA + signed GitHub OIDC: no GitHub vault credential or model keys.
-const ORIGINS=new Set(["https://mad-v6-owner-private-beta.pages.dev"]);
-const PREVIEW=/^https:\/\/[a-z0-9-]+\.mad-v6-owner-private-beta\.pages\.dev$/;
+const ORIGINS=new Set(["https://mad-v6-owner-private-beta.pages.dev","https://mad-v7-owner-private-beta.pages.dev"]);
+const PREVIEW=/^https:\/\/[a-z0-9-]+\.(?:mad-v6-owner-private-beta|mad-v7-owner-private-beta)\.pages\.dev$/;
 const JOB=/^v6job-[a-f0-9]{32}$/;
 const SHA=/^[a-f0-9]{64}$/;
 const CHUNK=4*1024*1024,MAX=80*1024*1024,RENDER_WINDOW=86400,DELIVERY_WINDOW=1800;
@@ -353,7 +353,7 @@ async function cleanup(e){
 export default {
  async fetch(req,e,ctx){
   const u=new URL(req.url),origin=req.headers.get("origin")||"",headers=cors(origin);
-  if(u.pathname==="/health")return withCors(json({service:"MAD V6 private KV",ready:!!(e.DB&&e.MEDIA_KV&&e.PROJECT_AUTH),
+  if(u.pathname==="/health")return withCors(json({service:"MAD V7 private KV",ready:!!(e.DB&&e.MEDIA_KV&&e.PROJECT_AUTH),
     storage:"cloudflare_kv",dispatch_connected:!!e.DISPATCH_API,requires_github_vault_token:false,published:false}),headers);
   if(u.pathname.startsWith("/internal/v6/")){
    if(!e.DB||!e.MEDIA_KV)return error("Private bridge unavailable",503);
