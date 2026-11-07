@@ -323,4 +323,133 @@ def run(job_id,*,fixture=False):
        "title":entry["track"]["title"],"creator":entry["track"]["creator"],
        "license":entry["track"]["license"],
        "source":entry["track"]["original_source_page"],
-       "a
+       "attribution_required":entry["track"]["license"]=="by",
+       "automatic_selection":{**decision,
+          "actual_selection":"ai_first_choice" if index==0 and decision["selection"]=="groq_120b"
+           else "ranked_eligible_recovery","sha256":entry["sha256"]}}
+      break
+     except (RuntimeError,ValueError,licensed_audio.AudioBlocked,
+             ffmpeg_editor.RenderBlocked):
+      possible.unlink(missing_ok=True)
+    if music is None:
+     audio_receipt["automatic_selection"]={**decision,"state":"no_usable_reviewed_track"}
+     # Owner-authorized automatic source checks (not blanket Openverse trust):
+     # the original Commons file API must independently agree with the search
+     # license, then private source audio bytes are probed and SHA-pinned.
+     try:
+      leads=music_discovery.use_director_choice(
+          prepared_music,plan.get("music_candidate_id"))
+      if leads is None:
+       leads=music_discovery.discover(claim["brief"],plan["hook"],
+        music_provider.search,multimodel.groq_call,
+        guidance=knowledge.get("music_search",{}).get("context",""),
+        internal=True,
+        alternate_call=(multimodel.gemini_music_choice if
+                        gemini_free_path_authorized() else None))
+      pool=leads.pop("_candidate_pool",[])
+      audio_receipt["discovery"]=leads
+      if os.environ.get("MAD_V7_AUTO_SOURCE_MUSIC_ENABLED","false")=="true":
+       for candidate in music_discovery.auto_admission_candidates(pool):
+        try:
+         verified=source_music.admit(candidate,work,duration_needed,
+           probe=ffmpeg_editor.probe)
+         music=verified["path"]
+         rights=verified["rights"]
+         audio_receipt={**verified["provenance"],
+            "mode":"licensed_music","licensed_track":True,
+            "music_mixed":True,"composed_audio":False,
+            "automatic_source_verified":True,
+            "discovery":{**leads,"used_in_render":True,
+             "actual_selected":{"id":candidate["id"],
+              "source":verified["provenance"]["source"],
+              "title":verified["provenance"]["title"],
+              "license":verified["provenance"]["license"],
+              "sha256":verified["sha256"]},
+             "ai_first_choice_admitted":candidate["id"]==((leads.get("selected") or {}).get("id"))}}
+         break
+        except (source_music.AutoLicenseBlocked,ffmpeg_editor.RenderBlocked,
+                ValueError,RuntimeError):
+         # Never use indexed track without a matching original source and
+         # a valid duration/codecs. No arbitrary provider downloads.
+         continue
+      if music is None:
+       audio_receipt["discovery"]={**leads,
+        "status":"no_eligible_original_source_or_media","used_in_render":False}
+     except Exception:
+      audio_receipt["discovery"]={"status":"unavailable",
+       "rights_status":"DISCOVERY_ONLY_UNVERIFIED","used_in_render":False}
+  elif claim.get("audio_mode")!="source_ambience_only":
+   raise RuntimeError("Unknown audio mode")
+  mark("ffmpeg_render")
+  spec={"source":str(src),"source_sha256":claim["source_sha256"],
+    "template_id":ffmpeg_editor.choose_template(claim["brief"]),
+    "workdir":str(work),"output":str(out),
+    "cuts":plan["cuts"],"operations":plan["operations"],"hook":plan["hook"],
+    "music":str(music) if music else None,
+    "music_sha256":sha(music) if music else None,
+    "music_rights":rights,
+    "width":1080,"height":1920,"fps":30}
+  spec["v7_preset"]=v7_preset_for(claim["brief"])
+  spec.update(audio_intent(claim["brief"]))
+  if spec["dialogue_priority"] and metadata["audio"] is None:
+   raise RuntimeError("Dialogue preservation requires original audio")
+  spec["transition_style"]="dip-to-black" if ("cinematic" in claim["brief"].casefold()
+    or "transition" in claim["brief"].casefold()) else "none"
+  spec["published"]=False
+  spec["owner_approval"]=False
+  mark("cinematic_finish")
+  rec=v7_finish(spec)
+  if (rec.get("cinematic_finish_applied") is not True or rec.get("version")!="v7-source-beta"
+      or rec.get("rendered") is not True or rec.get("engine")!="ffmpeg"
+      or rec.get("video_stream_verified") is not True
+      or rec.get("audio_stream_verified") is not True
+      or rec.get("full_decode_passed") is not True
+      or rec.get("visual_presence_check",{}).get("visible") is not True
+      or rec.get("output_audio_verified") is not True
+      or rec.get("ffmpeg_invocations",0)<1 or not out.exists()):
+   raise RuntimeError("FFmpeg private media certification failed")
+  if spec["dialogue_priority"] and rec.get("source_audio_unattenuated") is not True:
+   raise RuntimeError("V7_DIALOGUE_GAIN_CERTIFICATION_MISSING")
+  if spec["preserve_full_source"] and rec.get("source_duration_preserved") is not True:
+   raise RuntimeError("V7_DIALOGUE_FULL_TIMELINE_CERTIFICATION_MISSING")
+  if spec["preserve_full_source"] and duration>=24 and rec.get("transition_boundaries_applied",0)<1:
+   raise RuntimeError("V7_CINEMATIC_TRANSITIONS_NOT_APPLIED")
+  digest=sha(out);n=math.ceil(out.stat().st_size/CHUNK)
+  if digest!=rec.get("sha256") or not 1<=n<=20:raise RuntimeError("Output SHA/size invalid")
+  mark("output_upload")
+  with out.open("rb") as f:
+   for i in range(n):
+    payload=f.read(CHUNK)
+    result=call("/internal/v6/jobs/"+job_id+"/output/"+str(i),identity,method="PUT",
+      claim=lease,data=payload,digest=hashlib.sha256(payload).hexdigest())
+    if result.get("stored") is not True:raise RuntimeError("Private result chunk not admitted")
+  receipt={k:v for k,v in rec.items() if k not in ("output","project")}
+  receipt["model_roles"]=plan["model_roles"]
+  receipt["model_policy"]=plan.get("model_policy","gemini_free_flash_groq")
+  receipt["source_sha256"]=claim["source_sha256"]
+  receipt["reel_best_practices_rag"]=reel_rag.receipt(knowledge)
+  receipt["audio_library"]=audio_receipt
+  receipt["gemini_frames_sent"]=len(frames)
+  receipt["product_context"]="generic"
+  receipt["release_lane"]="v7-private"
+  receipt["published"]=False
+  receipt["owner_approval"]=False
+  mark("private_complete")
+  result=call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,
+    payload={"state":"review_ready","chunks":n,"bytes":out.stat().st_size,"sha256":digest,"receipt":receipt})
+  if result.get("state")!="review_ready":raise RuntimeError("Private server output certification rejected")
+  print("MAD_V7_PRIVATE_KV_FFMPEG_COMPLETED",job_id,"published=false","fixture="+str(synthetic))
+  return result
+ except Exception:
+  try:call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,payload={"state":"failed"})
+  except Exception:pass
+  raise
+ finally:
+  src.unlink(missing_ok=True);out.unlink(missing_ok=True)
+  shutil.rmtree(work,ignore_errors=True) # only this job\x27s temporary private media
+if __name__=="__main__":
+ p=argparse.ArgumentParser();p.add_argument("--job-id",required=True);p.add_argument("--synthetic-fixture",action="store_true")
+ a=p.parse_args()
+ try:run(a.job_id,fixture=a.synthetic_fixture)
+ except Exception as ex:
+  print(safe_failure(ex),file=sys.stderr,flush=True);sys.exit(2)
