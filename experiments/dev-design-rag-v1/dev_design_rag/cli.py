@@ -46,6 +46,11 @@ async def run(args):
     if args.command=="query":
         json_print(await service.query(args.project,args.prompt,args.principal))
         return 0
+    if args.command=="inbox-sync":
+        from .inbox import sync_inbox
+        output=await sync_inbox(registry,args.project)
+        json_print(output)
+        return 0 if output["status"]=="PASS" else 3
     if args.command=="review-complete":
         obj=json.loads(Path(args.receipt).read_text(encoding="utf-8"))
         ledger=ReviewLedger(registry)
@@ -87,6 +92,7 @@ def main(argv=None):
     ind.add_argument("--file",required=True);ind.add_argument("--source",required=True)
     que=sub.add_parser("query");que.add_argument("--project",required=True)
     que.add_argument("--prompt",required=True);que.add_argument("--principal",default="owner")
+    ib=sub.add_parser("inbox-sync");ib.add_argument("--project",required=True)
     rev=sub.add_parser("review-complete");rev.add_argument("--receipt",required=True)
     rec=sub.add_parser("reconcile");rec.add_argument("--project")
     gate=sub.add_parser("gate");gate.add_argument("--project",required=True)
