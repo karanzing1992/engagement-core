@@ -237,3 +237,11 @@ class StageDiagnosticTests(unittest.TestCase):
 
 if __name__=="__main__":
     unittest.main()
+
+class V7OwnerAudioIntentTests(unittest.TestCase):
+ def test_protect_dialogue_and_full_duration(self):
+  from runner import audio_intent
+  self.assertEqual(audio_intent("Make a cinematic reel from this audio and dialogs being said are important don't shorten the time also"),
+      {"dialogue_priority":True,"preserve_full_source":True})
+  self.assertFalse(audio_intent("No voice, a visual-only montage")["preserve_full_source"])
+  self.assertTrue(audio_intent("keep audio clear, do not shorten")["preserve_full_source"])

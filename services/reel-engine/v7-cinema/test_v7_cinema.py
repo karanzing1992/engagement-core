@@ -1,10 +1,13 @@
 """V7 cinematic postproduction. Synthetic media only; no guest footage in CI."""
 from pathlib import Path
 import subprocess
+import math
+from array import array
+from unittest.mock import patch
 import tempfile
 import unittest
 
-from ffmpeg_v7_cinema import finish, V7Blocked, PRESETS, preset_for
+from ffmpeg_v7_cinema import finish, V7Blocked, PRESETS, preset_for, _protect_dialogue_timeline, _scene_boundaries
 import ffmpeg_v6_adapter as v6
 
 
@@ -41,6 +44,82 @@ class V7CinematicTests(unittest.TestCase):
                 [{"id":"label", "name":"title", "parameters":{"text":"FICTIONAL QA ONLY"}}]
             ],
         }
+
+    def test_dialogue_priority_preserves_voice_and_adds_transitions(self):
+        music = self.work / "approved-synthetic-music.wav"
+        subprocess.run(["ffmpeg","-hide_banner","-loglevel","error","-y",
+            "-f","lavfi","-i","sine=frequency=880:sample_rate=48000:duration=3.2",
+            "-c:a","pcm_s16le",str(music)],check=True,timeout=30)
+        s = self.spec()
+        s["hook"] = ""
+        s["cuts"] = [{"start":0.0,"seconds":1.6},{"start":1.6,"seconds":1.6}]
+        s["dialogue_priority"] = True
+        s["preserve_full_source"] = True
+        s["transition_style"] = "dip-to-black"
+        s["music"] = str(music)
+        s["music_sha256"] = v6.sha256(music)
+        s["music_rights"] = {
+            "human_verified":True,"license":"CC0",
+            "original_source_url":"https://commons.wikimedia.org/wiki/File:QASynthetic",
+            "attribution_approved":True}
+        s["output"] = str(self.work / "dialogue-protected.mp4")
+        rec = finish(s)
+        self.assertEqual(rec["transition_boundaries_applied"],1)
+        self.assertTrue(rec["source_audio_unattenuated"])
+        self.assertTrue(rec["source_duration_preserved"])
+        self.assertEqual(rec["audio_mastering_mode"],"dialogue_source_preserved")
+        self.assertEqual(rec["music_gain_relative_to_source"],.07)
+        self.assertFalse(rec["transitions_independently_reviewed"])
+        self.assertAlmostEqual(rec["duration_seconds"],3.2,delta=.15)
+        def source_tone_amplitude(path):
+            result=subprocess.run(["ffmpeg","-hide_banner","-loglevel","error",
+                "-ss","0.5","-t","1.0","-i",str(path),
+                "-vn","-ac","1","-ar","8000","-f","s16le","-"],
+                check=True,capture_output=True,timeout=30)
+            values=array("h");values.frombytes(result.stdout)
+            # Frequency-selective amplitude: soundtrack 880 Hz cannot masquerade
+            # as a preserved 440 Hz source dialogue analogue.
+            n=len(values)
+            cos=sum(v*math.cos(2*math.pi*440*i/8000) for i,v in enumerate(values))
+            sin=sum(v*math.sin(2*math.pi*440*i/8000) for i,v in enumerate(values))
+            return 2*math.hypot(cos,sin)/n
+        # Legacy .25 source gain + default amix normalization would be ~.125.
+        self.assertGreater(source_tone_amplitude(Path(s["output"]))/
+                           source_tone_amplitude(self.raw),.65)
+        def mean_luminance(second):
+            result=subprocess.run(["ffmpeg","-hide_banner","-loglevel","error",
+                "-ss",str(second),"-i",s["output"],"-frames:v","1",
+                "-vf","scale=32:18,format=gray","-f","rawvideo","-"],
+                check=True,capture_output=True,timeout=30)
+            return sum(result.stdout)/len(result.stdout)
+        # Do not accept a receipt-only transition; actual frames must dip.
+        self.assertLess(mean_luminance(1.6),mean_luminance(1.0)*.60)
+
+    def test_scene_detection_finds_real_boundary(self):
+        scene = self.work / "synthetic-black-white.mp4"
+        subprocess.run(["ffmpeg","-hide_banner","-loglevel","error","-y",
+            "-f","lavfi","-i","color=c=black:s=320x180:r=24:d=6",
+            "-f","lavfi","-i","color=c=white:s=320x180:r=24:d=6",
+            "-filter_complex","[0:v][1:v]concat=n=2:v=1:a=0[v]",
+            "-map","[v]","-c:v","libx264","-preset","ultrafast",str(scene)],
+            check=True,timeout=50)
+        points,method=_scene_boundaries(scene,12.0,24)
+        self.assertEqual(method,"detected_scene_boundaries")
+        self.assertTrue(any(abs(p-6.0)<.5 for p in points))
+
+    def test_dialogue_single_cut_resplits_without_trimming(self):
+        s=self.spec()
+        s["cuts"]=[{"start":0.6,"seconds":1.5}]
+        s["operations"]=[[{"name":"color_grade","parameters":{"contrast":4}}]]
+        s["dialogue_priority"]=True
+        s["preserve_full_source"]=True
+        with patch("ffmpeg_v7_cinema._scene_boundaries",return_value=([1.6],"detected_scene_boundaries")):
+            rebuilt,source=_protect_dialogue_timeline(s)
+        self.assertEqual(source,"detected_scene_boundaries")
+        self.assertEqual(len(rebuilt["cuts"]),2)
+        self.assertAlmostEqual(rebuilt["cuts"][0]["start"],0)
+        self.assertAlmostEqual(sum(v["seconds"] for v in rebuilt["cuts"]),3.2,delta=.05)
+        self.assertEqual(rebuilt["transition_style"],"dip-to-black")
 
     def test_01_reuses_v6_and_exports_real_av(self):
         rec = finish(self.spec())

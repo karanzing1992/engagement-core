@@ -122,9 +122,77 @@ def _audio_peak_db(path: Path) -> float:
     return peak
 
 
+def _scene_boundaries(source: Path, seconds: float, fps: int) -> tuple[list[float], str]:
+    """Look for real edits in the owner's source; never fetch or synthesize footage."""
+    if seconds < 10:
+        return [], "single_short_shot"
+    try:
+        probe = v6._exec([
+            "ffmpeg", "-hide_banner", "-loglevel", "info", "-nostats", "-i", str(source),
+            "-vf", r"scale=320:-2,select=gt(scene\,0.25),showinfo",
+            "-an", "-f", "null", "-"
+        ], max(30, min(180, int(seconds * 3))))
+        candidates = [float(value) for value in
+                      re.findall(r"pts_time:\s*([0-9]+(?:\.[0-9]+)?)",
+                                 probe.stderr.decode("utf8", errors="replace"))]
+    except (v6.RenderBlocked, ValueError):
+        candidates = []
+    out = []
+    for value in candidates:
+        if 3.0 < value < seconds-3.0 and (not out or value-out[-1] >= 4.0):
+            out.append(round(value*fps)/fps)
+        if len(out) >= 5:break
+    if out:
+        return out, "detected_scene_boundaries"
+    # Avoid returning a falsely complete "cinematic" edit from a long single
+    # segment. Short editorial chapters retain every frame and continuous speech.
+    if seconds >= 24:
+        return [round(seconds*fraction*fps)/fps for fraction in (.33, .66)], "timed_editorial_chapters"
+    return [], "no_safe_boundary"
+
+
+def _protect_dialogue_timeline(spec: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """Honor owner's keep-dialogue-and-runtime direction before rendering."""
+    if not spec.get("dialogue_priority"):
+        return spec, "not_requested"
+    details = v6.probe(Path(spec["source"]))
+    if details["audio"] is None:
+        raise V7Blocked("V7_DIALOGUE_SOURCE_AUDIO_MISSING")
+    if not spec.get("preserve_full_source"):
+        return spec, "audio_only_priority"
+    duration = details["duration"]
+    if duration > 120:
+        raise V7Blocked("V7_FULL_SOURCE_TOO_LONG")
+    fps = int(spec["fps"])
+    cuts = spec["cuts"]
+    cursor = 0.0
+    complete = len(cuts)>1
+    for cut in cuts:
+        if abs(float(cut["start"])-cursor)>.07:
+            complete=False
+        cursor=float(cut["start"])+float(cut["seconds"])
+    if abs(cursor-duration)>.12:
+        complete=False
+    if complete:
+        result=dict(spec,transition_style="dip-to-black")
+        return result, "reviewed_full_length_edl"
+    boundaries,method=_scene_boundaries(Path(spec["source"]),duration,fps)
+    frames=[0]+[round(t*fps) for t in boundaries]+[round(duration*fps)]
+    if any((right-left)/fps <.4 for left,right in zip(frames,frames[1:])):
+        raise V7Blocked("V7_PROTECTED_CUT_TOO_SHORT")
+    shot_cuts=[{"start":frames[i]/fps,"seconds":(frames[i+1]-frames[i])/fps}
+               for i in range(len(frames)-1)]
+    # Keep one reviewed instruction; do not invent dialogue or rewrite captions.
+    approved_first=list(spec["operations"][0]) if spec["operations"] else []
+    operations=[approved_first]+[[] for _ in shot_cuts[1:]]
+    return dict(spec,cuts=shot_cuts,operations=operations,
+                transition_style="dip-to-black"), method
+
+
 def finish(spec: dict[str, Any]) -> dict[str, Any]:
     """V6 render -> V7 finish -> independent decode; private output only."""
     work, target, profile = _check(spec)
+    spec, transition_source = _protect_dialogue_timeline(spec)
     v6.verify_backend()
     draft = work / "v7-base-private.mp4"
     if draft == target:
@@ -141,7 +209,10 @@ def finish(spec: dict[str, Any]) -> dict[str, Any]:
         video, audio = _filters(profile, duration)
         measured_peak = _audio_peak_db(draft)
         near_silent = measured_peak <= -55.0
-        if near_silent:
+        if spec.get("dialogue_priority"):
+            # Never fade the start/end of a sentence or re-normalize narration.
+            audio = "anull"
+        if near_silent and not spec.get("dialogue_priority"):
             # Loudnorm on encoded digital silence can return NaN and crash AAC.
             audio = re.sub(r"^loudnorm=[^,]+,", "volume=0,", audio, count=1)
             if not audio.startswith("volume=0,"):
@@ -163,6 +234,9 @@ def finish(spec: dict[str, Any]) -> dict[str, Any]:
         if ((info["video"]["width"], info["video"]["height"]) !=
                 (spec["width"], spec["height"])):
             raise V7Blocked("V7_OUTPUT_DIMENSIONS_INVALID")
+        if spec.get("preserve_full_source") and abs(
+                info["duration"] - v6.probe(Path(spec["source"]))["duration"]) > .15:
+            raise V7Blocked("V7_DIALOGUE_DURATION_NOT_PRESERVED")
         v6._exec(["ffmpeg", "-hide_banner", "-v", "error", "-xerror",
                   "-i", str(target), "-f", "null", "-"], 300)
         samples = []
@@ -180,10 +254,13 @@ def finish(spec: dict[str, Any]) -> dict[str, Any]:
             "engine": "ffmpeg",
             "v7_preset": spec["v7_preset"],
             "cinematic_finish_applied": True,
-            "audio_mastering_mode": "near_silent_preserved" if near_silent else "loudnorm",
+            "audio_mastering_mode": ("dialogue_source_preserved" if spec.get("dialogue_priority")
+                                     else "near_silent_preserved" if near_silent else "loudnorm"),
+            "dialogue_transition_source": transition_source,
             "source_audio_peak_db": round(measured_peak, 2) if math.isfinite(measured_peak) else None,
             "v7_filters": ["eq", "vignette", "noise" if profile["grain"] else "no_grain",
-                            "video_fades", "loudnorm", "audio_fades"],
+                            "video_fades"] + (["dialogue_original_audio_no_fades"] if
+                            spec.get("dialogue_priority") else ["loudnorm", "audio_fades"]),
             "sha256": v6.sha256(target),
             "bytes": target.stat().st_size,
             "ffmpeg_invocations": baseline["ffmpeg_invocations"] + 5,

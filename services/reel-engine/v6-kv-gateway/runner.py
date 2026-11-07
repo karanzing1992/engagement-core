@@ -191,6 +191,19 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None,guidance
     "published":False,"owner_approval":False})
  return plan
 
+def audio_intent(brief):
+ """Owner audio and duration requirements override soundtrack/editor taste."""
+ lower=(brief or "").casefold()
+ dialogue=any(key in lower for key in (
+  "dialog", "spoken", "speech", "voice", "narrat", "talking",
+  "keep the audio", "audio is important", "audio and", "keep audio clear",
+  "conversation", "hear the people"))
+ full=dialogue and any(key in lower for key in (
+  "don't shorten", "dont shorten", "do not shorten", "full length",
+  "entire video", "keep the duration", "don't cut", "dont cut", "no trim"))
+ return {"dialogue_priority":dialogue, "preserve_full_source":full}
+
+
 def run(job_id,*,fixture=False):
  if not job_id.startswith("v6job-") or len(job_id)!=38:raise ValueError("Invalid private V6 job")
  backend_selection.select_renderer("ffmpeg");ffmpeg_editor.verify_backend() # fail closed on missing FFmpeg
@@ -377,6 +390,11 @@ def run(job_id,*,fixture=False):
     "music_rights":rights,
     "width":1080,"height":1920,"fps":30}
   spec["v7_preset"]=v7_preset_for(claim["brief"])
+  spec.update(audio_intent(claim["brief"]))
+  if spec["dialogue_priority"] and metadata["audio"] is None:
+   raise RuntimeError("Dialogue preservation requires original audio")
+  spec["transition_style"]="dip-to-black" if ("cinematic" in claim["brief"].casefold()
+    or "transition" in claim["brief"].casefold()) else "none"
   spec["published"]=False
   spec["owner_approval"]=False
   mark("cinematic_finish")
@@ -390,6 +408,12 @@ def run(job_id,*,fixture=False):
       or rec.get("output_audio_verified") is not True
       or rec.get("ffmpeg_invocations",0)<1 or not out.exists()):
    raise RuntimeError("FFmpeg private media certification failed")
+  if spec["dialogue_priority"] and rec.get("source_audio_unattenuated") is not True:
+   raise RuntimeError("V7_DIALOGUE_GAIN_CERTIFICATION_MISSING")
+  if spec["preserve_full_source"] and rec.get("source_duration_preserved") is not True:
+   raise RuntimeError("V7_DIALOGUE_FULL_TIMELINE_CERTIFICATION_MISSING")
+  if spec["preserve_full_source"] and duration>=24 and rec.get("transition_boundaries_applied",0)<1:
+   raise RuntimeError("V7_CINEMATIC_TRANSITIONS_NOT_APPLIED")
   digest=sha(out);n=math.ceil(out.stat().st_size/CHUNK)
   if digest!=rec.get("sha256") or not 1<=n<=20:raise RuntimeError("Output SHA/size invalid")
   mark("output_upload")

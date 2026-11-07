@@ -77,6 +77,18 @@ def _validate(spec):
  if not isinstance(hook,str) or len(hook)>90 or any(ord(c)<32 for c in hook):
   raise RenderBlocked("FFMPEG_HOOK_INVALID")
  if total<1 or total>120:raise RenderBlocked("FFMPEG_DURATION_INVALID")
+ if spec.get("transition_style","none") not in ("none","dip-to-black"):
+  raise RenderBlocked("FFMPEG_TRANSITION_NOT_ALLOWLISTED")
+ if spec.get("dialogue_priority"):
+  if source["audio"] is None:raise RenderBlocked("V7_DIALOGUE_SOURCE_AUDIO_MISSING")
+  if spec.get("preserve_full_source"):
+   cursor=0.0
+   for cut in cuts:
+    if abs(cut["start"]-cursor)>.07:
+     raise RenderBlocked("V7_DIALOGUE_TIMELINE_GAP_OR_REORDER")
+    cursor=cut["start"]+cut["seconds"]
+   if abs(cursor-source["duration"])>.12:
+    raise RenderBlocked("V7_DIALOGUE_SOURCE_DURATION_TRIMMED")
  music=None
  if spec.get("music") is not None:
   music=Path(spec["music"]).resolve()
@@ -113,6 +125,11 @@ def render(spec):
   part=work/("v6-cut-%02d.mp4"%idx)
   vf=[f"scale={width}:{height}:force_original_aspect_ratio=increase",f"crop={width}:{height}",
       "setsar=1",f"fps={fps}",f"eq=contrast={contrast}:brightness={bright}:saturation={sat}"]
+  # Interior video-only fades: keep every source frame and all original audio.
+  if spec.get("transition_style")=="dip-to-black" and len(spec["cuts"])>1:
+   edge=min(.22,secs/8)
+   if idx>0:vf.append(f"fade=t=in:st=0:d={edge:.3f}")
+   if idx<len(spec["cuts"])-1:vf.append(f"fade=t=out:st={secs-edge:.3f}:d={edge:.3f}")
   for j,op in enumerate(ops):
    if op["name"]=="color_grade":
     vf.append("eq=contrast=%.4f"%max(.6,min(1.4,1+op["parameters"].get("contrast",0)/300)))
@@ -137,11 +154,28 @@ def render(spec):
  joined=work/"v6-joined.mp4"
  _exec(["ffmpeg","-hide_banner","-loglevel","error","-y","-f","concat","-safe","0","-i",str(playlist),"-c","copy",str(joined)],90)
  fade=min(1.,total/5)
+ voice_priority=spec.get("dialogue_priority") is True
  if music:
-  filt=("[0:a]volume=0.25[amb];[1:a]atrim=duration=%.3f,volume=0.7,afade=t=in:st=0:d=%.3f,"
-        "afade=t=out:st=%.3f:d=%.3f[mus];[amb][mus]amix=inputs=2:duration=first[a]")%(total,fade,total-fade,fade)
-  cmd=["ffmpeg","-hide_banner","-loglevel","error","-y","-i",str(joined),"-i",str(music),
-       "-filter_complex",filt,"-map","0:v:0","-map","[a]"]
+  # V7 regression fix: the old [source .25, music .70] mix buried owner speech.
+  # Source bed is NOT attenuated when dialogue is protected; music stays ~-23 dB.
+  source_input=1 if voice_priority else 0
+  source_level=1.0 if voice_priority else .85
+  music_input=2 if voice_priority else 1
+  music_level=.07 if voice_priority else .20
+  filt=(f"[{source_input}:a]volume={source_level:.2f}[voice];"
+        f"[{music_input}:a]atrim=duration={total:.3f},volume={music_level:.2f},"
+        f"afade=t=in:st=0:d={fade:.3f},"
+        f"afade=t=out:st={total-fade:.3f}:d={fade:.3f}[mus];"
+        "[voice][mus]amix=inputs=2:duration=first:normalize=0,"
+        "alimiter=limit=0.98[a]")
+  cmd=["ffmpeg","-hide_banner","-loglevel","error","-y","-i",str(joined)]
+  if voice_priority:cmd+=["-i",str(src)]
+  cmd+=["-i",str(music),"-filter_complex",filt,
+        "-map","0:v:0","-map","[a]"]
+ elif voice_priority:
+  # Uninterrupted source audio bypasses stitched/trimmed shot audio completely.
+  cmd=["ffmpeg","-hide_banner","-loglevel","error","-y","-i",str(joined),
+       "-i",str(src),"-map","0:v:0","-map","1:a:0"]
  else:
   cmd=["ffmpeg","-hide_banner","-loglevel","error","-y","-i",str(joined),
        "-af","afade=t=in:st=0:d=%.3f,afade=t=out:st=%.3f:d=%.3f"%(fade,total-fade,fade),
@@ -165,7 +199,15 @@ def render(spec):
          "music_sha256":sha256(music) if music else None,"audio_rights_verified":bool(music),
          "duration_seconds":meta["duration"],"width":width,"height":height,"fps":fps,
          "operations_requested":sum(len(x) for x in spec["operations"]),"operations_command_accepted":effects,
-         "operations_visually_verified":0,"independent_visual_and_audio_review":"PENDING",
+         "operations_visually_verified":0,
+         "transition_style":spec.get("transition_style","none"),
+         "transition_boundaries_applied":(len(parts)-1) if spec.get("transition_style")=="dip-to-black" else 0,
+         "transitions_independently_reviewed":False,
+         "dialogue_priority":voice_priority,
+         "source_audio_unattenuated":voice_priority,
+         "source_duration_preserved":bool(voice_priority and spec.get("preserve_full_source")),
+         "music_gain_relative_to_source":(.07 if voice_priority else .20) if music else None,
+         "independent_visual_and_audio_review":"PENDING",
          "creative_complete":False,"sha256":sha256(out),"bytes":out.stat().st_size,
          "published":False,"owner_approval":False}
 if __name__=="__main__":
