@@ -12,6 +12,7 @@ sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
 sys.path.insert(0,str(ROOT/"experiments/reel-engine-v5"))
 sys.path.insert(0,str(ROOT/"services/reel-engine/v7-cinema"))
 sys.path.insert(0,str(ROOT/"services/reel-engine/v7-micro-rag"))
+sys.path.insert(0,str(ROOT/"services/reel-engine/v8-creative"))
 import ffmpeg_v6_adapter as ffmpeg_editor
 from ffmpeg_v7_cinema import finish as v7_finish,preset_for as v7_preset_for,V7Blocked
 import backend_selection
@@ -22,6 +23,7 @@ import v7_music_discovery as music_discovery
 import v7_verified_source as source_music
 import music_provider
 import txtai_reel_guidance as reel_rag
+import owner_bridge as v8_owner
 from ffmpeg_frame_samples import extract as ffmpeg_frames
 
 GATEWAY="https://mad-v7-kv-private-beta.karanbizweb360.workers.dev"
@@ -215,6 +217,7 @@ def run(job_id,*,fixture=False):
  claim=call("/internal/v6/jobs/"+job_id+"/claim",identity)
  if claim.get("job_id")!=job_id or not claim.get("rights_confirmed") or not claim.get("people_consent"):
   raise RuntimeError("Unauthorized owner source")
+ v8_mode=v8_owner.is_v8(claim.get("brief"))
  lease=claim["claim_id"]
  mime=claim["mime"]
  extension={"video/mp4":"mp4","video/quicktime":"mov","video/webm":"webm"}.get(mime)
@@ -236,7 +239,7 @@ def run(job_id,*,fixture=False):
   synthetic=fixture and claim.get("source_description","").startswith("SYNTHETIC QA:")
   if fixture and not synthetic:raise RuntimeError("Synthetic fixture cannot render owner footage")
   mark("frame_sampling")
-  frames=[] if synthetic else ffmpeg_frames(work,src,duration,
+  frames=[] if synthetic or v8_mode else ffmpeg_frames(work,src,duration,
     consent=bool(claim.get("free_gemini_consent")) and bool(claim.get("rights_confirmed")),
     source_sha256=claim["source_sha256"])
   mark("micro_rag")
@@ -249,6 +252,7 @@ def run(job_id,*,fixture=False):
   # Metadata-only shortlist exists before creative planning; no extra AI request.
   prepared_music=None;music_candidates=[]
   if (claim.get("audio_mode")!="licensed_music" and
+      (not v8_mode or v8_owner.intelligence.intent(v8_owner.owner_brief(claim["brief"]))["music_allowed"]) and
       os.environ.get("MAD_V7_AUTO_SOURCE_MUSIC_ENABLED","false")=="true"):
    try:
     prepared_music=music_discovery.discover(claim["brief"],claim["source_description"],
@@ -260,7 +264,16 @@ def run(job_id,*,fixture=False):
    except Exception:
     prepared_music=None;music_candidates=[]
   mark("model_policy")
-  plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,
+  if v8_mode:
+   plan={"hook":"V8 source-grounded creative soundtrack",
+         "cuts":[{"start":0.0,"seconds":duration}],
+         "operations":[[]],
+         "model_roles":{"gemini_source":"approved_free_flash",
+           "groq_director":"openai/gpt-oss-120b",
+           "gemini_actual_media_reviewer":"approved_free_flash"},
+         "model_policy":"v8_creative_intelligence_private"}
+  else:
+   plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,
                   fixture=synthetic,frames=frames,guidance=knowledge["roles"],
                   music_candidates=music_candidates)
   mark("audio_library")
@@ -292,7 +305,8 @@ def run(job_id,*,fixture=False):
    # Job-specific approved music always wins. Otherwise the V7 AI picks only
    # from V5/V6 reviewer-cleared recordings in owner-private Cloudflare KV.
    # Synthetic CI stays source-only to preserve deterministic rights evidence.
-   if not synthetic:
+   if not synthetic and (not v8_mode or
+        v8_owner.intelligence.intent(v8_owner.owner_brief(claim["brief"]))["music_allowed"]):
     items=call("/internal/v6/jobs/"+job_id+"/music-library",identity,
                method="GET",claim=lease)
     preferred,decision=auto_music.choose(items.get("tracks",[]),
