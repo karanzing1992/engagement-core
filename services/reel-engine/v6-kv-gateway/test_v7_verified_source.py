@@ -37,6 +37,7 @@ def sha1_base36(audio:bytes)->str:
 
 def meta(audio:bytes,license_name="CC BY 4.0",artist="Test Artist",restriction=""):
     return {"query":{"pages":{"123":{"title":"File:Fixture Sunrise.wav",
+        "categories":[{"title":"Category:Ambient music"}],
         "imageinfo":[{"mediatype":"AUDIO","mime":"audio/wav","size":len(audio),
           "url":MEDIA,"sha1":sha1_base36(audio),"extmetadata":{
             "LicenseShortName":{"value":license_name},
@@ -80,6 +81,28 @@ class AutomatedSourceUnit(unittest.TestCase):
             result=source._source_meta(track(),opener=server(payload))
             self.assertEqual(result["license"],"by")
             self.assertEqual(result["creator"],"Test Artist")
+
+    def test_unreviewed_external_commons_audio_fails_closed(self):
+        payload=b"a"*3000
+        unreviewed=meta(payload)
+        unreviewed["query"]["pages"]["123"]["categories"].append({
+            "title":"Category:License review needed (audio)","hidden":""})
+        with self.assertRaisesRegex(source.AutoLicenseBlocked,
+                                    "SOURCE_LICENSE_REVIEW_PENDING"):
+            source._source_meta(track(),opener=server(payload,unreviewed))
+
+    def test_missing_or_incomplete_category_evidence_fails_closed(self):
+        payload=b"a"*3000
+        no_categories=meta(payload)
+        del no_categories["query"]["pages"]["123"]["categories"]
+        with self.assertRaisesRegex(source.AutoLicenseBlocked,
+                                    "SOURCE_LICENSE_REVIEW_UNKNOWN"):
+            source._source_meta(track(),opener=server(payload,no_categories))
+        partial=meta(payload)
+        partial["continue"]={"clcontinue":"123|Category:Other","continue":"||"}
+        with self.assertRaisesRegex(source.AutoLicenseBlocked,
+                                    "SOURCE_LICENSE_REVIEW_UNKNOWN"):
+            source._source_meta(track(),opener=server(payload,partial))
 
     def test_noncommercial_sharealike_conflict_must_block(self):
         for lic in ("CC BY-SA 4.0","CC BY-NC 4.0","All rights reserved"):
