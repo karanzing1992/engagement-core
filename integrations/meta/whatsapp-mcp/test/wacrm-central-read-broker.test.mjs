@@ -138,6 +138,8 @@ test('mutation tools and malformed Graph inputs rejected before route credential
     ['whatsapp_get_template', { templateId: '123456', extra: 'x' }],
     ['whatsapp_list_templates', Object.assign(Object.create(null), { limit: 1 })],
     ['whatsapp_list_templates', ['oops']],
+    ['whatsapp_list_templates', Object.defineProperty({}, 'limit', { enumerable: true, get() { throw new Error('getter not allowed'); } })],
+    ['whatsapp_list_templates', new Proxy({}, { getPrototypeOf() { throw new Error('proxy not allowed'); } })],
   ];
   for (const [toolName, args] of invalid) {
     assert.equal((await t.adapter.invoke({ principal, tenantId: tenants.a, toolName, args })).error.code, 'invalid_input');
