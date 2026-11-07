@@ -35,7 +35,7 @@ jobs:
       - name: Check V7 selector, signed music gateway and old V6 contract
         run: |
           set -euo pipefail
-          python3 -m py_compile services/reel-engine/v6-kv-gateway/v7_auto_music.py services/reel-engine/v6-kv-gateway/runner.py
+          python3 -m py_compile services/reel-engine/v6-kv-gateway/v7_auto_music.py services/reel-engine/v6-kv-gateway/v7_music_discovery.py services/reel-engine/v6-kv-gateway/v7_verified_source.py services/reel-engine/v6-kv-gateway/runner.py
           python3 services/reel-engine/v6-kv-gateway/test_v7_auto_music.py
           node --check services/reel-engine/v6-kv-gateway/worker.mjs
           node --test services/reel-engine/v6-kv-gateway/test_kv_gateway.mjs
@@ -67,6 +67,7 @@ jobs:
           set -euo pipefail
           python3 services/reel-engine/v6-kv-gateway/test_v7_auto_music.py
           python3 services/reel-engine/v6-kv-gateway/test_v7_music_discovery.py
+          python3 services/reel-engine/v6-kv-gateway/test_v7_verified_source.py
   run-v6:
     if: github.event_name == 'workflow_dispatch' || (github.actor == github.repository_owner && github.event.issue.user.login == github.repository_owner && (startsWith(github.event.issue.title, '[MAD-V6-SYNTHETIC-QA] ') || (startsWith(github.event.issue.title, '[MAD-V6-LIVE-MULTIMODAL-AUDIO-QA] ') || startsWith(github.event.issue.title, '[MAD-V6-LIVE-GROQ-AUDIO-QA] '))))
     runs-on: ubuntu-24.04
@@ -83,6 +84,9 @@ jobs:
       GEMINI_FREE_TIER_OWNER_ATTESTED_ON: "2026-11-07"
       GEMINI_INFERENCE_OWNER_APPROVED: "true"
       MAD_V7_TXTAI_MICRO_RAG_ENABLED: "true"
+      # Owner authorizes automatic use only after original Commons file API corroboration.
+      # Any source conflict remains fail-closed. Rollback with "false".
+      MAD_V7_AUTO_SOURCE_MUSIC_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
         with:
