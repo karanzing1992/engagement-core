@@ -30,11 +30,20 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Native Cloudflare KV upload, signed OIDC, range, expiry, model and V5 dispatch regression
+      - name: Provision FFmpeg CLI and FFprobe
+        run: |
+          set -euo pipefail
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
+      - name: Native KV OIDC, FFmpeg media, models and V5 dispatch regression
         run: |
           node --test services/reel-engine/v6-kv-gateway/test_kv_gateway.mjs services/reel-engine/ai-reel-api-v1/test_v6_dispatch.mjs services/reel-engine/ai-reel-api-v1/test_media_event_wake.mjs
           python3 -m py_compile services/reel-engine/v6-kv-gateway/runner.py
-          python3 -m py_compile services/reel-engine/v6-kv-gateway/filmcraft_frame_samples.py services/reel-engine/v6-kv-gateway/original_cc0_audio.py
-          python3 -m unittest discover -s services/reel-engine/v6-kv-gateway -p 'test_*.py' -q
+          python3 -m py_compile services/reel-engine/v6-kv-gateway/ffmpeg_frame_samples.py services/reel-engine/v6-kv-gateway/ffmpeg_v6_adapter.py
+          python3 services/reel-engine/v6-kv-gateway/test_ffmpeg_v6_smoke.py
+          python3 services/reel-engine/v6-kv-gateway/test_runner_stage_diagnostics.py
+          python3 services/reel-engine/v6-kv-gateway/test_multimodal_audio.py
           python3 -m unittest discover -s experiments/reel-engine-v6 -p 'test_*.py' -q
           echo 'MAD_V6_KV_CONSOLIDATED_SMOKE_PASS'

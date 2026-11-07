@@ -1,0 +1,55 @@
+name: MAD | Exclusive FFmpeg backend contract and synthetic media QA
+on:
+  pull_request:
+    paths:
+      - 'services/reel-engine/backend_policy.json'
+      - 'services/reel-engine/backend_selection.py'
+      - 'services/reel-engine/test_backend_selection.py'
+      - '.github/workflows/mad-ffmpeg-exclusive-backend-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ffmpeg-exclusive-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test FFmpeg-only runtime selection and deprecated backend denial
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s services/reel-engine -p 'test_backend_selection.py' -v
+      - name: Provision free system FFmpeg and assert codecs
+        run: |
+          set -euo pipefail
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
+          command -v ffmpeg
+          command -v ffprobe
+          ffmpeg -hide_banner -encoders 2>/dev/null | grep -F libx264
+      - name: Real synthetic FFmpeg audiovisual encode and independent full decode
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          ffmpeg -hide_banner -loglevel error -y \
+            -f lavfi -i testsrc2=size=360x640:rate=24 \
+            -f lavfi -i sine=frequency=440:sample_rate=48000 \
+            -t 2 -vf 'eq=contrast=1.06:saturation=.92,format=yuv420p' \
+            -c:v libx264 -preset veryfast -crf 24 \
+            -c:a aac -b:a 128k -movflags +faststart "$work/synthetic.mp4"
+          test -s "$work/synthetic.mp4"
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$work/synthetic.mp4" | grep -Fx h264
+          ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 "$work/synthetic.mp4" | grep -Fx aac
+          ffmpeg -hide_banner -v error -i "$work/synthetic.mp4" -f null -
+          echo 'FFMPEG_EXCLUSIVE_SYNTHETIC_AUDIOVIDEO_PASS'
+      - name: Preserve privacy
+        if: always()
+        run: echo 'Only temporary generated test sources; no real guest media and no public artifacts'

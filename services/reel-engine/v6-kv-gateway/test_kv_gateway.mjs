@@ -20,7 +20,7 @@ function database(){
  return {db,mock};
 }
 const kv=()=>{const storage=new Map();return {storage,async put(k,v){storage.set(k,Buffer.from(v))},
- async get(k,type){const value=storage.get(k);return value?Uint8Array.from(value).buffer:null},
+ async get(k,type){const value=storage.get(k);if(!value)return null;return type==="json"?JSON.parse(value.toString("utf8")):Uint8Array.from(value).buffer},
  async delete(k){storage.delete(k)}}};
 function client(path,opts={}){
  const headers={Origin:origin,Authorization:owner,...opts.headers};
@@ -89,7 +89,7 @@ test("owner source upload -> signed OIDC GStreamer-output handoff -> range previ
   const stored=await sign("/internal/v6/jobs/"+id+"/output/0",{method:"PUT",claim:job.claim_id,
     headers:{"X-Chunk-SHA256":SHA(output)},body:output});
   assert.equal(stored.status,200);
-  const receipt={engine:"MLT Framework + frei0r",mlt_only:true,frei0r_verified:true,gstreamer_only:false,filmcraft_only:false,output_audio_verified:true,visual_presence_check:{visible:true,frames_examined:3},ffmpeg_invocations:0,published:false,sha256:SHA(output)};
+  const receipt={engine:"ffmpeg",video_stream_verified:true,audio_stream_verified:true,full_decode_passed:true,output_audio_verified:true,visual_presence_check:{visible:true,frames_examined:3},ffmpeg_invocations:4,audio_mode:"source_ambience_only",music_mixed:false,published:false,sha256:SHA(output)};
   const completed=await sign("/internal/v6/jobs/"+id+"/complete",{method:"POST",claim:job.claim_id,
    headers:{"Content-Type":"application/json"},
    body:toJSON({state:"review_ready",chunks:1,bytes:output.length,sha256:SHA(output),receipt})});
@@ -105,7 +105,7 @@ test("owner source upload -> signed OIDC GStreamer-output handoff -> range previ
   assert.equal(expired.status,410);
   let cleanupTask=null;await worker.scheduled({},env,{waitUntil:p=>{cleanupTask=p}});await cleanupTask;
   assert.equal(storage.storage.size,0);
-  console.log("V6_KV_SIGNED_E2E_SIMULATED_PASS owner auth/source SHA/OIDC/GStreamer receipt/206/410/KV deletion");
+  console.log("V6_KV_SIGNED_E2E_SIMULATED_PASS owner auth/source SHA/OIDC/FFmpeg receipt/206/410/KV deletion");
  }finally{globalThis.fetch=old;db.close()}
 });
 
@@ -162,4 +162,77 @@ test("owner issue JWT seeds synthetic MP4 only, rejects nonowner signed issues a
    assert.equal(db.prepare("SELECT state FROM mad_v6_kv_jobs WHERE job_id=?").get(other).state,"sent");
    console.log("SIGNED_SYNTHETIC_QA_UPLOAD_PASS_REAL_USER_MEDIA_DENIED");
  }finally{globalThis.fetch=old;db.close()}
+});
+
+
+test("owner-verified Openverse track transfer -> signed FFmpeg mix receipt; false rights fail closed",async()=>{
+ const {db,mock}=database(),storage=kv(),proof=await authorize();
+ const env={DB:mock,MEDIA_KV:storage,
+  PROJECT_AUTH:{fetch:async()=>new Response("{}",{status:200})},
+  DISPATCH_API:{fetch:async req=>{
+   const {job_id}=await req.json();
+   db.prepare("UPDATE mad_v6_kv_jobs SET state='sent' WHERE job_id=?").run(job_id);
+   return new Response("{}",{status:202});
+  }}};
+ const original=globalThis.fetch;
+ globalThis.fetch=async()=>new Response(JSON.stringify({keys:[proof.public]}),{status:200});
+ try{
+  const manifest={name:"synthetic.mp4",mime:"video/mp4",size:bytes.length,sha256:SHA(bytes),
+   project_id:"reel-"+"a".repeat(36),source_description:"SYNTHETIC QA: colored shapes only, no guest faces or people.",
+   rights_confirmed:true,people_consent:true,external_ai_approved:true,free_gemini_data_use_consent:true};
+  const created=await worker.fetch(client("/v6/media/uploads",{method:"POST",headers:{"Content-Type":"application/json"},body:toJSON(manifest)}),env,{});
+  assert.equal(created.status,201);
+  const id=(await created.json()).job_id;
+  const uploaded=await worker.fetch(client("/v6/media/uploads/"+id+"/chunks/0",{method:"PUT",
+   headers:{"X-Chunk-SHA256":SHA(bytes)},body:bytes}),env,{});
+  assert.equal(uploaded.status,201);
+  assert.equal((await worker.fetch(client("/v6/media/uploads/"+id+"/complete",{method:"POST"}),env,{})).status,200);
+  const audio=Buffer.from("SYNTHETIC AUDIO BYTES - NOT A REAL RECORDING".repeat(50));
+  const source="https://commons.wikimedia.org/wiki/File:Test_open_audio";
+  const lic="https://creativecommons.org/publicdomain/zero/1.0/";
+  const track={source:"Openverse",id:"a".repeat(32),title:"QA Synthetic Track",
+   creator:"Test Author",license:"cc0",license_url:lic,original_source_page:source};
+  const evidence={reviewer_confirmed_rights:true,track_id:track.id,original_source_page:source,
+   license_url:lic,source_license_proof_url:source,reviewed_by:"Test Reviewer",reviewed_on:"2026-11-07"};
+  const music={mime:"audio/mpeg",bytes:audio.length,sha256:SHA(audio),track,evidence};
+  const prepare=async payload=>worker.fetch(client("/v6/media/uploads/"+id+"/music",
+   {method:"POST",headers:{"Content-Type":"application/json"},body:toJSON(payload)}),env,{});
+  assert.equal((await prepare({...music,evidence:{...evidence,reviewer_confirmed_rights:false}})).status,422);
+  assert.equal((await prepare(music)).status,201);
+  const premature=await worker.fetch(client("/v6/jobs/"+id+"/render",{method:"POST",
+   headers:{"Content-Type":"application/json"},body:toJSON({brief:"Private synthetic CC0 audiovisual review only"})}),env,{});
+  assert.equal(premature.status,409);
+  const send=async digest=>worker.fetch(client("/v6/media/uploads/"+id+"/music",
+   {method:"PUT",headers:{"X-Chunk-SHA256":digest},body:audio}),env,{});
+  assert.equal((await send("a".repeat(64))).status,422);
+  assert.equal((await send(SHA(audio))).status,201);
+  const wake=await worker.fetch(client("/v6/jobs/"+id+"/render",{method:"POST",
+   headers:{"Content-Type":"application/json"},body:toJSON({brief:"Private synthetic CC0 audiovisual review only"})}),env,{});
+  assert.equal(wake.status,202);
+  const sign=(path,opts={})=>worker.fetch(client(path,{...opts,headers:{
+   Authorization:"Bearer "+proof.token,"X-V6-Claim":opts.claim||"",...opts.headers}}),env,{});
+  const claim=await sign("/internal/v6/jobs/"+id+"/claim",{method:"POST"});
+  assert.equal(claim.status,200);
+  const j=await claim.json();
+  assert.equal(j.audio_mode,"licensed_music");
+  assert.equal(j.music_sha256,SHA(audio));
+  const media=await sign("/internal/v6/jobs/"+id+"/music",{claim:j.claim_id});
+  assert.equal(media.status,200);
+  assert.equal(SHA(await media.arrayBuffer()),SHA(audio));
+  const out=Buffer.concat([bytes,Buffer.from("VERIFIED SYNTHETIC RESULT")]);
+  assert.equal((await sign("/internal/v6/jobs/"+id+"/output/0",{method:"PUT",claim:j.claim_id,
+   headers:{"X-Chunk-SHA256":SHA(out)},body:out})).status,200);
+  const receipt={engine:"ffmpeg",video_stream_verified:true,audio_stream_verified:true,
+   full_decode_passed:true,ffmpeg_invocations:4,output_audio_verified:true,
+   visual_presence_check:{visible:true,frames_examined:3},audio_mode:"licensed_music",
+   music_mixed:true,music_sha256:SHA(audio),published:false,sha256:SHA(out)};
+  const complete=async r=>sign("/internal/v6/jobs/"+id+"/complete",{method:"POST",claim:j.claim_id,
+   headers:{"Content-Type":"application/json"},body:toJSON({state:"review_ready",
+   chunks:1,bytes:out.length,sha256:SHA(out),receipt:r})});
+  assert.equal((await complete({...receipt,music_mixed:false})).status,422);
+  assert.equal((await complete(receipt)).status,200);
+  db.prepare("UPDATE mad_v6_kv_jobs SET expires_at=? WHERE job_id=?").run(md()-1,id);
+  let cleaning=null;await worker.scheduled({},env,{waitUntil:p=>cleaning=p});await cleaning;
+  assert.equal(storage.storage.size,0);
+ }finally{globalThis.fetch=original;db.close()}
 });

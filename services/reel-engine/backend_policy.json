@@ -1,0 +1,16 @@
+{
+  "policy_version": "1.0",
+  "decision_date": "2026-11-06",
+  "default_renderer": "ffmpeg",
+  "renderer_mode": "exclusive",
+  "deprecated_renderers": ["filmcraft", "gstreamer", "mlt", "frei0r"],
+  "active_production_lane": "v5_groq_ffmpeg_owner_private",
+  "v6_target_lane": "gemini_groq_ffmpeg_private",
+  "renderer_qa": ["ffprobe_video_stream", "ffprobe_audio_stream", "full_output_decode", "visual_review", "audio_review"],
+  "music_source": "approved_existing_recordings_only",
+  "preserve_owner_models": ["gemini_research", "groq_director", "groq_reviewer"],
+  "preserve_private_storage": true,
+  "automatic_publish": false,
+  "historical_workflows_retained_for_rollback_only": true,
+  "v6_cloud_migration_status": "pending_signed_owner_private_e2e"
+}

@@ -113,9 +113,52 @@ async function finishUpload(e,id){
  if(!update.meta?.changes)return error("Upload completion race",409);
  return json({job_id:id,state:"uploaded",source_sha256:row.source_sha256});
 }
+
+const AUDIO_MAX=4*1024*1024;
+async function prepareMusic(req,e,id){
+ const j=await getJob(e,id);
+ if(!j)return error("Job not found",404);
+ if(j.state!=="uploaded"||j.expires_at<=TIME())return error("Music must be uploaded before dispatch",409);
+ const b=await req.json().catch(()=>null),t=b?.track,v=b?.evidence;
+ if(!b||!t||!v||t.source!=="Openverse"||
+    !["cc0","pdm","by"].includes(t.license)||t.id!==v.track_id||
+    t.original_source_page!==v.original_source_page||t.license_url!==v.license_url||
+    !String(t.original_source_page||"").startsWith("https://")||
+    !String(v.source_license_proof_url||"").startsWith("https://")||
+    !String(t.license_url||"").startsWith(t.license==="cc0"?"https://creativecommons.org/publicdomain/zero/":
+     t.license==="pdm"?"https://creativecommons.org/publicdomain/mark/":"https://creativecommons.org/licenses/by/")||
+    !t.title||!t.creator||v.reviewer_confirmed_rights!==true||
+    !String(v.reviewed_by||"").trim()||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v.reviewed_on||"")||
+    (t.license==="by"&&v.attribution_approved!==true)||
+    !Number.isInteger(b.bytes)||b.bytes<1024||b.bytes>AUDIO_MAX||
+    !SHA.test(b.sha256||"")||
+    !["audio/mpeg","audio/wav","audio/ogg","audio/flac","audio/mp4"].includes(b.mime))
+     return error("Music license, reviewer evidence or audio file invalid",422);
+ if(await e.MEDIA_KV.get(KEY("musicmeta",id,0)))return error("Music already selected",409);
+ const meta={track:t,evidence:v,bytes:b.bytes,sha256:b.sha256,mime:b.mime,ready:false};
+ await e.MEDIA_KV.put(KEY("musicmeta",id,0),JSON.stringify(meta),{expirationTtl:RENDER_WINDOW});
+ return json({music_state:"prepared",size_limit:AUDIO_MAX,published:false},201);
+}
+async function putMusic(req,e,id){
+ const j=await getJob(e,id);if(!j)return error("Job not found",404);
+ if(j.state!=="uploaded"||j.expires_at<=TIME())return error("Music upload unavailable",409);
+ const m=await e.MEDIA_KV.get(KEY("musicmeta",id,0),"json");
+ if(!m||m.ready)return error("Music not prepared or already transferred",409);
+ const sha=req.headers.get("x-chunk-sha256"),size=req.headers.get("content-length");
+ if(sha!==m.sha256||(size!==null&&Number(size)!==m.bytes))return error("Music header mismatch",422);
+ const bytes=await req.arrayBuffer();
+ if(bytes.byteLength!==m.bytes||await hash(bytes)!==m.sha256)return error("Music SHA256 mismatch",422);
+ await e.MEDIA_KV.put(KEY("music",id,0),bytes,{expirationTtl:RENDER_WINDOW});
+ m.ready=true;
+ await e.MEDIA_KV.put(KEY("musicmeta",id,0),JSON.stringify(m),{expirationTtl:RENDER_WINDOW});
+ return json({music_state:"ready",music_sha256:m.sha256,published:false},201);
+}
+
 async function dispatch(req,e,id){
  const b=await req.json().catch(()=>({})),brief=(b.brief||"").trim();
  if(brief.length<12||brief.length>1200||/[\x00-\x1f]/.test(brief))return error("Creative direction must be 12–1200 characters");
+ const music=await e.MEDIA_KV.get(KEY("musicmeta",id,0),"json");
+ if(music&&!music.ready)return error("Licensed music upload incomplete",409);
  if(!e.DISPATCH_API)return error("Existing GitHub dispatch service unavailable",503);
  const now=TIME();
  const r=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='dispatching',brief=?,updated_at=? WHERE job_id=? AND state='uploaded' AND expires_at>?").bind(brief,now,id,now).run();
@@ -130,16 +173,16 @@ async function dispatch(req,e,id){
     .bind(TIME(),id).run();
    return error("Existing GitHub Actions dispatch not ready",503);
  }
- return json({job_id:id,state:"dispatching",renderer:"MLT + frei0r",published:false},202);
+ return json({job_id:id,state:"dispatching",renderer:"FFmpeg",published:false},202);
 }
 function publicState(j){
  const now=TIME(),expiry=j.ready_at?j.expires_at:null;
  const state=(expiry!==null&&now>=expiry)||j.state==="expired"?"expired":j.state;
- return {job_id:j.job_id,state,renderer:"MLT + frei0r",version:"v6-kv",
+ return {job_id:j.job_id,state,renderer:"FFmpeg",version:"v6-kv",
          download_available:state==="review_ready"&&expiry>now,
          expiry_at:expiry,seconds_remaining:expiry===null?null:Math.max(0,expiry-now),
          output_sha256:state==="review_ready"?j.output_sha256:null,
-         audio_mode:"source_ambience_only",published:false,error_code:j.error_code||null};
+         audio_mode:j.receipt_json?JSON.parse(j.receipt_json).audio_mode:"not_certified_until_render",published:false,error_code:j.error_code||null};
 }
 async function preview(req,e,j,download){
  const state=publicState(j);
@@ -207,15 +250,23 @@ async function internal(req,e,path){
    const current=await getJob(e,id);
    if(!current||current.project_id!=="synthetic-owner-qa")return error("Issue QA cannot claim customer media",403);
   }
+  const preparedMusic=await e.MEDIA_KV.get(KEY("musicmeta",id,0),"json");
+  if(preparedMusic&&!preparedMusic.ready)return error("Music not ready",409);
   const lease=crypto.randomUUID();
   const update=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='rendering',claim_id=?,claimed_at=?,attempts=attempts+1,updated_at=? WHERE job_id=? AND state IN ('sent','dispatching') AND expires_at>? RETURNING *")
    .bind(lease,now,now,id,now).first();
   if(!update)return error("Private render already claimed or expired",409);
   const parts=(await chunks(e,id,"source")).results||[];
   if(parts.length!==update.source_chunks)return error("Private source not fully uploaded",409);
+  const selectedMusic=await e.MEDIA_KV.get(KEY("musicmeta",id,0),"json");
+  if(selectedMusic&&!selectedMusic.ready)return error("Music not ready",409);
   return json({job_id:id,claim_id:lease,source_sha256:update.source_sha256,source_chunks:update.source_chunks,
     source_bytes:update.bytes,mime:update.mime,source_description:update.source_description,brief:update.brief,
-    audio_mode:"source_ambience_only",rights_confirmed:true,people_consent:true,free_gemini_consent:true});
+    audio_mode:selectedMusic?.ready?"licensed_music":"source_ambience_only",
+    music_sha256:selectedMusic?.sha256||null,music_bytes:selectedMusic?.bytes||0,
+    music_mime:selectedMusic?.mime||null,music_track:selectedMusic?.track||null,
+    music_evidence:selectedMusic?.evidence||null,
+    rights_confirmed:true,people_consent:true,free_gemini_consent:true});
  }
  const j=await getJob(e,id);
  if(!j)return error("Private job not found",404);
@@ -228,6 +279,14 @@ async function internal(req,e,path){
   const b=await e.MEDIA_KV.get(KEY("source",id,i),"arrayBuffer");
   if(!b)return error("Private source not propagated",503);
   return new Response(b,{headers:{"content-type":"application/octet-stream","cache-control":"no-store","content-length":String(b.byteLength)}});
+ }
+ if(p[4]==="music"&&p.length===5&&req.method==="GET"){
+  const meta=await e.MEDIA_KV.get(KEY("musicmeta",id,0),"json");
+  if(!meta?.ready)return error("Private licensed audio not ready",403);
+  const bytes=await e.MEDIA_KV.get(KEY("music",id,0),"arrayBuffer");
+  if(!bytes)return error("Private licensed audio unavailable",503);
+  return new Response(bytes,{headers:{"content-type":"application/octet-stream",
+   "cache-control":"no-store","content-length":String(bytes.byteLength)}});
  }
  if(p[4]==="output"&&p.length===6&&req.method==="PUT"){
   const i=Number(p[5]),sha=req.headers.get("x-chunk-sha256")||"";
@@ -243,7 +302,7 @@ async function internal(req,e,path){
  if(p[4]==="complete"&&req.method==="POST"){
   const body=await req.json().catch(()=>({}));
   if(body.state==="failed"){
-   await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='failed',error_code='PRIVATE_MLT_FAILED',updated_at=? WHERE job_id=? AND claim_id=?")
+   await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='failed',error_code='PRIVATE_FFMPEG_FAILED',updated_at=? WHERE job_id=? AND claim_id=?")
     .bind(now,id,lease).run();
    return json({job_id:id,state:"failed"});
   }
@@ -252,14 +311,20 @@ async function internal(req,e,path){
      !SHA.test(body.sha256||"")||body.chunks<1||body.chunks>20||body.bytes<1024||body.bytes>MAX||
      arr.length!==body.chunks||arr.reduce((s,v)=>s+v.bytes,0)!==body.bytes||
      arr.some((v,i)=>v.idx!==i))return error("Verified final MP4 chunks/sha required",422);
+  const selectedMusic=await e.MEDIA_KV.get(KEY("musicmeta",id,0),"json");
+  if(selectedMusic?.ready){
+   if(body.receipt?.audio_mode!=="licensed_music"||body.receipt?.music_mixed!==true||
+      body.receipt?.music_sha256!==selectedMusic.sha256)return error("Licensed audio receipt mismatch",422);
+  }else if(body.receipt?.audio_mode!=="source_ambience_only"||body.receipt?.music_mixed!==false)
+    return error("Unexpected soundtrack receipt",422);
   const visual=body.receipt?.visual_presence_check;
-  if(body.receipt?.engine!=="MLT Framework + frei0r"||body.receipt?.mlt_only!==true||
-    body.receipt?.frei0r_verified!==true||body.receipt?.gstreamer_only!==false||
-    body.receipt?.filmcraft_only!==false||body.receipt?.ffmpeg_invocations!==0||
+  if(body.receipt?.engine!=="ffmpeg"||body.receipt?.video_stream_verified!==true||
+    body.receipt?.audio_stream_verified!==true||body.receipt?.full_decode_passed!==true||
+    !Number.isInteger(body.receipt?.ffmpeg_invocations)||body.receipt.ffmpeg_invocations<1||
     body.receipt?.output_audio_verified!==true||visual?.visible!==true||
     !Number.isInteger(visual?.frames_examined)||visual.frames_examined<3||
     body.receipt?.published!==false||body.receipt?.sha256!==body.sha256)
-      return error("MLT video frames, audio or signed receipt not certified",422);
+      return error("FFmpeg video frames, audio or signed receipt not certified",422);
   const receipt=JSON.stringify(body.receipt);
   if(receipt.length>15000)return error("Private receipt too large",413);
   const result=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='review_ready',output_chunks=?,output_bytes=?,output_sha256=?,receipt_json=?,ready_at=?,expires_at=?,updated_at=? WHERE job_id=? AND claim_id=? AND state='rendering'")
@@ -277,6 +342,8 @@ async function cleanup(e){
   // Requests are always denied by D1 expiry even before eventual KV deletion.
   for(let i=0;i<Math.min(20,r.source_chunks||0);i++)await e.MEDIA_KV.delete(KEY("source",r.job_id,i));
   for(let i=0;i<Math.min(20,r.output_chunks||0);i++)await e.MEDIA_KV.delete(KEY("output",r.job_id,i));
+  await e.MEDIA_KV.delete(KEY("music",r.job_id,0));
+  await e.MEDIA_KV.delete(KEY("musicmeta",r.job_id,0));
   await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='expired',updated_at=? WHERE job_id=? AND expires_at<=?")
     .bind(now,r.job_id,now).run();
  }
@@ -302,6 +369,8 @@ export default {
     else if(p[0]==="v6"&&p[1]==="media"&&p[2]==="uploads"&&p.length===3&&req.method==="POST")r=await makeUpload(req,e);
     else if(p[0]==="v6"&&p[1]==="media"&&p[2]==="uploads"&&JOB.test(p[3]||"")&&p.length===6&&p[4]==="chunks"&&req.method==="PUT")r=await chunkPut(req,e,p[3],p[5]);
     else if(p[0]==="v6"&&p[1]==="media"&&p[2]==="uploads"&&JOB.test(p[3]||"")&&p.length===5&&p[4]==="complete"&&req.method==="POST")r=await finishUpload(e,p[3]);
+    else if(p[0]==="v6"&&p[1]==="media"&&p[2]==="uploads"&&JOB.test(p[3]||"")&&p.length===5&&p[4]==="music"&&req.method==="POST")r=await prepareMusic(req,e,p[3]);
+    else if(p[0]==="v6"&&p[1]==="media"&&p[2]==="uploads"&&JOB.test(p[3]||"")&&p.length===5&&p[4]==="music"&&req.method==="PUT")r=await putMusic(req,e,p[3]);
     else if(p[0]==="v6"&&p[1]==="jobs"&&JOB.test(p[2]||"")&&p.length===4&&p[3]==="render"&&req.method==="POST")r=await dispatch(req,e,p[2]);
     else if(p[0]==="v6"&&p[1]==="jobs"&&JOB.test(p[2]||"")){
        const j=await getJob(e,p[2]);

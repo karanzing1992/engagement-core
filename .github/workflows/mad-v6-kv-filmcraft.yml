@@ -1,4 +1,4 @@
-name: MAD V6 KV MLT frei0r Owner Runner
+name: MAD V6 KV FFmpeg Owner Runner
 on:
   issues:
     types: [opened]
@@ -36,21 +36,24 @@ jobs:
 
       # Workflow filename remains legacy for OIDC workflow_ref compatibility.
       # Filename stays unchanged because owner OIDC workflow_ref is pinned.
-      - name: Install native MLT and frei0r editing library (Gst read-only QA)
+      - name: Install and verify FFmpeg and FFprobe (no retired editor dependencies)
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends melt frei0r-plugins libmlt7 libmlt-data python3-gi gir1.2-gst-plugins-base-1.0 gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
-          command -v melt
-          melt -query filters | grep 'frei0r.contrast0r'
-      - name: Verify video frames, original audio and real MLT templates before claim
+          if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
+          ffmpeg -hide_banner -version | head -1
+          ffprobe -hide_banner -version | head -1
+          ffmpeg -hide_banner -filters | grep ' drawtext '
+      - name: Verify FFmpeg V6 real media, consented frames and fail-closed diagnostics
         shell: bash
         run: |
           set -euo pipefail
-          /usr/bin/python3 services/reel-engine/v6-kv-gateway/test_mlt_v6_smoke.py
-          /usr/bin/python3 services/reel-engine/v6-kv-gateway/test_runner_stage_diagnostics.py
-      - name: Execute owner-authorized MLT frei0r private KV render
+          python3 services/reel-engine/v6-kv-gateway/test_ffmpeg_v6_smoke.py
+          python3 services/reel-engine/v6-kv-gateway/test_runner_stage_diagnostics.py
+      - name: Execute owner-authorized FFmpeg private KV render
         shell: bash
         env:
           OWNER_JOB_ID: ${{ inputs.job_id }}
