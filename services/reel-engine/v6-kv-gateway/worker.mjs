@@ -182,7 +182,7 @@ function publicState(j){
          download_available:state==="review_ready"&&expiry>now,
          expiry_at:expiry,seconds_remaining:expiry===null?null:Math.max(0,expiry-now),
          output_sha256:state==="review_ready"?j.output_sha256:null,
-         audio_mode:"source_ambience_only",published:false,error_code:j.error_code||null};
+         audio_mode:j.receipt_json?JSON.parse(j.receipt_json).audio_mode:"not_certified_until_render",published:false,error_code:j.error_code||null};
 }
 async function preview(req,e,j,download){
  const state=publicState(j);
@@ -250,6 +250,8 @@ async function internal(req,e,path){
    const current=await getJob(e,id);
    if(!current||current.project_id!=="synthetic-owner-qa")return error("Issue QA cannot claim customer media",403);
   }
+  const preparedMusic=await e.MEDIA_KV.get(KEY("musicmeta",id,0),"json");
+  if(preparedMusic&&!preparedMusic.ready)return error("Music not ready",409);
   const lease=crypto.randomUUID();
   const update=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='rendering',claim_id=?,claimed_at=?,attempts=attempts+1,updated_at=? WHERE job_id=? AND state IN ('sent','dispatching') AND expires_at>? RETURNING *")
    .bind(lease,now,now,id,now).first();
