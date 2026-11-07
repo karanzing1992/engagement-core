@@ -1,0 +1,56 @@
+name: DEV DESIGN RAG 1.0 — isolation and quality-gate certification
+on:
+  push:
+    branches:
+      - feat/dev-design-rag-v1-20261107
+    paths:
+      - 'experiments/dev-design-rag-v1/**'
+      - '.github/workflows/dev-design-rag-v1-certify.yml'
+  pull_request:
+    paths:
+      - 'experiments/dev-design-rag-v1/**'
+      - '.github/workflows/dev-design-rag-v1-certify.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dev-design-rag-v1-cert-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  policy-isolation-and-review-certification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inspect source for secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e experiments/dev-design-rag-v1/.env
+          test ! -e experiments/dev-design-rag-v1/secrets
+      - name: Run isolated pure-Python security and mandatory-gate tests
+        shell: bash
+        working-directory: experiments/dev-design-rag-v1
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m unittest discover -s tests -v
+      - name: Enforce fail-closed central artistic acceptance threshold
+        shell: bash
+        working-directory: experiments/dev-design-rag-v1
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python - <<'PY'
+          from dev_design_rag.core import ART_MIN,make_policy
+          p=make_policy()['quality']
+          assert ART_MIN == 95 and p['artistic_minimum'] == 95
+          assert p['owner_gate_required'] and not p['project_override_allowed']
+          assert p['independent_review_required']
+          print('DESIGN_RAG_GATES_FAIL_CLOSED_95')
+          PY
