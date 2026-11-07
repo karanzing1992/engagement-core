@@ -41,10 +41,11 @@ def run():
                 ctx.close()
         finally:chrome.close()
     offered=request(key,API+'/models?pageSize=100',timeout=18)
-    allowed=('gemini-2.5-flash','gemini-3.8-flash','gemini-2.5-flash-lite')
+    allowed=('gemini-3.8-flash','gemini-2.5-flash','gemini-2.5-flash-lite')
     available={x.get('name','').split('/')[-1] for x in offered.get('models',[]) if 'generateContent' in x.get('supportedGenerationMethods',[])}
     model=next((x for x in allowed if x in available),None)
     if not model:raise RuntimeError('NO_APPROVED_FREE_FLASH_MODEL')
+    print('GEMINI_ALLOWED_MODEL_SELECTED',model,flush=True)
     parts=[{'text':PROMPT}]
     for name,blob,_ in images:
         parts.extend([{'text':name},{'inline_data':{'mime_type':'image/jpeg','data':base64.b64encode(blob).decode()}}])
