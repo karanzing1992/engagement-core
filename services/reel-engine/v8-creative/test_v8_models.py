@@ -38,4 +38,35 @@ class V8ProviderContracts(unittest.TestCase):
     "editorial_acceptable":True})
   self.assertFalse(r["creative_certified"])
   self.assertFalse(r["publish_authorized"])
+ def test_gemini_source_visual_contract_reuses_canonical_s1_shot(self):
+  evidence={"consent_for_external_inference":True,
+    "source":{"path":"/private/source.mp4","duration":6.0,"sha256":"a"*64},
+    "owner_intent":{"brief":"Cinematic footage; preserve original dialogue"}}
+  frames=[{"sha256":"b"*64,"mime_type":"image/jpeg","data":"bW9jaw==","time_seconds":2.0}]
+  observation={"observations":[{"shot_id":"s1","visible":"Synthetic moving colour pattern"}],
+    "research_scope":"Source frame evidence only"}
+  with patch.dict("os.environ",{"MAD_V8_OWNER_AI_ENABLED":"true",
+    "GEMINI_PROJECT_FREE_TIER_VERIFIED":"true",
+    "GEMINI_INFERENCE_OWNER_APPROVED":"true"},clear=True):
+   with patch.object(models,"sample_frames",return_value=frames):
+    with patch.object(models.ai,"gemini_research",return_value=("gemini-free-flash",observation)) as research:
+     result=models.gemini_source_analyst(evidence,"/tmp")
+     self.assertTrue(result["inference_from_consent"])
+     self.assertEqual(result["observations"][0]["shot_id"],"s1")
+     manifest=research.call_args[0][0]
+     self.assertEqual(manifest["shots"][0]["id"],"s1")
+ def test_gemini_rejects_unknown_source_identity(self):
+  evidence={"consent_for_external_inference":True,
+    "source":{"path":"/private/source.mp4","duration":6.0,"sha256":"a"*64},
+    "owner_intent":{"brief":"Observe scenes without inventing them"}}
+  frames=[{"sha256":"b"*64,"mime_type":"image/jpeg","data":"bW9jaw==","time_seconds":2.0}]
+  bad={"observations":[{"shot_id":"unverified","visible":"Unknown source label"}],
+    "research_scope":"Source frame evidence only"}
+  with patch.dict("os.environ",{"MAD_V8_OWNER_AI_ENABLED":"true",
+    "GEMINI_PROJECT_FREE_TIER_VERIFIED":"true",
+    "GEMINI_INFERENCE_OWNER_APPROVED":"true"},clear=True):
+   with patch.object(models,"sample_frames",return_value=frames):
+    with patch.object(models.ai,"gemini_research",return_value=("gemini-free-flash",bad)):
+     with self.assertRaises(models.ai.V6Blocked):
+      models.gemini_source_analyst(evidence,"/tmp")
 if __name__=="__main__":unittest.main()
