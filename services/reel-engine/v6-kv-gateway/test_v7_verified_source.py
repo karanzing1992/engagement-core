@@ -62,7 +62,7 @@ def server(data:bytes,payload=None,redirect=False):
         if url==MEDIA:
             requested=req.headers.get("Range")
             if requested:
-                m=re.fullmatch(r"bytes=(\\d+)-(\\d+)",requested)
+                m=re.fullmatch(r"bytes=(\d+)-(\d+)",requested)
                 if not m:raise AssertionError("invalid Range")
                 a,b=map(int,m.groups())
                 return FakeResponse(data[a:b+1],
