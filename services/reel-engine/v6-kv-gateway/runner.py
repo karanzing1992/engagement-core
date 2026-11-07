@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """MAD V6 signed KV runner. Exclusive FFmpeg editor and FFmpeg frame QA."""
 from __future__ import annotations
-import argparse,hashlib,json,os,sys,math,time
+import argparse,hashlib,json,os,sys,math,time,shutil
 from pathlib import Path
 from urllib.request import Request,urlopen
 from urllib.error import HTTPError
@@ -12,6 +12,7 @@ sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
 import ffmpeg_v6_adapter as ffmpeg_editor
 import backend_selection
 import multimodel_filmcraft_bridge as multimodel
+import audio_library_v6 as licensed_audio
 from ffmpeg_frame_samples import extract as ffmpeg_frames
 
 GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
@@ -100,7 +101,7 @@ def call(path,identity,method="POST",claim=None,payload=None,data=None,digest=No
   with urlopen(req,timeout=80) as res:
    body=res.read(CHUNK+8192)
    if len(body)>CHUNK+4096:raise ValueError("Signed gateway response exceeded allowed size")
-   if method=="GET" and "/source/" in path:return body
+   if method=="GET" and ("/source/" in path or path.endswith("/music")):return body
    return json.loads(body)
  except HTTPError as e:
   raise RuntimeError("Signed V6 KV endpoint rejected "+str(e.code)) from None
@@ -207,13 +208,38 @@ def run(job_id,*,fixture=False):
   mark("audio_library")
   # Existing V5/V6 Openverse discovery is not a transferred, rights-reviewed file.
   # Never synthesize a substitute soundtrack or mislabel source audio as CC0.
-  if claim.get("audio_mode")!="source_ambience_only":
-   raise RuntimeError("Private licensed music delivery not configured")
+  music=None;rights=None;audio_receipt={"mode":"source_ambience_only",
+    "licensed_track":False,"music_mixed":False,"composed_audio":False}
+  if claim.get("audio_mode")=="licensed_music":
+   ext={"audio/mpeg":"mp3","audio/wav":"wav","audio/ogg":"ogg",
+        "audio/flac":"flac","audio/mp4":"m4a"}.get(claim.get("music_mime"))
+   if not ext or not 1024<=claim.get("music_bytes",0)<=CHUNK:
+    raise RuntimeError("Private audio mime/size invalid")
+   music=work/("approved-music."+ext)
+   music.write_bytes(call("/internal/v6/jobs/"+job_id+"/music",identity,
+                          method="GET",claim=lease))
+   if music.stat().st_size!=claim["music_bytes"] or sha(music)!=claim["music_sha256"]:
+    raise RuntimeError("Approved licensed music SHA mismatch")
+   rights_record=licensed_audio.admit(claim["music_track"],claim["music_evidence"],
+                                     music,claim["music_sha256"])
+   rights=rights_record["filmcraft_rights"]
+   rights["attribution_approved"]=claim["music_evidence"].get("attribution_approved") is True
+   audio_receipt={"mode":"licensed_music","licensed_track":True,"music_mixed":True,
+      "composed_audio":False,"sha256":claim["music_sha256"],
+      "title":claim["music_track"]["title"],"creator":claim["music_track"]["creator"],
+      "license":claim["music_track"]["license"],
+      "source":claim["music_track"]["original_source_page"],
+      "attribution_required":claim["music_track"]["license"]=="by"}
+  elif claim.get("audio_mode")!="source_ambience_only":
+   raise RuntimeError("Unknown audio mode")
   mark("ffmpeg_render")
   spec={"source":str(src),"source_sha256":claim["source_sha256"],
     "template_id":ffmpeg_editor.choose_template(claim["brief"]),
     "workdir":str(work),"output":str(out),
     "cuts":plan["cuts"],"operations":plan["operations"],"hook":plan["hook"],
+    "music":str(music) if music else None,
+    "music_sha256":claim.get("music_sha256") if music else None,
+    "music_rights":rights,
     "width":1080,"height":1920,"fps":30}
   rec=ffmpeg_editor.render(spec)
   if (rec.get("rendered") is not True or rec.get("engine")!="ffmpeg"
@@ -237,9 +263,7 @@ def run(job_id,*,fixture=False):
   receipt["model_roles"]=plan["model_roles"]
   receipt["model_policy"]=plan.get("model_policy","gemini_free_flash_groq")
   receipt["source_sha256"]=claim["source_sha256"]
-  receipt["audio_library"]={"discovery":"Openverse/Wikimedia",
-   "mode":"source_ambience_only","licensed_track":False,"music_mixed":False,
-   "composed_audio":False,"requires_owner_verified_asset":True}
+  receipt["audio_library"]=audio_receipt
   receipt["gemini_frames_sent"]=len(frames)
   receipt["product_context"]="generic"
   receipt["published"]=False
@@ -256,7 +280,7 @@ def run(job_id,*,fixture=False):
   raise
  finally:
   src.unlink(missing_ok=True);out.unlink(missing_ok=True)
-  # No procedural music source is ever created.
+  shutil.rmtree(work,ignore_errors=True) # only this job\x27s temporary private media
 if __name__=="__main__":
  p=argparse.ArgumentParser();p.add_argument("--job-id",required=True);p.add_argument("--synthetic-fixture",action="store_true")
  a=p.parse_args()
