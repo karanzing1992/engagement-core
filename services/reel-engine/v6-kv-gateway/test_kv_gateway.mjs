@@ -89,7 +89,7 @@ test("owner source upload -> signed OIDC GStreamer-output handoff -> range previ
   const stored=await sign("/internal/v6/jobs/"+id+"/output/0",{method:"PUT",claim:job.claim_id,
     headers:{"X-Chunk-SHA256":SHA(output)},body:output});
   assert.equal(stored.status,200);
-  const receipt={engine:"ffmpeg",video_stream_verified:true,audio_stream_verified:true,full_decode_passed:true,output_audio_verified:true,visual_presence_check:{visible:true,frames_examined:3},ffmpeg_invocations:4,audio_mode:"source_ambience_only",music_mixed:false,published:false,sha256:SHA(output)};
+  const receipt={engine:"ffmpeg",version:"v7-source-beta",cinematic_finish_applied:true,release_lane:"v7-private",video_stream_verified:true,audio_stream_verified:true,full_decode_passed:true,output_audio_verified:true,visual_presence_check:{visible:true,frames_examined:3},ffmpeg_invocations:4,audio_mode:"source_ambience_only",music_mixed:false,published:false,sha256:SHA(output)};
   const completed=await sign("/internal/v6/jobs/"+id+"/complete",{method:"POST",claim:job.claim_id,
    headers:{"Content-Type":"application/json"},
    body:toJSON({state:"review_ready",chunks:1,bytes:output.length,sha256:SHA(output),receipt})});
@@ -222,7 +222,7 @@ test("owner-verified Openverse track transfer -> signed FFmpeg mix receipt; fals
   const out=Buffer.concat([bytes,Buffer.from("VERIFIED SYNTHETIC RESULT")]);
   assert.equal((await sign("/internal/v6/jobs/"+id+"/output/0",{method:"PUT",claim:j.claim_id,
    headers:{"X-Chunk-SHA256":SHA(out)},body:out})).status,200);
-  const receipt={engine:"ffmpeg",video_stream_verified:true,audio_stream_verified:true,
+  const receipt={engine:"ffmpeg",version:"v7-source-beta",cinematic_finish_applied:true,release_lane:"v7-private",video_stream_verified:true,audio_stream_verified:true,
    full_decode_passed:true,ffmpeg_invocations:4,output_audio_verified:true,
    visual_presence_check:{visible:true,frames_examined:3},audio_mode:"licensed_music",
    music_mixed:true,music_sha256:SHA(audio),published:false,sha256:SHA(out)};
