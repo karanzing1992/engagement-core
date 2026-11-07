@@ -529,6 +529,10 @@ class ReviewLedger:
             rows=con.execute("SELECT receipt FROM reviews WHERE project=? AND artifact_sha=? AND state='INDEXED'",(project,artifact_sha)).fetchall()
             all_reviews=[json.loads(row[0]) for row in rows]
         finally:con.close()
+        # Pending inbox files (including invalid/foreign project events) are
+        # also release blockers; failed files cannot be silently dropped.
+        from .inbox import pending_inbox_count
+        pending += pending_inbox_count(self.registry,project)
         valid_art=[x for x in all_reviews if x["kind"]=="artistic" and x.get("independent") is True and x.get("reviewer") not in ("synthetic","test")]
         tests={x["kind"]:x for x in all_reviews if x["kind"]!="artistic"}
         # Evaluate every independent critique of this exact artifact; lower
