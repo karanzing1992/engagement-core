@@ -115,6 +115,29 @@ async function finishUpload(e,id){
 }
 
 const AUDIO_MAX=4*1024*1024;
+const LIB_META="private/mad-v7/reviewed-audio/meta/";
+const LIB_BLOB="private/mad-v7/reviewed-audio/blob/";
+async function reviewedMusic(e){
+ const list=await e.MEDIA_KV.list({prefix:LIB_META,limit:64});
+ const records=await Promise.all((list.keys||[]).slice(0,24).map(k=>e.MEDIA_KV.get(k.name,"json")));
+ return records.filter(m=>m?.ready===true&&SHA.test(m.sha256||"")&&
+   ["cc0","pdm","by"].includes(m.track?.license)&&m.evidence?.reviewer_confirmed_rights===true);
+}
+async function ownerMusicLibrary(req,e,p){
+ if(req.method==="GET"&&p.length===2){
+  const tracks=await reviewedMusic(e);
+  return json({source:"V5 Openverse/Wikimedia via V6 approved upload",
+   tracks:tracks.map(({track,evidence,sha256,bytes,mime})=>({
+     track,sha256,bytes,mime,reviewed_by:evidence.reviewed_by,reviewed_on:evidence.reviewed_on
+   })),count:tracks.length,published:false});
+ }
+ if(req.method==="DELETE"&&p.length===3&&SHA.test(p[2])){
+  await e.MEDIA_KV.delete(LIB_META+p[2]);
+  await e.MEDIA_KV.delete(LIB_BLOB+p[2]);
+  return json({deleted:true,sha256:p[2],published:false});
+ }
+ return error("Owner music-library route not found",404);
+}
 async function prepareMusic(req,e,id){
  const j=await getJob(e,id);
  if(!j)return error("Job not found",404);
@@ -151,7 +174,14 @@ async function putMusic(req,e,id){
  await e.MEDIA_KV.put(KEY("music",id,0),bytes,{expirationTtl:RENDER_WINDOW});
  m.ready=true;
  await e.MEDIA_KV.put(KEY("musicmeta",id,0),JSON.stringify(m),{expirationTtl:RENDER_WINDOW});
- return json({music_state:"ready",music_sha256:m.sha256,published:false},201);
+ const prior=await e.MEDIA_KV.get(LIB_META+m.sha256,"json");
+ if(prior&&prior.track?.original_source_page!==m.track.original_source_page)
+  return error("Reviewed recording source conflict",409);
+ await e.MEDIA_KV.put(LIB_BLOB+m.sha256,bytes);
+ await e.MEDIA_KV.put(LIB_META+m.sha256,JSON.stringify({...m,ready:true,
+   reviewed_at:TIME(),source:"existing_v5_v6_reviewed_open_audio"}));
+ return json({music_state:"ready",music_sha256:m.sha256,
+   available_for_ai_selection:true,published:false},201);
 }
 
 async function dispatch(req,e,id){
@@ -288,6 +318,18 @@ async function internal(req,e,path){
   return new Response(bytes,{headers:{"content-type":"application/octet-stream",
    "cache-control":"no-store","content-length":String(bytes.byteLength)}});
  }
+ if(p[4]==="music-library"&&p.length===5&&req.method==="GET"){
+  return json({tracks:await reviewedMusic(e)});
+ }
+ if(p[4]==="music-library"&&p.length===6&&SHA.test(p[5]||"")&&req.method==="GET"){
+  const meta=await e.MEDIA_KV.get(LIB_META+p[5],"json");
+  if(!meta?.ready||meta.sha256!==p[5]||!meta.evidence?.reviewer_confirmed_rights)
+   return error("Approved music record unavailable",404);
+  const bytes=await e.MEDIA_KV.get(LIB_BLOB+p[5],"arrayBuffer");
+  if(!bytes||bytes.byteLength!==meta.bytes)return error("Approved audio bytes unavailable",503);
+  return new Response(bytes,{headers:{"content-type":"application/octet-stream",
+    "cache-control":"no-store","content-length":String(bytes.byteLength)}});
+ }
  if(p[4]==="output"&&p.length===6&&req.method==="PUT"){
   const i=Number(p[5]),sha=req.headers.get("x-chunk-sha256")||"";
   if(!Number.isInteger(i)||i<0||i>=20||!SHA.test(sha))return error("Invalid output part");
@@ -315,6 +357,14 @@ async function internal(req,e,path){
   if(selectedMusic?.ready){
    if(body.receipt?.audio_mode!=="licensed_music"||body.receipt?.music_mixed!==true||
       body.receipt?.music_sha256!==selectedMusic.sha256)return error("Licensed audio receipt mismatch",422);
+  }else if(body.receipt?.audio_mode==="licensed_music"&&body.receipt?.music_mixed===true){
+   const digest=body.receipt?.music_sha256;
+   const record=SHA.test(digest||"")?await e.MEDIA_KV.get(LIB_META+digest,"json"):null;
+   if(!record?.ready||record.sha256!==digest||
+      !record.evidence?.reviewer_confirmed_rights||
+      body.receipt?.audio_library?.sha256!==digest||
+      body.receipt?.audio_library?.license!==record.track?.license)
+     return error("AI-selected music receipt not in approved library",422);
   }else if(body.receipt?.audio_mode!=="source_ambience_only"||body.receipt?.music_mixed!==false)
     return error("Unexpected soundtrack receipt",422);
   const visual=body.receipt?.visual_presence_check;
@@ -368,6 +418,7 @@ export default {
     const p=u.pathname.split("/").filter(Boolean);
     if(p[0]==="v1"&&p[1]==="projects")r=await projectProxy(req,e,u);
     else if(p[0]==="v6"&&p[1]==="catalog"&&req.method==="GET")r=await catalog(req);
+     else if(p[0]==="v7"&&p[1]==="music-library")r=await ownerMusicLibrary(req,e,p);
     else if(p[0]==="v6"&&p[1]==="media"&&p[2]==="uploads"&&p.length===3&&req.method==="POST")r=await makeUpload(req,e);
     else if(p[0]==="v6"&&p[1]==="media"&&p[2]==="uploads"&&JOB.test(p[3]||"")&&p.length===6&&p[4]==="chunks"&&req.method==="PUT")r=await chunkPut(req,e,p[3],p[5]);
     else if(p[0]==="v6"&&p[1]==="media"&&p[2]==="uploads"&&JOB.test(p[3]||"")&&p.length===5&&p[4]==="complete"&&req.method==="POST")r=await finishUpload(e,p[3]);
