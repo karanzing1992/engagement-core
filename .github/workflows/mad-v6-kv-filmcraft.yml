@@ -87,6 +87,8 @@ jobs:
       # Owner authorizes automatic use only after original Commons file API corroboration.
       # Any source conflict remains fail-closed. Rollback with "false".
       MAD_V7_AUTO_SOURCE_MUSIC_ENABLED: "true"
+      # Explicit V8 sub-lane; ordinary untagged V7 owner jobs retain original renderer.
+      MAD_V8_OWNER_AI_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
         with:

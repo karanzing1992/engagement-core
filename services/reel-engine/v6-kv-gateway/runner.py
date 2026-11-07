@@ -12,6 +12,7 @@ sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
 sys.path.insert(0,str(ROOT/"experiments/reel-engine-v5"))
 sys.path.insert(0,str(ROOT/"services/reel-engine/v7-cinema"))
 sys.path.insert(0,str(ROOT/"services/reel-engine/v7-micro-rag"))
+sys.path.insert(0,str(ROOT/"services/reel-engine/v8-creative"))
 import ffmpeg_v6_adapter as ffmpeg_editor
 from ffmpeg_v7_cinema import finish as v7_finish,preset_for as v7_preset_for,V7Blocked
 import backend_selection
@@ -22,6 +23,7 @@ import v7_music_discovery as music_discovery
 import v7_verified_source as source_music
 import music_provider
 import txtai_reel_guidance as reel_rag
+import owner_bridge as v8_owner
 from ffmpeg_frame_samples import extract as ffmpeg_frames
 
 GATEWAY="https://mad-v7-kv-private-beta.karanbizweb360.workers.dev"
@@ -215,6 +217,7 @@ def run(job_id,*,fixture=False):
  claim=call("/internal/v6/jobs/"+job_id+"/claim",identity)
  if claim.get("job_id")!=job_id or not claim.get("rights_confirmed") or not claim.get("people_consent"):
   raise RuntimeError("Unauthorized owner source")
+ v8_mode=v8_owner.is_v8(claim.get("brief"))
  lease=claim["claim_id"]
  mime=claim["mime"]
  extension={"video/mp4":"mp4","video/quicktime":"mov","video/webm":"webm"}.get(mime)
@@ -236,7 +239,7 @@ def run(job_id,*,fixture=False):
   synthetic=fixture and claim.get("source_description","").startswith("SYNTHETIC QA:")
   if fixture and not synthetic:raise RuntimeError("Synthetic fixture cannot render owner footage")
   mark("frame_sampling")
-  frames=[] if synthetic else ffmpeg_frames(work,src,duration,
+  frames=[] if synthetic or v8_mode else ffmpeg_frames(work,src,duration,
     consent=bool(claim.get("free_gemini_consent")) and bool(claim.get("rights_confirmed")),
     source_sha256=claim["source_sha256"])
   mark("micro_rag")
@@ -249,6 +252,7 @@ def run(job_id,*,fixture=False):
   # Metadata-only shortlist exists before creative planning; no extra AI request.
   prepared_music=None;music_candidates=[]
   if (claim.get("audio_mode")!="licensed_music" and
+      (not v8_mode or v8_owner.intelligence.intent(v8_owner.owner_brief(claim["brief"]))["music_allowed"]) and
       os.environ.get("MAD_V7_AUTO_SOURCE_MUSIC_ENABLED","false")=="true"):
    try:
     prepared_music=music_discovery.discover(claim["brief"],claim["source_description"],
@@ -260,7 +264,16 @@ def run(job_id,*,fixture=False):
    except Exception:
     prepared_music=None;music_candidates=[]
   mark("model_policy")
-  plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,
+  if v8_mode:
+   plan={"hook":"V8 source-grounded creative soundtrack",
+         "cuts":[{"start":0.0,"seconds":duration}],
+         "operations":[[]],
+         "model_roles":{"gemini_source":"approved_free_flash",
+           "groq_director":"openai/gpt-oss-120b",
+           "gemini_actual_media_reviewer":"approved_free_flash"},
+         "model_policy":"v8_creative_intelligence_private"}
+  else:
+   plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,
                   fixture=synthetic,frames=frames,guidance=knowledge["roles"],
                   music_candidates=music_candidates)
   mark("audio_library")
@@ -292,7 +305,8 @@ def run(job_id,*,fixture=False):
    # Job-specific approved music always wins. Otherwise the V7 AI picks only
    # from V5/V6 reviewer-cleared recordings in owner-private Cloudflare KV.
    # Synthetic CI stays source-only to preserve deterministic rights evidence.
-   if not synthetic:
+   if not synthetic and (not v8_mode or
+        v8_owner.intelligence.intent(v8_owner.owner_brief(claim["brief"]))["music_allowed"]):
     items=call("/internal/v6/jobs/"+job_id+"/music-library",identity,
                method="GET",claim=lease)
     preferred,decision=auto_music.choose(items.get("tracks",[]),
@@ -381,39 +395,50 @@ def run(job_id,*,fixture=False):
   elif claim.get("audio_mode")!="source_ambience_only":
    raise RuntimeError("Unknown audio mode")
   mark("ffmpeg_render")
-  spec={"source":str(src),"source_sha256":claim["source_sha256"],
-    "template_id":ffmpeg_editor.choose_template(claim["brief"]),
-    "workdir":str(work),"output":str(out),
-    "cuts":plan["cuts"],"operations":plan["operations"],"hook":plan["hook"],
-    "music":str(music) if music else None,
-    "music_sha256":sha(music) if music else None,
-    "music_rights":rights,
-    "width":1080,"height":1920,"fps":30}
-  spec["v7_preset"]=v7_preset_for(claim["brief"])
-  spec.update(audio_intent(claim["brief"]))
-  if spec["dialogue_priority"] and metadata["audio"] is None:
-   raise RuntimeError("Dialogue preservation requires original audio")
-  spec["transition_style"]="dip-to-black" if ("cinematic" in claim["brief"].casefold()
-    or "transition" in claim["brief"].casefold()) else "none"
-  spec["published"]=False
-  spec["owner_approval"]=False
-  mark("cinematic_finish")
-  rec=v7_finish(spec)
-  if (rec.get("cinematic_finish_applied") is not True or rec.get("version")!="v7-source-beta"
-      or rec.get("rendered") is not True or rec.get("engine")!="ffmpeg"
-      or rec.get("video_stream_verified") is not True
-      or rec.get("audio_stream_verified") is not True
-      or rec.get("full_decode_passed") is not True
-      or rec.get("visual_presence_check",{}).get("visible") is not True
-      or rec.get("output_audio_verified") is not True
-      or rec.get("ffmpeg_invocations",0)<1 or not out.exists()):
-   raise RuntimeError("FFmpeg private media certification failed")
-  if spec["dialogue_priority"] and rec.get("source_audio_unattenuated") is not True:
-   raise RuntimeError("V7_DIALOGUE_GAIN_CERTIFICATION_MISSING")
-  if spec["preserve_full_source"] and rec.get("source_duration_preserved") is not True:
-   raise RuntimeError("V7_DIALOGUE_FULL_TIMELINE_CERTIFICATION_MISSING")
-  if spec["preserve_full_source"] and duration>=24 and rec.get("transition_boundaries_applied",0)<1:
-   raise RuntimeError("V7_CINEMATIC_TRANSITIONS_NOT_APPLIED")
+  if v8_mode:
+   mark("cinematic_finish")
+   rec=v8_owner.run(src,out,work,claim["brief"],music,rights,knowledge,
+       source_consent=bool(claim.get("free_gemini_consent")) and bool(claim.get("rights_confirmed")))
+   if (rec.get("version")!="v8-creative-beta" or rec.get("release_lane")!="v8-private"
+       or rec.get("source_sha256")!=claim["source_sha256"]
+       or rec.get("full_decode_passed") is not True or rec.get("video_stream_verified") is not True
+       or rec.get("audio_stream_verified") is not True or rec.get("rendered") is not True
+       or not out.exists() or rec.get("technical_acceptance") is not True):
+    raise RuntimeError("V8_ACTUAL_OUTPUT_CERTIFICATION_FAILED")
+  else:
+   spec={"source":str(src),"source_sha256":claim["source_sha256"],
+     "template_id":ffmpeg_editor.choose_template(claim["brief"]),
+     "workdir":str(work),"output":str(out),
+     "cuts":plan["cuts"],"operations":plan["operations"],"hook":plan["hook"],
+     "music":str(music) if music else None,
+     "music_sha256":sha(music) if music else None,
+     "music_rights":rights,
+     "width":1080,"height":1920,"fps":30}
+   spec["v7_preset"]=v7_preset_for(claim["brief"])
+   spec.update(audio_intent(claim["brief"]))
+   if spec["dialogue_priority"] and metadata["audio"] is None:
+    raise RuntimeError("Dialogue preservation requires original audio")
+   spec["transition_style"]="dip-to-black" if ("cinematic" in claim["brief"].casefold()
+     or "transition" in claim["brief"].casefold()) else "none"
+   spec["published"]=False
+   spec["owner_approval"]=False
+   mark("cinematic_finish")
+   rec=v7_finish(spec)
+   if (rec.get("cinematic_finish_applied") is not True or rec.get("version")!="v7-source-beta"
+       or rec.get("rendered") is not True or rec.get("engine")!="ffmpeg"
+       or rec.get("video_stream_verified") is not True
+       or rec.get("audio_stream_verified") is not True
+       or rec.get("full_decode_passed") is not True
+       or rec.get("visual_presence_check",{}).get("visible") is not True
+       or rec.get("output_audio_verified") is not True
+       or rec.get("ffmpeg_invocations",0)<1 or not out.exists()):
+    raise RuntimeError("FFmpeg private media certification failed")
+   if spec["dialogue_priority"] and rec.get("source_audio_unattenuated") is not True:
+    raise RuntimeError("V7_DIALOGUE_GAIN_CERTIFICATION_MISSING")
+   if spec["preserve_full_source"] and rec.get("source_duration_preserved") is not True:
+    raise RuntimeError("V7_DIALOGUE_FULL_TIMELINE_CERTIFICATION_MISSING")
+   if spec["preserve_full_source"] and duration>=24 and rec.get("transition_boundaries_applied",0)<1:
+    raise RuntimeError("V7_CINEMATIC_TRANSITIONS_NOT_APPLIED")
   digest=sha(out);n=math.ceil(out.stat().st_size/CHUNK)
   if digest!=rec.get("sha256") or not 1<=n<=20:raise RuntimeError("Output SHA/size invalid")
   mark("output_upload")
@@ -431,14 +456,14 @@ def run(job_id,*,fixture=False):
   receipt["audio_library"]=audio_receipt
   receipt["gemini_frames_sent"]=len(frames)
   receipt["product_context"]="generic"
-  receipt["release_lane"]="v7-private"
+  receipt["release_lane"]="v8-private" if v8_mode else "v7-private"
   receipt["published"]=False
   receipt["owner_approval"]=False
   mark("private_complete")
   result=call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,
     payload={"state":"review_ready","chunks":n,"bytes":out.stat().st_size,"sha256":digest,"receipt":receipt})
   if result.get("state")!="review_ready":raise RuntimeError("Private server output certification rejected")
-  print("MAD_V7_PRIVATE_KV_FFMPEG_COMPLETED",job_id,"published=false","fixture="+str(synthetic))
+  print("MAD_V8_PRIVATE_KV_COMPLETED" if v8_mode else "MAD_V7_PRIVATE_KV_FFMPEG_COMPLETED",job_id,"published=false","fixture="+str(synthetic))
   return result
  except Exception:
   try:call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,payload={"state":"failed"})
