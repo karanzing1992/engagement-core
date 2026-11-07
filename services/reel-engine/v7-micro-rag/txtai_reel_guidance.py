@@ -195,7 +195,8 @@ def collect(brief:str,description:str,workdir:Path,*,enable:bool=True,limit:int=
             raise GuidanceError("RAG_NO_RETRIEVAL")
         return {"status":"ready","engine":"txtai","retrieval":"bm25",
                 "version":source["version"],"corpus_sha256":corpus_hash,
-                "records":len(records),"roles":roles,\n                "music_search":music_search}
+                "records":len(records),"roles":roles,
+                "music_search":music_search}
     except Exception as error:
         if isinstance(error,GuidanceError):
             code=str(error)
@@ -213,7 +214,8 @@ def receipt(retrieved:dict)->dict:
             "retrieval":retrieved["retrieval"],
             "corpus_sha256":retrieved.get("corpus_sha256",""),
             "version":retrieved.get("version",""),
-            "source_ids":{role:retrieved["roles"][role]["ids"] for role in ROLES},\n            "music_search_ids":retrieved.get("music_search",{}).get("ids",[]),
+            "source_ids":{role:retrieved["roles"][role]["ids"] for role in ROLES},
+            "music_search_ids":retrieved.get("music_search",{}).get("ids",[]),
             "failure_code":retrieved.get("reason") if retrieved["status"]!="ready" else None}
 
 
