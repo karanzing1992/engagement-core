@@ -239,6 +239,33 @@ class ReviewsTests(unittest.TestCase):
         x["findings"]=["Authorization: bearer string"]
         self.assertRaises(IsolationError,self.ledger.submit,x)
 
+    def test_event_hook_auto_indexes_and_archives_every_review(self):
+        from dev_design_rag.inbox import record_completed_review
+        async def fake_index(self,scope,doc_id,text,source_url,principal="owner",project="andaz-vibe-stay"):
+            return {"status":"INDEXED"}
+        with patch.object(DesignKnowledge,"index",new=fake_index):
+            result=record_completed_review(self.reg,self.review())
+            self.assertEqual(result["status"],"PASS")
+            result2=record_completed_review(self.reg,self.review())
+        self.assertEqual(result2["status"],"PASS")
+        self.assertEqual(len(result2["processed"]),1)
+        self.assertEqual(self.ledger.pending("andaz-vibe-stay"),[])
+        self.assertEqual(len(list((self.root/"processed"/"andaz-vibe-stay").glob("*.json"))),1)
+
+    def test_bad_inbox_event_kept_and_quality_blocked(self):
+        from dev_design_rag.inbox import sync_inbox
+        target=self.root/"inbox"/"andaz-vibe-stay"
+        target.mkdir(parents=True)
+        (target/"not_our_project.json").write_text(json.dumps({
+            **self.review(),"project":"other-project"
+        }))
+        result=asyncio.run(sync_inbox(self.reg,"andaz-vibe-stay"))
+        self.assertEqual(result["status"],"BLOCKED")
+        self.assertEqual(len(result["failures"]),1)
+        self.assertTrue((target/"not_our_project.json").is_file())
+        gate=self.ledger.gate("andaz-vibe-stay",ART,owner_approval=True)
+        self.assertFalse(gate["checks"]["no_review_backlog"])
+
     def test_project_review_writes_to_selected_project_only(self):
         self.ledger.submit(self.review())
         asyncio.run(self.fake_reconcile())
