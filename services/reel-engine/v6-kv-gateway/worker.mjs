@@ -173,12 +173,12 @@ async function dispatch(req,e,id){
     .bind(TIME(),id).run();
    return error("Existing GitHub Actions dispatch not ready",503);
  }
- return json({job_id:id,state:"dispatching",renderer:"FFmpeg",published:false},202);
+ return json({job_id:id,state:"dispatching",renderer:"FFmpeg V7 Cinematic",published:false},202);
 }
 function publicState(j){
  const now=TIME(),expiry=j.ready_at?j.expires_at:null;
  const state=(expiry!==null&&now>=expiry)||j.state==="expired"?"expired":j.state;
- return {job_id:j.job_id,state,renderer:"FFmpeg",version:"v6-kv",
+ return {job_id:j.job_id,state,renderer:"FFmpeg V7 Cinematic",version:"v7-ffmpeg-private",
          download_available:state==="review_ready"&&expiry>now,
          expiry_at:expiry,seconds_remaining:expiry===null?null:Math.max(0,expiry-now),
          output_sha256:state==="review_ready"?j.output_sha256:null,
@@ -318,7 +318,9 @@ async function internal(req,e,path){
   }else if(body.receipt?.audio_mode!=="source_ambience_only"||body.receipt?.music_mixed!==false)
     return error("Unexpected soundtrack receipt",422);
   const visual=body.receipt?.visual_presence_check;
-  if(body.receipt?.engine!=="ffmpeg"||body.receipt?.video_stream_verified!==true||
+  if(body.receipt?.engine!=="ffmpeg"||body.receipt?.version!=="v7-source-beta"||
+    body.receipt?.cinematic_finish_applied!==true||body.receipt?.release_lane!=="v7-private"||
+    body.receipt?.video_stream_verified!==true||
     body.receipt?.audio_stream_verified!==true||body.receipt?.full_decode_passed!==true||
     !Number.isInteger(body.receipt?.ffmpeg_invocations)||body.receipt.ffmpeg_invocations<1||
     body.receipt?.output_audio_verified!==true||visual?.visible!==true||
