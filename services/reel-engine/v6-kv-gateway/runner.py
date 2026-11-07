@@ -174,7 +174,8 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None,guidance
   repair+=" Reel-making guidance: "+((guidance or {}).get("director",{}).get("context",""))[:1750]
   director=multimodel.groq_call("openai/gpt-oss-120b",repair,temperature=.2,max_tokens=1600)
   multimodel.validate_director(manifest,director)
- review=multimodel.groq_strict_review(manifest,director,on_stage=mark,guidance=guidance)
+ review=multimodel.groq_strict_review(manifest,director,on_stage=mark,
+    guidance=((guidance or {}).get("reviewer",{}).get("context",""))[:1750])
  mark("edl_compile")
  plan=multimodel.compile_reviewed_edl(manifest,director,review)
  plan.update({"model_roles":{"gemini":"SKIPPED_"+fallback_reason,
