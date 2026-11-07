@@ -75,5 +75,15 @@ class StageDiagnosticTests(unittest.TestCase):
         self.assertFalse(runner.recoverable_gemini_timeout(
             RuntimeError("Model API rejected or timed out; details redacted")))
 
+    def test_gemini_requires_two_independent_free_tier_gates(self):
+        from unittest.mock import patch
+        for tier,owner,allowed in (("","true",False),("true","",False),
+                                    ("false","true",False),("true","false",False),
+                                    ("true","true",True)):
+            with patch.dict("os.environ",{
+                "GEMINI_PROJECT_FREE_TIER_VERIFIED":tier,
+                "GEMINI_INFERENCE_OWNER_APPROVED":owner}):
+                self.assertEqual(runner.gemini_free_path_authorized(),allowed)
+
 if __name__=="__main__":
     unittest.main()
