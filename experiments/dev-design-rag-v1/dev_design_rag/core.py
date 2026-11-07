@@ -133,7 +133,15 @@ class Registry:
         ]
 
     def writable(self, scope: Scope, principal: str, project: str) -> bool:
-        return scope in self.scopes(project, principal) and principal == "owner"
+        if principal != "owner":
+            return False
+        # Only owner-admin may seed brand-neutral shared/type knowledge. They
+        # cannot accidentally seed one project's brand into another.
+        if scope.kind == "generic":
+            return scope.scope_id == "shared"
+        if scope.kind == "type":
+            return scope.scope_id in self.config["types"]
+        return scope in self.scopes(project, principal)
 
     def scope_dir(self, scope: Scope) -> Path:
         folder = {
