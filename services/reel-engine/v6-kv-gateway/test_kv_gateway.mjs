@@ -33,7 +33,7 @@ function database(){
  const db=new DatabaseSync(":memory:");
  db.exec("CREATE TABLE mad_v1_projects (id TEXT PRIMARY KEY)");
  db.prepare("INSERT INTO mad_v1_projects(id) VALUES (?)").run("reel-"+"a".repeat(36));
- db.exec("CREATE TABLE mad_v6_kv_jobs (job_id TEXT PRIMARY KEY,project_id TEXT NOT NULL,file_name TEXT NOT NULL,mime TEXT NOT NULL,bytes INTEGER NOT NULL,source_sha256 TEXT NOT NULL,source_chunks INTEGER NOT NULL,source_description TEXT NOT NULL,brief TEXT,state TEXT NOT NULL,claim_id TEXT,claimed_at INTEGER,attempts INTEGER NOT NULL DEFAULT 0,output_chunks INTEGER,output_bytes INTEGER,output_sha256 TEXT,receipt_json TEXT,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,ready_at INTEGER,expires_at INTEGER NOT NULL,error_code TEXT)");
+ db.exec("CREATE TABLE mad_v6_kv_jobs (job_id TEXT PRIMARY KEY,project_id TEXT NOT NULL,file_name TEXT NOT NULL,mime TEXT NOT NULL,bytes INTEGER NOT NULL,source_sha256 TEXT NOT NULL,source_chunks INTEGER NOT NULL,source_description TEXT NOT NULL,brief TEXT,state TEXT NOT NULL,claim_id TEXT,claimed_at INTEGER,attempts INTEGER NOT NULL DEFAULT 0,output_chunks INTEGER,output_bytes INTEGER,output_sha256 TEXT,receipt_json TEXT,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,ready_at INTEGER,expires_at INTEGER NOT NULL,error_code TEXT,audio_mode TEXT NOT NULL DEFAULT 'source_ambience_only')");
  db.exec("CREATE TABLE mad_v6_kv_parts (job_id TEXT NOT NULL,kind TEXT NOT NULL,idx INTEGER NOT NULL,bytes INTEGER NOT NULL,sha256 TEXT NOT NULL,PRIMARY KEY(job_id,kind,idx))");
  const mock={prepare(sql){return {bind(...args){return {first:async()=>db.prepare(sql).get(...args)??null,all:async()=>({results:db.prepare(sql).all(...args)}),
  run:async()=>{const r=db.prepare(sql).run(...args);return {success:true,meta:{changes:r.changes}}}}}}}};
@@ -260,6 +260,7 @@ test("owner-verified Openverse track transfer -> signed FFmpeg mix receipt; fals
    chunks:1,bytes:out.length,sha256:SHA(out),receipt:r})});
   assert.equal((await complete({...receipt,music_mixed:false})).status,422);
   assert.equal((await complete(receipt)).status,200);
+  assert.equal(db.prepare("SELECT audio_mode FROM mad_v6_kv_jobs WHERE job_id=?").get(id).audio_mode,"licensed_music");
   db.prepare("UPDATE mad_v6_kv_jobs SET expires_at=? WHERE job_id=?").run(md()-1,id);
   let cleaning=null;await worker.scheduled({},env,{waitUntil:p=>cleaning=p});await cleaning;
   assert.equal(storage.storage.size,2);
