@@ -1,8 +1,8 @@
 import {seedSynthetic} from "./synthetic_seed.mjs";
 // MAD V6 Cloudflare KV media gateway, independent of V5 routes.
 // Owner PWA + signed GitHub OIDC: no GitHub vault credential or model keys.
-const ORIGINS=new Set(["https://mad-v6-owner-private-beta.pages.dev","https://mad-v7-owner-private-beta.pages.dev"]);
-const PREVIEW=/^https:\/\/[a-z0-9-]+\.(?:mad-v6-owner-private-beta|mad-v7-owner-private-beta)\.pages\.dev$/;
+const ORIGINS=new Set(["https://mad-v6-owner-private-beta.pages.dev","https://mad-v7-owner-private-beta.pages.dev","https://mad-v8-owner-private-beta.pages.dev"]);
+const PREVIEW=/^https:\/\/[a-z0-9-]+\.(?:mad-v6-owner-private-beta|mad-v7-owner-private-beta|mad-v8-owner-private-beta)\.pages\.dev$/;
 const JOB=/^v6job-[a-f0-9]{32}$/;
 const SHA=/^[a-f0-9]{64}$/;
 const CHUNK=4*1024*1024,MAX=80*1024*1024,RENDER_WINDOW=86400,DELIVERY_WINDOW=1800;
@@ -372,8 +372,13 @@ async function internal(req,e,path){
   }else if(body.receipt?.audio_mode!=="source_ambience_only"||body.receipt?.music_mixed!==false)
     return error("Unexpected soundtrack receipt",422);
   const visual=body.receipt?.visual_presence_check;
-  if(body.receipt?.engine!=="ffmpeg"||body.receipt?.version!=="v7-source-beta"||
-    body.receipt?.cinematic_finish_applied!==true||body.receipt?.release_lane!=="v7-private"||
+  const v7Receipt=body.receipt?.version==="v7-source-beta"&&body.receipt?.release_lane==="v7-private";
+  const v8Receipt=body.receipt?.version==="v8-creative-beta"&&body.receipt?.release_lane==="v8-private"&&
+    body.receipt?.technical_acceptance===true&&
+    body.receipt?.actual_media_review?.technical?.output_hash_verified===true&&
+    body.receipt?.artistic_acceptance!==undefined&&body.receipt?.creative_complete!==undefined;
+  if(body.receipt?.engine!=="ffmpeg"||!(v7Receipt||v8Receipt)||
+    body.receipt?.cinematic_finish_applied!==true||
     body.receipt?.video_stream_verified!==true||
     body.receipt?.audio_stream_verified!==true||body.receipt?.full_decode_passed!==true||
     !Number.isInteger(body.receipt?.ffmpeg_invocations)||body.receipt.ffmpeg_invocations<1||
