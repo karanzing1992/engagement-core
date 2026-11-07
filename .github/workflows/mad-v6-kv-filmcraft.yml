@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - 'services/reel-engine/v6-kv-gateway/**'
+      - 'services/reel-engine/v7-micro-rag/**'
+      - 'experiments/reel-engine-v5/music_provider.py'
       - '.github/workflows/mad-v6-kv-filmcraft.yml'
   workflow_dispatch:
     inputs:
@@ -37,6 +39,34 @@ jobs:
           python3 services/reel-engine/v6-kv-gateway/test_v7_auto_music.py
           node --check services/reel-engine/v6-kv-gateway/worker.mjs
           node --test services/reel-engine/v6-kv-gateway/test_kv_gateway.mjs
+  v7-txtai-official-meta-music-e2e:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install existing pinned OSS txtai and verify FFmpeg
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -r services/reel-engine/v7-micro-rag/requirements.txt
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
+      - name: Actual txtai BM25 corpus index build reload role retrieval Meta and music
+        run: python3 services/reel-engine/v7-micro-rag/test_txtai_reel_guidance.py
+      - name: End-to-end synthetic music discovery to approved file FFmpeg V7 audiovisual render
+        run: |
+          set -euo pipefail
+          python3 services/reel-engine/v6-kv-gateway/test_v7_auto_music.py
+          python3 services/reel-engine/v6-kv-gateway/test_v7_music_discovery.py
   run-v6:
     if: github.event_name == 'workflow_dispatch' || (github.actor == github.repository_owner && github.event.issue.user.login == github.repository_owner && (startsWith(github.event.issue.title, '[MAD-V6-SYNTHETIC-QA] ') || (startsWith(github.event.issue.title, '[MAD-V6-LIVE-MULTIMODAL-AUDIO-QA] ') || startsWith(github.event.issue.title, '[MAD-V6-LIVE-GROQ-AUDIO-QA] '))))
     runs-on: ubuntu-24.04
