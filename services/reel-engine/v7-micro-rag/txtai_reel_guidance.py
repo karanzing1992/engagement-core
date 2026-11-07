@@ -21,7 +21,9 @@ ROLE_HINTS={
     "reviewer":"quality assurance captions safe zone contrast audio rights music loudness video verification ffprobe"
 }
 TRUSTED_HOSTS=frozenset(("github.com","ffmpeg.org","www.w3.org",
-                          "support.google.com","communityforums.atmeta.com","about.fb.com",\n                          "www.postman.com","metaspark.facebookblueprint.com",\n                          "api.openverse.org","commons.wikimedia.org"))
+                          "support.google.com","communityforums.atmeta.com","about.fb.com",
+                          "www.postman.com","metaspark.facebookblueprint.com",
+                          "api.openverse.org","commons.wikimedia.org"))
 ID_PATTERN=re.compile(r"^[a-z]{2,12}[0-9]{2,3}$")
 
 
