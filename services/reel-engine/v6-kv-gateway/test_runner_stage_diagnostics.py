@@ -120,5 +120,54 @@ class StageDiagnosticTests(unittest.TestCase):
                          "groq_only_fallback_gemini_free_tier_not_verified")
         self.assertFalse(result["published"])
 
+
+    def test_transient_gemini_network_timeout_retries_with_same_consented_frames(self):
+        from unittest.mock import patch
+        bridge=runner.multimodel
+        response={"candidates":[{"content":{"parts":[{"text":
+            '{"observations":[{"shot_id":"s1","visible":"river"}],'
+            '"research_scope":"verified"}'}]}}]}
+        source={"shots":[{"id":"s1","start_seconds":0,
+                "duration_seconds":4,"visible":"river"}]}
+        with patch.dict("os.environ",{
+                "GEMINI_INFERENCE_OWNER_APPROVED":"true",
+                "GEMINI_PROJECT_FREE_TIER_VERIFIED":"true",
+                "GEMINI_API_KEY":"fixture-key"}), \
+             patch.object(bridge,"discover_models",return_value=["test-flash"]), \
+             patch.object(bridge,"free_flash_models",return_value=["test-flash"]), \
+             patch.object(bridge,"post_json",side_effect=[
+                 bridge.V6Blocked("Model API rejected or timed out; details redacted"),
+                 response]) as requests, \
+             patch.object(bridge.time,"sleep") as sleep:
+            model,research=bridge.gemini_research(source,"Cinematic river",
+                approved_api_cost=True,guidance="Use authentic footage")
+        self.assertEqual(model,"test-flash")
+        self.assertEqual(research["observations"][0]["visible"],"river")
+        self.assertEqual(requests.call_count,2)
+        sleep.assert_called_once_with(2)
+
+    def test_gemini_nontransient_rejection_never_retries(self):
+        from unittest.mock import patch
+        bridge=runner.multimodel
+        source={"shots":[{"id":"s1","start_seconds":0,
+                "duration_seconds":4,"visible":"river"}]}
+        with patch.dict("os.environ",{
+                "GEMINI_INFERENCE_OWNER_APPROVED":"true",
+                "GEMINI_PROJECT_FREE_TIER_VERIFIED":"true",
+                "GEMINI_API_KEY":"fixture-key"}), \
+             patch.object(bridge,"discover_models",return_value=["test-flash"]), \
+             patch.object(bridge,"free_flash_models",return_value=["test-flash"]), \
+             patch.object(bridge,"post_json",side_effect=bridge.V6Blocked(
+                 "Model API request rejected; provider response redacted")) as requests:
+            with self.assertRaises(bridge.V6Blocked):
+                bridge.gemini_research(source,"Cinematic river",approved_api_cost=True)
+        self.assertEqual(requests.call_count,1)
+
+    def test_required_rag_failure_is_redacted_and_classified(self):
+        runner.ACTIVE_STAGE="micro_rag"
+        self.assertEqual(runner.safe_failure(runner.multimodel.V6Blocked(
+            "V7 required Reel RAG unavailable")),
+            "V6_KV_PRIVATE_RENDER_FAILED stage=micro_rag code=V7_RAG_UNAVAILABLE")
+
 if __name__=="__main__":
     unittest.main()
