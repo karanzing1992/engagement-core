@@ -25,6 +25,12 @@ async def run(args):
         return 0
     registry=Registry(root)
     service=DesignKnowledge(registry)
+    if args.command=="register-brand":
+        json_print(registry.register_brand(args.brand,args.display_name,args.owner))
+        return 0
+    if args.command=="register-project":
+        json_print(registry.register_project(args.project,args.brand,args.project_type,args.owner))
+        return 0
     if args.command=="status":
         project=args.project
         json_print({"status":"READY","version":"1.0.0","quality":registry.config["quality"],
@@ -68,6 +74,11 @@ def main(argv=None):
     p.add_argument("--root",required=True,help="Isolated root created in owner Dell workspace")
     sub=p.add_subparsers(dest="command",required=True)
     sub.add_parser("init")
+    br=sub.add_parser("register-brand")
+    br.add_argument("--brand",required=True);br.add_argument("--display-name",required=True);br.add_argument("--owner",required=True)
+    pr=sub.add_parser("register-project")
+    pr.add_argument("--project",required=True);pr.add_argument("--brand",required=True)
+    pr.add_argument("--project-type",required=True);pr.add_argument("--owner",required=True)
     st=sub.add_parser("status");st.add_argument("--project",required=True);st.add_argument("--principal",default="owner")
     ind=sub.add_parser("index")
     ind.add_argument("--project",required=True);ind.add_argument("--principal",default="owner")
