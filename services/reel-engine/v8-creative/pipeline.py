@@ -69,7 +69,19 @@ def execute(*,source,brief,workdir,output,music=None,music_rights=None,
         if not isinstance(proposal,dict):raise CreativeBlocked("V8_DIRECTOR_NON_OBJECT")
         proposal=dict(proposal)
         if not music:proposal["audio"]=dict(proposal["audio"],music_gain=0.0)
-        plan=validate_plan(evidence,proposal)
+        try:
+            plan=validate_plan(evidence,proposal)
+        except CreativeBlocked as invalid:
+            # Explicit plan-repair pass (same allowlisted model) instead of a
+            # deterministic replacement masquerading as an AI creative result.
+            # Structural owner/source constraints stay binding; no rendering on
+            # invalid plans and no open-ended retries.
+            if model_director and attempt<max_revisions:
+                last_review={"stage":"creative_plan_validation",
+                    "validation_code":str(invalid),
+                    "instruction":"Return a fully corrected JSON plan. First segment transition MUST be 'cut'. Subsequent transitions may be purposeful allowed styles. Preserve required original audio and all source timecodes. Do not invent source facts."}
+                continue
+            raise
         candidate=work/("v8-attempt-%d.mp4"%attempt)
         receipt=render(evidence,proposal,work,candidate,music=music,music_rights=music_rights,
            width=width,height=height,fps=fps)
