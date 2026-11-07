@@ -37,12 +37,13 @@ def sha1_base36(audio:bytes)->str:
 
 def meta(audio:bytes,license_name="CC BY 4.0",artist="Test Artist",restriction=""):
     return {"query":{"pages":{"123":{"title":"File:Fixture Sunrise.wav",
-        "categories":[{"title":"Category:Ambient music"}],
+        "categories":[{"title":"Category:Ambient music"},
+                      {"title":"Category:Self-published work"}],
         "imageinfo":[{"mediatype":"AUDIO","mime":"audio/wav","size":len(audio),
-          "url":MEDIA,"sha1":sha1_base36(audio),"extmetadata":{
+          "url":MEDIA,"user":artist,"sha1":sha1_base36(audio),"extmetadata":{
             "LicenseShortName":{"value":license_name},
             "LicenseUrl":{"value":LIC},
-            "Artist":{"value":artist},
+            "Artist":{"value":artist},"Credit":{"value":"<span>Own work</span>"},
             "Restrictions":{"value":restriction}}}]}}}}
 
 class FakeResponse:
@@ -81,6 +82,34 @@ class AutomatedSourceUnit(unittest.TestCase):
             result=source._source_meta(track(),opener=server(payload))
             self.assertEqual(result["license"],"by")
             self.assertEqual(result["creator"],"Test Artist")
+            self.assertEqual(result["uploader"],"Test Artist")
+            self.assertEqual(result["source_review"],"self_published_original_author")
+
+    def test_non_original_source_with_cc_by_is_not_automatically_admitted(self):
+        payload=b"a"*4096
+        for kind in ("missing_self_published","different_uploader","not_own_work"):
+            with self.subTest(kind=kind):
+                m=meta(payload)
+                page=m["query"]["pages"]["123"]
+                if kind=="missing_self_published":
+                    page["categories"]=[{"title":"Category:Ambient music"}]
+                elif kind=="different_uploader":
+                    page["imageinfo"][0]["user"]="UnrelatedUploader"
+                else:
+                    page["imageinfo"][0]["extmetadata"]["Credit"]["value"]="Third-party recording"
+                with self.assertRaisesRegex(source.AutoLicenseBlocked,
+                                             "SOURCE_ORIGIN_NOT_SELF_PUBLISHED"
+                                             if kind=="missing_self_published"
+                                             else "SOURCE_ORIGINAL_AUTHOR_NOT_CORROBORATED"):
+                    source._source_meta(track(),opener=server(payload,m))
+
+    def test_generatively_synthesized_song_claim_is_not_admitted(self):
+        payload=b"a"*4096
+        m=meta(payload)
+        m["query"]["pages"]["123"]["imageinfo"][0]["extmetadata"]["ImageDescription"]={"value":
+          "MusicLM AI-generated composition, not an original human recording"}
+        with self.assertRaisesRegex(source.AutoLicenseBlocked,"SOURCE_EXPLICIT_RESTRICTION"):
+            source._source_meta(track(),opener=server(payload,m))
 
     def test_unreviewed_external_commons_audio_fails_closed(self):
         payload=b"a"*3000
@@ -262,6 +291,9 @@ class RealAudioEndToEnd(unittest.TestCase):
             self.assertTrue(admission["rights"]["automatic_source_verified"])
             self.assertFalse(admission["rights"]["human_verified"])
             self.assertIn("Test Artist",admission["provenance"]["credit_text"])
+            self.assertIn("CC BY 4.0",admission["provenance"]["credit_text"])
+            self.assertIn("Adapted excerpt",admission["provenance"]["credit_text"])
+            self.assertEqual(admission["rights"]["source_review"],"self_published_original_author")
             self.assertEqual(admission["sha256"],hashlib.sha256(content).hexdigest())
             spec={"workdir":str(work),"source":str(video),"source_sha256":ffmpeg.sha256(video),
                 "output":str(out),"width":480,"height":270,"fps":24,
