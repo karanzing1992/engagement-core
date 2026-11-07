@@ -81,8 +81,19 @@ def _validate(spec):
  if spec.get("music") is not None:
   music=Path(spec["music"]).resolve()
   rights=spec.get("music_rights")
+  # Separate evidence bases: approved original human review OR a rechecked
+  # current Commons file/license API response. Never equate catalog search
+  # metadata with verified commercial adaptation rights.
+  manual=isinstance(rights,dict) and rights.get("human_verified") is True
+  automatic=(isinstance(rights,dict) and
+    rights.get("automatic_source_verified") is True and
+    rights.get("verification_method")=="commons_api_live" and
+    str(rights.get("original_source_url","")).startswith("https://commons.wikimedia.org/wiki/File:") and
+    rights.get("source_license_proof_url")==rights.get("original_source_url") and
+    str(rights.get("original_license_url","")).startswith("https://creativecommons.org/") and
+    isinstance(rights.get("credit_text"),str) and bool(rights["credit_text"].strip()))
   if (music.parent!=work or not music.is_file() or sha256(music)!=spec.get("music_sha256") or
-      not isinstance(rights,dict) or rights.get("human_verified") is not True or
+      not (manual or automatic) or
       rights.get("license") not in ("CC0","PDM","CC BY") or
       not str(rights.get("original_source_url","")).startswith("https://")):
    raise RenderBlocked("FFMPEG_MUSIC_RIGHTS_UNVERIFIED")
