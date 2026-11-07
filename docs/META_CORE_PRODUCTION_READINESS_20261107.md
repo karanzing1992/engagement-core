@@ -63,3 +63,15 @@ Pair with the matching server-only META CORE adapter secret in a **separate prot
 ## 6. Master reporting
 
 This is **SOURCE_ONLY** because neither draft is merged and no approved live platform integration exists. Do **not** claim `VERIFIED_LIVE`, publish a default-branch Master marker, modify Ashwakaal Support Channels or create a duplicate polling mechanism. Sync the Master through its canonical authorized route only after actual approved deployment and consumer acknowledgement.
+
+
+## Phase 1-E — central Google OAuth candidate source certification (7 November 2026)
+
+The DeluluTech central Google OAuth candidate is in the separately owned [draft PR #57](https://github.com/aarondash5-star/delulutech/pull/57). See the [exact-source certification and release-gate report](https://github.com/aarondash5-star/delulutech/blob/feat/delulutech-central-google-oauth-p1e-20261107/create-projects/wp-manager/authenticated-mcp/docs/DELULUTECH_CENTRAL_AUTH_PHASE1E_CERTIFICATION_20261107.md).
+
+- **PASS / isolated only:** 23/23 Node tests including a fully synthetic signed Google OIDC → real Cloudflare OAuth provider consent → authorization-code exchange → resource-specific access token, and client/tenant/resource negative boundary probes; compiled Cloudflare Worker; dedicated pinned dependency audit 0 vulnerabilities.
+- **Critical source fixes:** Cloudflare-compatible Google subject ID without colons, mandatory safe CIMD compatibility flag, allowlisted client check before external metadata fetch, bounded Google token JSON parsing.
+- **Verified runtime discovery (read-only Cloudflare):** the existing *production* WP Manager auth Worker already has Google sign-in enabled and Google client bindings; the existing WP Manager staging auth Worker did not expose Google client bindings. This means the live implementation is newer than the inspected PIN-only repository source. Do not replace or export its credentials to META CORE. Prefer parallel separated central issuer staging, new appropriately registered Google callback and explicit grants.
+- **NO-GO:** no live central auth Worker, Google client for new issuer, real customer tenant permission mapping, central remote MCP connection, or WACRM deployed OAuth bearer validation has been certified. Independent GitHub Actions on the separate `aarondash5-star/delulutech` PR reported failures with missing job-step evidence; local Dell success does not clear those failures. Both META CORE PR #215 and WACRM PR #134 remain draft.
+- **Release gate:** independent CI + security review, real approved Google sign-in on a separate central staging issuer, WACRM read-only tenant-isolation E2E, rollback, then final owner UI acceptance and separately approved production activation. No verified-live Master event for this source-only increment.
+
