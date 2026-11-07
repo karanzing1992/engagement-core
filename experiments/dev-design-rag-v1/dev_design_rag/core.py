@@ -534,7 +534,10 @@ class ReviewLedger:
         from .inbox import pending_inbox_count
         pending += pending_inbox_count(self.registry,project)
         valid_art=[x for x in all_reviews if x["kind"]=="artistic" and x.get("independent") is True and x.get("reviewer") not in ("synthetic","test")]
-        tests={x["kind"]:x for x in all_reviews if x["kind"]!="artistic"}
+        # A later or earlier failed test of the same artifact must not be
+        # overwritten by a passing receipt of the same kind.
+        stage_reviews={kind:[x for x in all_reviews if x["kind"]==kind]
+                       for kind in REQUIRED_TESTS}
         # Evaluate every independent critique of this exact artifact; lower
         # scores cannot be hidden by selecting an older, nicer review.
         scores=[x["score"] for x in valid_art]
@@ -543,7 +546,9 @@ class ReviewLedger:
             "no_review_backlog":pending==0,
             "artistic_score_at_least_95":isinstance(score,int) and score>=ART_MIN,
             "independent_artistic_approve":bool(valid_art) and all(x.get("verdict")=="APPROVE" for x in valid_art),
-            "all_required_tests_pass":all(k in tests and tests[k].get("passed") is True for k in REQUIRED_TESTS),
+            "all_required_tests_pass":all(stage_reviews[k] and all(x.get("passed") is True
+                                                 for x in stage_reviews[k])
+                                          for k in REQUIRED_TESTS),
             "owner_approval":owner_approval is True,
         }
         passed=all(requirements.values())
