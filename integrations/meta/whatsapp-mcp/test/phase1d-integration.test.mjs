@@ -111,3 +111,31 @@ test('Consumer relay HMAC contract fixture: reject tamper, stale timestamp, wron
   const stableEventIdentity = createHmac('sha256', key).update('wamid.synthetic1').digest('hex');
   assert.equal(stableEventIdentity, createHmac('sha256', key).update('wamid.synthetic1').digest('hex'));
 });
+
+test('Phase 1-D bounded MCP ingress rejects oversized, cyclic and accessor payloads before token access', async () => {
+  let secretsRead = 0;
+  let toolsetBuilt = 0;
+  const adapter = createMetaCoreDojoReadAdapter({
+    authorizeTenant: async () => true,
+    resolveConnection: async () => { ++secretsRead; return credential(routes.brand_a); },
+    toolsetFactory: async () => { ++toolsetBuilt; return { dispatch: async () => ({ structuredContent: {}, isError: false }) }; }
+  });
+  const cycle = {}; cycle.self = cycle;
+  const getter = {};
+  Object.defineProperty(getter, 'data', { enumerable: true, get() { throw Error('getter must not run'); } });
+  const unsafe = [
+    { big: 'x'.repeat(10000) },
+    { nested: new Array(5000).fill('x') },
+    { nested: cycle },
+    getter,
+    JSON.parse('{"__proto__":{"polluted":true}}'),
+    { nested: { one: { two: { three: { four: { five: { six: { seven: { eight: {} } } } } } } } } },
+  ];
+  for (const args of unsafe) {
+    const out = await adapter.invoke({ principal: { tenantId: 'brand_a' },
+      tenantId: 'brand_a', toolName: 'whatsapp_list_templates', args });
+    assert.equal(out.error?.code, 'invalid_input');
+  }
+  assert.equal(secretsRead, 0, 'no secret lookup for malformed input');
+  assert.equal(toolsetBuilt, 0, 'no Zod parser or transport for malformed input');
+});
