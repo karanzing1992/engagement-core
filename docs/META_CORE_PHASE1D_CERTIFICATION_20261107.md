@@ -3,7 +3,7 @@
 **Date:** 2026-11-07 (Asia/Kolkata)  
 **Repository:** `karanzing1992/engagement-core` · **draft PR:** [#215](https://github.com/karanzing1992/engagement-core/pull/215)  
 **WACRM owning repository:** `karanzing1992/moksha_wordpress` · **separate draft PR:** [#134](https://github.com/karanzing1992/moksha_wordpress/pull/134)  
-**State:** `SOURCE_ONLY / ZOD_AUDIT_HIGH_0 / NODE_29_OF_29 / WACRM_PHP_54_OF_54 / CONNECTED_INTEGRATION_PENDING / RELEASE_NO_GO`
+**State:** `SOURCE_ONLY / ZOD_AUDIT_HIGH_0 / NODE_29_OF_29 / WACRM_PHP_68_OF_68 / CONNECTED_INTEGRATION_PENDING / RELEASE_NO_GO`
 
 ## 1. Scope and reproducible evidence
 
@@ -37,6 +37,12 @@ Independent WACRM GitHub Actions [run #42361007583](https://github.com/karanzing
 - Combined **54/54 synthetic checks**. All ran against fake WP/DB and synthetic credentials, not staging customer data.
 
 The WACRM branch documentation is `docs/WACRM_META_CORE_PHASE1D_CUSTODY_20261107.md`. Dell has no PHP CLI and cannot clone the private WACRM repo using its development identity; consequently PHP source execution was certified through the owning GitHub repository's isolated CI, not on Dell.
+
+### Enhanced WACRM source-level webhook end-to-end (additional Phase 1-D certification)
+
+Subsequent [WACRM Actions run #42362158862](https://github.com/karanzing1992/moksha_wordpress/actions/runs/42362158862) completed **successfully**, independently executing **14 additional checks** in `tests/wacrm-meta-core-webhook-e2e-smoke.php`. Unlike the earlier isolated HMAC fixture, this new PHP integration invokes WACRM Central's **actual** Meta webhook receiver and relay methods, then the WACRM Consumer's **actual** relay and event-persistence methods using an in-process fake WordPress `wp_remote_post` and fake database. It verifies Meta and Consumer HMAC, message/status/contact event persistence, duplicate idempotency, wrong signature/WABA/phone, stale/wrong relay secret and revoked route. No network, WP production DB or live Meta. **Updated WACRM total: 22 custody + 14 integrated webhook + 22 Consumer + 10 coexistence = 68 synthetic checks PASS**. PHP syntax checks remain PASS.
+
+This qualifies as **source-level simulated Central-to-Consumer webhook integration**, not installed WordPress staging network integration, actual persisted customer data or live remote MCP.
 
 ## 3. Remaining critical blockers — release gates
 
