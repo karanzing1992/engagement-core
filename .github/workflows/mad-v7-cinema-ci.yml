@@ -24,7 +24,7 @@ jobs:
           set -euo pipefail
           command -v ffmpeg
           command -v ffprobe
-          ffmpeg -hide_banner -filters 2>/dev/null | grep -E ' (drawtext|vignette|loudnorm|noise) '
+          ffmpeg -hide_banner -filters 2>/dev/null | grep -E 'drawtext|vignette|loudnorm|noise'
       - name: V7 actual synthetic 2-shot audio/video render and fail-closed creative QA
         run: |
           set -euo pipefail
