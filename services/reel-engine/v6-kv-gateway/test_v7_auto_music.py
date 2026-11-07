@@ -28,6 +28,12 @@ class AutoMusicContract(unittest.TestCase):
         def groq(model, prompt, **kw):
             self.assertEqual(model, "openai/gpt-oss-120b")
             self.assertIn("Energetic", prompt)
+            schema=kw["response_format"]["json_schema"]
+            self.assertTrue(schema["strict"])
+            self.assertGreaterEqual(kw["max_tokens"],640)
+            self.assertEqual(set(schema["schema"]["properties"]["sha256"]["enum"]),
+                             {a["sha256"],b["sha256"]})
+            self.assertEqual(schema["schema"]["additionalProperties"],False)
             return {"sha256": b["sha256"]}
         items, receipt = auto.choose([a, b], "Energetic recovery", "Strong recovery", groq)
         self.assertEqual(items[0]["sha256"], b["sha256"])
