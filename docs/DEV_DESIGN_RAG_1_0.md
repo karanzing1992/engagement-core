@@ -79,7 +79,7 @@ Each review emitted through this tool must call the synchronous \`record_complet
 4. Archive successfully indexed events under \`processed/<project>\` with their original payload. Failed events remain in the inbox or journal for **deterministic reconciliation**; no silent omission.
 5. Refuse release while any review for the project is not indexed, including malformed inbox entries. Quality decisions are built from the whole immutable history and exact artifact digest—**not cherry-picked best scores**.
 
-The original three Andaz Gemini artistic reviews **54 REJECT, 68 REVISE, 96 APPROVE**, plus six historical browser/accessibility/performance/interaction review records, were migrated as separate records from previously verified evidence. They are **historical evidence**, not synthetic new passes.
+The original three Andaz Gemini artistic reviews **54 REJECT, 68 REVISE, 96 APPROVE**, plus eleven historical browser/accessibility/performance/interaction and mandatory QA stage review records, were migrated as separate records from previously verified evidence. They are **historical evidence**, not synthetic new passes.
 
 **Important coverage boundary:** the guarantee currently applies to reviews routed through the **new DEV DESIGN RAG hook/inbox**. Existing external Gemini/GitHub and unrelated app workflows must emit their receipts to the approved intake adapter before they become automatically indexed. An authenticated GitHub/remote-webhook to Dell has NOT been deployed here; claiming complete ingestion across all unrelated apps would be incorrect. No public webhook or unauthenticated agent access is permitted.
 
@@ -104,12 +104,14 @@ A Gemini artistic APPROVE is not evidence that GDPR/security/legal/checkout/real
 - Source path: \`.../dev-design-rag-v1/source/experiments/dev-design-rag-v1/\`
 - Legacy source/rollback: \`/var/lib/generic-linux-automator-exec/.local/share/andaz-autonomous-website-pilot-20261106/storage/\` (read-only source of truth, preserved)
 - Graph instances: **9** = 1 generic + 6 type + 1 Andaz brand + 1 Andaz project. Each has separate LightRAG entity/vector/chunk storage.
-- Historical reviews ingested: **9 total** = 3 artistic, 3 accessibility, 1 functional, 1 performance, 1 UX.
+- Historical reviews ingested: **14 total** = 3 artistic, 3 accessibility, 1 functional, 1 performance, 1 UX and five individual technical release-gate kinds (Playwright, axe WCAG, mobile Lighthouse, desktop Lighthouse, keyboard).
 - Review backlog after verified backfill: **0**.
 - Local embeddings only; no paid LLM/API indexing calls.
-- Source-level isolated security/policy/review unit tests: **27/27 passed** after last review-hook update (expand as new regressions are added).
+- Source-level isolated security/policy/review unit tests: **27/27 passed** after last review-hook update. Both [independent GitHub CI run #42368196372](https://github.com/karanzing1992/engagement-core/actions/runs/42368196372) and [follow-up run #42368558422](https://github.com/karanzing1992/engagement-core/actions/runs/42368558422) completed SUCCESS.
 - Real Dell four-layer \`LightRAG.aquery(mode=naive,only_need_context=True)\` retrieval: **PASS**. Tested source-backed WCAG, hospitality patterns, Andaz brand and project-specific Gemini evidence, with **no Andaz brand leakage into shared generic or hospitality graph context**.
-- GitHub isolated certification workflow \`.github/workflows/dev-design-rag-v1-certify.yml\` created; check its job result before claiming independent GitHub CI completed.
+- GitHub isolated certification workflow \`.github/workflows/dev-design-rag-v1-certify.yml\` verified SUCCESS on development branch. No project branch protection was altered.
+- V3 homepage **live design quality gate readback**: independent Gemini **96/100 and APPROVE**, all five mandatory technical stages present and PASS, **0 unindexed reviews**, and **owner approval false**; overall gate correctly **BLOCKED** solely at owner approval. Historical sitewide V1/V2 findings remain separate.
+- Synthetic second-brand/second-project live staging pilot: isolated graph registered, one negative UX review durably written → indexed → archived; replay deduplicated; release correctly blocked.
 - Owner production release: **NOT REQUESTED / NOT GRANTED**.
 - No public design-RAG MCP/HTTP service, app plugin installation or other project's permission migration was performed.
 
