@@ -169,5 +169,35 @@ class StageDiagnosticTests(unittest.TestCase):
             "V7 required Reel RAG unavailable")),
             "V6_KV_PRIVATE_RENDER_FAILED stage=micro_rag code=V7_RAG_UNAVAILABLE")
 
+
+    def test_owner_free_gemini_music_selector_reuses_existing_endpoint(self):
+        from unittest.mock import patch
+        bridge=runner.multimodel
+        response={"candidates":[{"content":{"parts":[{"text":
+            '{"id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}'}]}}]}
+        with patch.dict("os.environ",{
+                "GEMINI_INFERENCE_OWNER_APPROVED":"true",
+                "GEMINI_PROJECT_FREE_TIER_VERIFIED":"true",
+                "GEMINI_API_KEY":"fixture-key"}), \
+             patch.object(bridge,"discover_models",return_value=["test-flash"]), \
+             patch.object(bridge,"free_flash_models",return_value=["test-flash"]), \
+             patch.object(bridge,"post_json",return_value=response) as post:
+            x=bridge.gemini_music_choice("ignored-model","Return exact candidate JSON")
+        self.assertEqual(x["id"],"b"*32)
+        self.assertEqual(post.call_count,1)
+        self.assertIn("gemini",post.call_args.args[0])
+
+    def test_gemini_music_selector_rejects_unapproved_tier(self):
+        from unittest.mock import patch
+        bridge=runner.multimodel
+        with patch.dict("os.environ",{
+                "GEMINI_INFERENCE_OWNER_APPROVED":"false",
+                "GEMINI_PROJECT_FREE_TIER_VERIFIED":"true",
+                "GEMINI_API_KEY":"fixture-key"}), \
+             patch.object(bridge,"post_json") as post:
+            with self.assertRaises(bridge.V6Blocked):
+                bridge.gemini_music_choice("ignored","Select music")
+        post.assert_not_called()
+
 if __name__=="__main__":
     unittest.main()
