@@ -21,7 +21,7 @@ ROLE_HINTS={
     "reviewer":"quality assurance captions safe zone contrast audio rights music loudness video verification ffprobe"
 }
 TRUSTED_HOSTS=frozenset(("github.com","ffmpeg.org","www.w3.org",
-                          "support.google.com","communityforums.atmeta.com"))
+                          "support.google.com","communityforums.atmeta.com","about.fb.com",\n                          "www.postman.com","metaspark.facebookblueprint.com",\n                          "api.openverse.org","commons.wikimedia.org"))
 ID_PATTERN=re.compile(r"^[a-z]{2,12}[0-9]{2,3}$")
 
 
@@ -180,11 +180,11 @@ def collect(brief:str,description:str,workdir:Path,*,enable:bool=True,limit:int=
                 hits=_search_for(index,records,role,brief,description,limit)
                 roles[role]={"context":_format(hits),
                              "ids":[row["id"] for row in hits]}
-        if not any(v["ids"] for v in roles.values()):
+        music_hints=("Openverse music audio search ambient piano Wikimedia Commons "\n                     "CC0 CC BY license source rights reviewed SHA music selection FFmpeg")\n        # Separate targeted retrieval: generic cinema prompts must not displace\n        # the research-and-rights steps when choosing a soundtrack.\n        with Embeddings().load(str(index_path)) as music_index:\n            music_hits=_search_for(music_index,records,"director",music_hints,\n                "search select verify and mix an existing licensed soundtrack",4)\n        music_search={"context":_format(music_hits),\n                      "ids":[row["id"] for row in music_hits]}\n        if not any(v["ids"] for v in roles.values()):
             raise GuidanceError("RAG_NO_RETRIEVAL")
         return {"status":"ready","engine":"txtai","retrieval":"bm25",
                 "version":source["version"],"corpus_sha256":corpus_hash,
-                "records":len(records),"roles":roles}
+                "records":len(records),"roles":roles,\n                "music_search":music_search}
     except Exception as error:
         if isinstance(error,GuidanceError):
             code=str(error)
@@ -202,7 +202,7 @@ def receipt(retrieved:dict)->dict:
             "retrieval":retrieved["retrieval"],
             "corpus_sha256":retrieved.get("corpus_sha256",""),
             "version":retrieved.get("version",""),
-            "source_ids":{role:retrieved["roles"][role]["ids"] for role in ROLES},
+            "source_ids":{role:retrieved["roles"][role]["ids"] for role in ROLES},\n            "music_search_ids":retrieved.get("music_search",{}).get("ids",[]),
             "failure_code":retrieved.get("reason") if retrieved["status"]!="ready" else None}
 
 
