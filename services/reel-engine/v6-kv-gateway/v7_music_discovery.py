@@ -134,19 +134,28 @@ def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:b
             ensure_ascii=True,separators=(",",":")))
     selected=choices[0]
     method="deterministic_fallback"
-    try:
-        result=groq_call("openai/gpt-oss-120b",prompt,temperature=.1,max_tokens=160)
-        choice=result.get("id") if isinstance(result,dict) else None
-        allowed_choices={item["id"]:item for item in choices}
-        if isinstance(choice,str) and choice in allowed_choices:
-            selected=allowed_choices[choice]
-            method="groq_120b"
-    except Exception:
-        pass
+    # A malformed/temporary 120B response must not silently end AI selection.
+    # Only IDs from the exact displayed shortlist may ever be returned.
+    allowed_choices={item["id"]:item for item in choices}
+    attempts=[]
+    for model,label in (("openai/gpt-oss-120b","groq_120b"),
+                        ("openai/gpt-oss-20b","groq_20b_recovery")):
+        try:
+            result=groq_call(model,prompt,temperature=.1,max_tokens=220)
+            choice=result.get("id") if isinstance(result,dict) else None
+            if isinstance(choice,str) and choice in allowed_choices:
+                selected=allowed_choices[choice]
+                method=label
+                attempts.append("selected")
+                break
+            attempts.append("invalid_allowlist_choice")
+        except Exception:
+            # No provider payload or private prompt may enter the receipt.
+            attempts.append("provider_unavailable")
     public_selected={k:v for k,v in selected.items() if k not in ("source_media_url",)}
     result={"status":"source_check_required","rights_status":"DISCOVERY_ONLY_UNVERIFIED",
             "candidate_count":len(candidates),"provider_queries":attempted,
-            "selection":method,"selected":public_selected,"used_in_render":False,
+            "selection":method,"selection_attempts":attempts,"selected":public_selected,"used_in_render":False,
             "next_action":"automatic_live_original_license_check"}
     if internal:
         # Private runner only: never include direct media URLs in model prompt

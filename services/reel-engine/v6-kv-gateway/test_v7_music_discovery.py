@@ -212,5 +212,21 @@ class SyntheticEndToEndFFmpeg(unittest.TestCase):
             self.assertGreater(float(probes["format"]["duration"]),2.5)
             self.assertEqual(sha256(output),receipt["sha256"])
 
+
+    def test_primary_invalid_ai_choice_recovers_with_other_approved_groq_model(self):
+        models=[]
+        first=candidate(i="a"*32,title="Gentle ambience")
+        other=candidate(i="b"*32,title="Bright music")
+        def model_call(model,*args,**kwargs):
+            models.append(model)
+            return {"id":"not-allowlisted"} if model.endswith("120b") else {"id":other["id"]}
+        result=d.discover("cinematic ritual","warm",
+            lambda *args,**kwargs:{"candidates":[first,other]},model_call)
+        self.assertEqual(result["selection"],"groq_20b_recovery")
+        self.assertEqual(result["selected"]["id"],other["id"])
+        self.assertEqual(models,["openai/gpt-oss-120b","openai/gpt-oss-20b"])
+        self.assertEqual(result["selection_attempts"],["invalid_allowlist_choice","selected"])
+        self.assertFalse(result["used_in_render"])
+
 if __name__=="__main__":
     unittest.main(verbosity=2)

@@ -127,6 +127,12 @@ def gemini_research(source, brief, *, approved_api_cost=False, frames=None, guid
                 break
             except FreeModelTemporarilyUnavailable:
                 if attempt==0:time.sleep(2)
+            except V6Blocked as exc:
+                # Transient transport failures also deserve the same bounded
+                # free-tier retry; consent/auth/invalid-output failures do not.
+                if str(exc)!="Model API rejected or timed out; details redacted":
+                    raise
+                if attempt==0:time.sleep(2)
         if result is not None:break
     if result is None:
         raise V6Blocked("All currently available free Flash candidate endpoints were unavailable")

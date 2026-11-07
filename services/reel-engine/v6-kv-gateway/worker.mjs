@@ -383,8 +383,8 @@ async function internal(req,e,path){
       return error("FFmpeg video frames, audio or signed receipt not certified",422);
   const receipt=JSON.stringify(body.receipt);
   if(receipt.length>15000)return error("Private receipt too large",413);
-  const result=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='review_ready',output_chunks=?,output_bytes=?,output_sha256=?,receipt_json=?,ready_at=?,expires_at=?,updated_at=? WHERE job_id=? AND claim_id=? AND state='rendering'")
-   .bind(body.chunks,body.bytes,body.sha256,receipt,now,now+DELIVERY_WINDOW,now,id,lease).run();
+  const result=await e.DB.prepare("UPDATE mad_v6_kv_jobs SET state='review_ready',output_chunks=?,output_bytes=?,output_sha256=?,receipt_json=?,audio_mode=?,ready_at=?,expires_at=?,updated_at=? WHERE job_id=? AND claim_id=? AND state='rendering'")
+   .bind(body.chunks,body.bytes,body.sha256,receipt,body.receipt.audio_mode,now,now+DELIVERY_WINDOW,now,id,lease).run();
   if(!result.meta?.changes)return error("Completion lease race",409);
   return json({job_id:id,state:"review_ready",expires_at:now+DELIVERY_WINDOW,published:false});
  }
