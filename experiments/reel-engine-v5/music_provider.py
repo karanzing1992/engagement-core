@@ -128,7 +128,7 @@ def search_commons(query,limit=6,*,opener=None):
        "prop":"imageinfo","iiprop":"url|mediatype|extmetadata",
        "iiextmetadatafilter":"LicenseShortName|LicenseUrl|Artist|Credit"})
     req=urllib.request.Request(COMMONS_API+"?"+qs,headers={
-       "User-Agent":"MAD-ReelEngine-V5/1.0 (metadata-only, no scraping)",
+       "User-Agent":"MAD-ReelEngine/1.1 (https://github.com/karanzing1992/engagement-core; source music metadata query)",
        "Accept":"application/json"})
     client=opener or urllib.request.urlopen
     try:
