@@ -1,0 +1,34 @@
+# MAD Reel Engine V7 — Audio Selection, Sync, and Full-Flow Certification (2026-11-07)
+
+## Release verdict
+**Technical audio pipeline: certified in isolated synthetic fixtures; real externally downloaded music + authenticated owner render: NOT FULLY CERTIFIED.** Private beta only. Do not claim public publishing, artistic acceptance, or Content ID safety.
+
+**Code baseline:** `engagement-core` default branch, merged PR [#214](https://github.com/karanzing1992/engagement-core/pull/214) at `e1e845cbbd9a3bf518eadf1c0880b518de61a56b`. Private frontend prior one-submit flow from `aarondash5-star/delulutech` PR #55 at `989ec3ad6049cad4b4e011d8eb74453852e3a440`.
+
+## Exact evidence
+- Dell Dev Tool Yard: host `karan-Inspiron-5379`; installed FFmpeg 6.1.1, ffprobe, Python 3.12.3.
+- Baseline isolated FFmpeg/Commons/rights and music ranking suite: **27/27 passed** on `f94473c64da4176901844e3eae4363b82de5ec33`. Test wrapper exit 2 came only from Bash-specific `PIPESTATUS` under `sh` *after* all 27 passed; corrected shell execution of patched suite returned 0.
+- Updated shortlist limit + new test: **28/28 passed** on candidate-recheck source `895c49f1a8528c318e26abe8688c90374412829d`, merged into main. Five signed KV gateway contract tests **5/5 passed**, including simulated owner upload, OIDC job handoff, signed FFmpeg receipt, range preview, 30-minute expiry, deletion and rejection of forged claims.
+- GitHub PR #214 triggered five successful independent CI workflows; check run details available from PR.
+- 3.6-second timing fixture: source 175 Hz and approved test 420 Hz audio; **0.0 ms start gap**, **16.7 ms length gap**, output AAC/H.264, continuous audio near cuts and ending fade. Independent FFmpeg full decode passed; this is synthetic and not a licensed external song.
+- **30-second audio regression:** independently re-ran `/tmp/mad-v7-audio-cert-20261107/sync_30s.py` on Dell. `30_SEC_AUDIO_SYNC_PASS`: video **30.000 s**, audio **29.946 s**, **54.0 ms difference** and **0.0 ms start offset**. Audible RMS windows across seconds 1, 9.8, 10.1, 19.8, 20.1, 28.0 and 29.25: `0.192948, 0.176329, 0.176834, 0.174479, 0.174911, 0.174560, 0.094963`. No mid-video audio-drop defect. Full decode and license-manifest receipt passed; `published=false`. Dell terminal receipt `0f396c19068a4760a7f9bbe5af2a0f7d` exit 0.
+- Live Commons metadata discovery: 6 Openverse ambient, 6 Openverse forest, 5 Wikimedia ambient candidates, 13 unique normalized candidates. For five Commons candidates, the first four were correctly denied (wrong media path, nonqualifying license, size, nonqualifying license). Fifth original Commons page passed CC BY metadata and creator validation, **9,288,803 bytes** reported. This proved the original `pool[:4]` bug: first valid original-source candidate discarded. PR #214 now validates all 8 bounded candidate entries.
+- Live actual audio file **not certified**: an un-ranged Wikimedia CDN request returned **HTTP 429 Too Many Requests**; bounded Range probe returned **HTTP 206** and its media length. Do **not** interpret partial Range retrieval as full download, working decode, legitimate recording composition clearance or successful end-to-end mix. Keep fail-closed/no music fallback; no blind retries, unauthorized mirrors, or removal of licensing checks.
+- Live private gateway HTTP health **200**, anonymous source upload **401**, anonymous project listing **401**, anonymous catalog **401**, invalid owner bearer code **401**. CORS `OPTIONS` **204** includes exact private Pages beta origin. No public posting or anonymous media exposure.
+- Owner Pages beta: `https://mad-v7-owner-private-beta.pages.dev/` live; gateway `https://mad-v7-kv-private-beta.karanbizweb360.workers.dev/health` last reported `ready=true, dispatch_connected=true, published=false`.
+
+## Audio selection and mix method verified
+1. During private signed V7 render, Groq 120B sees a bounded, metadata-only allowlist of pre-reviewed music stored in owner's V6 vault and chooses a SHA, not arbitrary URLs. If unusable, existing Openverse + Wikimedia search supplies original Commons leads. `v7_music_discovery.auto_admission_candidates` now reviews at most 8 bounded leads.
+2. `v7_verified_source.admit` requires authoritative original Commons API license match (CC0/PDM/CC BY), same original source file URL, allowed MIME/container size, nonempty creator/attribution, and permissible derivative/commercial source claims. Download is private and hash/probe bound. On original source mismatch, age-restricted/noncommercial licenses, invalid sound or media download failures, use source ambience only; catalog listings are not permissions.
+3. `ffmpeg_v6_adapter` validates source and music SHA; pre-approved music duration covers exact EDL total. In final mix: source ambience at 0.25 gain, music at 0.7, mix with `amix` first-source duration, fade in/out; V7 finish applies loudness normalization with -1.5 dBTP target and additional audio/video fades. Renderer checks output h264/aac, expected size/duration, full decode, three frame extracts; signed receipt tracks final SHA and provenance. The measured 30s duration/sample regression is mandatory before public beta.
+4. UI one-submit entry asks only for video + creative prompt; owner auth is preserved. Project and render APIs deny anonymous users; no automatic publishing.
+
+## Remaining gates
+- **Real external source full bytes + FFmpeg mix:** needs verified successful Commons full download, accurate source credit, source-specific output manifest and sample inspection. The single observed CDN 429 is a real blocker, not permission to bypass platform rate-limit policy.
+- **Owner-authenticated real uploaded footage full path:** no live owner footage/creative job was uploaded during QA, so upload → Gemini/Groq/txtai → source selection → FFmpeg → preview/download remains to be accepted once; the synthetic signed gateway contract is not an authenticated browser E2E test.
+- **Independent artistic/audio acceptance:** listen to rendered audio and check beat/pacing, opening transitions, audio clipping, voice ducking, audio/video black/silent windows and Content ID risk for any real external source. No claim of beat detection or scene-specific automatic beat alignment; current implementation provides *duration and timeline sync*, not proven tempo-to-cut synchronization.
+
+## Rollback
+To revert only shortlist rechecking, revert merge `e1e845cbbd9a3bf518eadf1c0880b518de61a56b` in `engagement-core`. Previous code tries 4 candidates; verified license/admission remains fail closed. Owner beta unchanged, source data private and publication disabled.
+
+Release classification: `AUDIO_SYNC_SYNTHETIC_CERTIFIED / SIGNED_GATEWAY_CONTRACT_CERTIFIED / LIVE_COMMONS_METADATA_VALIDATED / REAL_TRACK_DOWNLOAD_429_BLOCKED / OWNER_E2E_PENDING`.
