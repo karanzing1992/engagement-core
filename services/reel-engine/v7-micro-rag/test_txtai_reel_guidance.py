@@ -16,8 +16,8 @@ class CorpusSecurityTests(unittest.TestCase):
     def test_curated_source_only_and_hash(self):
         data,raw=rag.corpus()
         self.assertEqual(data["scope"],"reel_making_best_practices_only")
-        self.assertEqual(len(data["items"]),43)
-        self.assertEqual(len({r["id"] for r in data["items"]}),43)
+        self.assertEqual(len(data["items"]),62)
+        self.assertEqual(len({r["id"] for r in data["items"]}),62)
         self.assertEqual(len(rag.sha256(raw)),64)
         self.assertEqual({role for r in data["items"] for role in r["roles"]},
                          set(rag.ROLES))
@@ -83,8 +83,30 @@ class ActualTxtaiTests(unittest.TestCase):
         self.assertEqual(self.retrieval["engine"],"txtai")
         self.assertEqual(self.retrieval["retrieval"],"bm25")
         self.assertTrue((self.work/"mad-v7-reel-micro-rag"/"index"/"config.json").exists())
-        self.assertEqual(self.retrieval["records"],43)
+        self.assertEqual(self.retrieval["records"],62)
         self.assertTrue(self.version.startswith("9."))
+
+    def test_official_meta_and_v5_music_sources_are_validated(self):
+        data,_=rag.corpus()
+        ids={row["id"] for row in data["items"]}
+        self.assertIn("musicfind01",ids)
+        self.assertIn("musicfind06",ids)
+        self.assertIn("metareel03",ids)
+        self.assertIn("metareel09",ids)
+        self.assertTrue(any("www.postman.com/meta/" in r["source_url"]
+                            for r in data["items"]))
+        self.assertTrue(any("about.fb.com/news/" in r["source_url"]
+                            for r in data["items"]))
+
+    def test_dedicated_music_guidance_is_retrieved_from_real_txtai(self):
+        music=self.retrieval["music_search"]
+        self.assertTrue(music["ids"],music)
+        self.assertTrue(any(uid.startswith("musicfind") for uid in music["ids"]),music)
+        self.assertIn("Source:",music["context"])
+        self.assertLessEqual(len(music["context"]),rag.MAX_CONTEXT+180)
+        receipt=rag.receipt(self.retrieval)
+        self.assertEqual(receipt["music_search_ids"],music["ids"])
+        self.assertNotIn("cinematic sauna wellness",str(receipt))
 
     def test_02_each_model_has_citations_with_bounded_context(self):
         source,raw=rag.corpus()
@@ -151,7 +173,7 @@ class ActualTxtaiTests(unittest.TestCase):
          ("director","coherent message and story")
         ]
         with Embeddings().load(str(indexpath)) as index:
-            self.assertEqual(index.count(),43)
+            self.assertEqual(index.count(),62)
             for role,query in cases:
                 matched=rag._search_for(index,by_id,role,query,"real footage",3)
                 self.assertTrue(matched,(role,query))
