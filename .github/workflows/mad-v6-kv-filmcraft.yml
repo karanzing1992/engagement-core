@@ -19,7 +19,12 @@ jobs:
       REEL_ENGINE_KEY: ${{ secrets.REEL_ENGINE_KEY }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      GEMINI_PROJECT_FREE_TIER_VERIFIED: ${{ vars.GEMINI_PROJECT_FREE_TIER_VERIFIED }}
+      # Owner checked the AI Studio project billing tier and attested FREE on 2026-11-07.
+      # Scope: V7 signed private Reel Engine runner; NOT proof from model listing.
+      # Rollback: change the flag below to "false" (Groq-only fallback remains).
+      # Existing separate owner-approval gate and consent controls remain mandatory.
+      GEMINI_PROJECT_FREE_TIER_VERIFIED: "true"
+      GEMINI_FREE_TIER_OWNER_ATTESTED_ON: "2026-11-07"
       GEMINI_INFERENCE_OWNER_APPROVED: "true"
     steps:
       - uses: actions/checkout@v4
