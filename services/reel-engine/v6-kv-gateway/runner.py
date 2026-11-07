@@ -307,7 +307,7 @@ def run(job_id,*,fixture=False):
       pool=leads.pop("_candidate_pool",[])
       audio_receipt["discovery"]=leads
       if os.environ.get("MAD_V7_AUTO_SOURCE_MUSIC_ENABLED","false")=="true":
-       for candidate in pool[:4]:
+       for candidate in music_discovery.auto_admission_candidates(pool):
         try:
          verified=source_music.admit(candidate,work,duration_needed,
            probe=ffmpeg_editor.probe)
