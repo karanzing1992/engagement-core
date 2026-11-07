@@ -108,6 +108,10 @@ def call(path,identity,method="POST",claim=None,payload=None,data=None,digest=No
    return json.loads(body)
  except HTTPError as e:
   raise RuntimeError("Signed V6 KV endpoint rejected "+str(e.code)) from None
+def gemini_free_path_authorized():
+ return (os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true"
+         and os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")=="true")
+
 def model_plan(src,brief,description,duration,fixture=False,frames=None):
  manifest={"source_sha256":src,"human_reviewed":True,"rights_and_consent_cleared":True,
    "external_ai_processing_consent":True,"shots":[{"id":"s1","start_seconds":0.0,
@@ -117,7 +121,7 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
   mark("model_policy")
   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture")
  fallback_reason="GEMINI_FREE_TIER_NOT_VERIFIED"
- if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true" or os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")=="true":
+ if gemini_free_path_authorized():
   try:
    return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",frames=frames,approved_api_cost=True,on_stage=mark)
   except multimodel.V6Blocked as ex:
