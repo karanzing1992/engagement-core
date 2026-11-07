@@ -54,7 +54,7 @@ jobs:
             // Assert the old dispatch and cron are inert, then verify the
             // archived V5 safety gates solely as historical rollback evidence.
             if(current.includes('schedule:')||current.includes('types: [opened')||
-               !current.includes('if: ${{ false }}'))
+               !current.includes('if: '+String.fromCharCode(36)+'{{ false }}'))
               throw Error('Legacy V5 runner remains operational');
             const v7=fs.readFileSync('.github/workflows/mad-v6-kv-filmcraft.yml','utf8');
             if(!v7.includes('services/reel-engine/v6-kv-gateway/runner.py --job-id') ||
