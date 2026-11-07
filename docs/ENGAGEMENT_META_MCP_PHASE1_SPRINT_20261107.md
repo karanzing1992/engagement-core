@@ -32,16 +32,32 @@ Adapt the maintained first-party WACRM transport and the open-source WBMCP offic
 3. `test/adapter.test.mjs`: 8 synthetic contract/policy tests.
 4. `integrations/meta/whatsapp-mcp/README.md`: WACRM separation, host contract, future integration acceptance gates and rollback.
 
+## Phase 1-B — 2026-11-07 source-verified compatibility and security increment
+
+**Finding:** Current first-party WACRM Central code defaults to **Meta Graph API v26.0**. Pinned WBMCP 0.1.3 upstream `src/config/constants.ts` only lists `v22.0`, `v23.0` and `v24.0`. The original META CORE adapter is therefore not suitable for the current WACRM v26 tenant without an intentional SDK change. It now **fails closed** with `graph_version_mismatch`, including when Graph version is omitted, instead of using the older default.
+
+**Preferred reuse alternative:** [DojoCodingLabs/whatsapp-adapter](https://github.com/DojoCodingLabs/whatsapp-adapter), current source package versions `@dojocoding/whatsapp-sdk@0.10.0` and `@dojocoding/whatsapp-mcp@0.5.0` (MIT); SDK source `packages/whatsapp-sdk/src/types/constants.ts` explicitly defaults to `v26.0`. Its embedded `createWhatsAppToolset` provides an existing MCP surface, avoiding a from-scratch gateway. Candidate vendor/source inspection is **not** installed-package certification.
+
+**New source work:** `integrations/meta/whatsapp-mcp/src/dojo-v26.mjs` provides a trusted-WACRM-Central-only, v26-pinned **read-only** wrapper around three Dojo MCP tools. `test/dojo-v26.test.mjs` adds seven synthetic tests: read allowlist, exact tenant credential mapping, cross-user/tenant denial, mutating-tool denial, Graph mismatch, missing app secret and error redaction. Three additional WBMCP compatibility tests cover v26 rejection, missing-version rejection and explicit supported-version behavior.
+
+**Executed offline QA:** `node --test test/*.test.mjs` on Node **v22.16.0** → **18 tests passed, 0 failed**, synthetic client/toolset factories only. No npm dependencies were installed or executed; npm registry lookup timed out in the isolated sandbox. No Meta Graph call, credential access, hosted MCP endpoint, actual WACRM handshake, production deployment or live send occurred.
+
+**Next certification:** Obtain reproducible lockfile with pinned package integrity using an authorized network-capable development environment; run actual Dojo SDK/MCP against isolated fake fetch transport, validate v26 request construction and resource permission filtering, audit upstream dependencies, then connect to the existing authorized WACRM Central resolver with owner/tenant grants. No Consumer-hosted Meta app secret; keep inbound history/webhooks in existing WACRM. Review PR #52 separately without blind merge.
+
+**Cost and rollback:** Both Dojo packages are MIT in their checked GitHub source, no purchase or new infrastructure was authorized, and this is an additive draft-branch candidate. Retain current WACRM release and disable/remove the unconnected candidate if upstream validation fails. Meta usage may be billable only after separate authorization.
+
+**Master status:** Feature branch `SOURCE_ONLY`, not a merged/default-branch or platform-verified integration; **no Master Registry event published**.
+
 ## Tests and assurance
 
-- Local Node v22.16.0: `node --test test/*.test.mjs` => **8 passed, 0 failed** (synthetic SDK, source-only).
+- Local Node v22.16.0: `node --test test/*.test.mjs` => **18 passed, 0 failed** (11 legacy/compat tests + 7 v26 Dojo read tests; synthetic SDK factories only).
 - Negative cases: unknown/dangerous tools, phone lifecycle, live text send, wrong tenant, wrong principal, caller-supplied confirmation and error redaction.
 - **Not tested:** real `wbmcp` npm installation, Graph API connection, Meta webhook, actual WACRM integration, live end-to-end conversation, production operator auth, rate/retention/consent, OAuth/MCP registration.
 - No webhook replacement; original WACRM HMAC relay and data ownership are preserved.
 
 ## Next bounded sprint increments
 
-**P1-B — upstream and compatibility:** pin lockfile, check package provenance, run actual SDK tests with fake Graph HTTP transport, compare SDK supported Graph versions to WACRM current configured version, correct schema/preview gaps; independent security review.
+**P1-B — upstream and compatibility:** source-version audit and synthetic v26 candidate completed; **remaining**: lockfile, real installed Dojo SDK tests with mock Graph HTTP transport and independent dependency/security review.
 
 **P1-C — WACRM handshake:** map existing Central connection authority and Consumer REST/events to the per-tenant resolver; do not send tokens into WordPress browser/client. Define normalized inbound/outbound schemas and idempotency/receipt contract. Reconcile WACRM PR #52 without blind merge.
 
