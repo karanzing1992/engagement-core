@@ -83,7 +83,7 @@ def post_json(url, headers, payload, timeout=50):
 def gemini_research(source, brief, *, approved_api_cost=False, frames=None):
     owner_ok=os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")=="true"
     tier_ok=os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true"
-    if not approved_api_cost or not (tier_ok or owner_ok):
+    if not approved_api_cost or not (tier_ok and owner_ok):
         raise V6Blocked("Owner approval for allowlisted Gemini Flash request required")
     key=os.environ.get("GEMINI_API_KEY")
     if not key:
