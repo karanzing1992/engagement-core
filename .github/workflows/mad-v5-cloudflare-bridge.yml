@@ -1,150 +1,16 @@
-name: MAD V5 | Cloudflare OIDC GitHub Model Runner
+# RETIRED — MAD Reel Engine V5 operational runner.
+# The exact original lives at docs/archives/MAD_V5_CLOUDFLARE_BRIDGE_RETIRED_20261107.txt.
+# All V7 owner renders use .github/workflows/mad-v6-kv-filmcraft.yml
+# (legacy filename is pinned in the signed V7 gateway's OIDC workflow_ref).
+# Retain this tombstone for provenance and explicit fail-closed behavior.
+name: DEPRECATED | MAD V5 Cloudflare OIDC runner (V7 only)
 on:
-  issues:
-    types: [opened, edited, labeled]
   workflow_dispatch:
-    inputs:
-      media_job_id:
-        description: 'Optional owner-only queued media job wake hint; never includes source footage'
-        required: false
-        type: string
-  schedule:
-    - cron: '16,46 * * * *'
 permissions:
   contents: read
-  id-token: write
-concurrency:
-  group: mad-v5-cloudflare-oidc-queue-post-apt-recovery-20261104
-  cancel-in-progress: false
 jobs:
-  bridge:
-    if: github.event_name != 'issues' || (github.actor == github.repository_owner && github.event.issue.user.login == github.repository_owner && (startsWith(github.event.issue.title, '[MAD-V5-CF] ') || startsWith(github.event.issue.title, '[MAD-V5-WAKE] ')))
+  retired-v5:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Validate optional event-driven owner media wake hint
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          MEDIA_WAKE_JOB_ID: ${{ inputs.media_job_id }}
-        run: |
-          if [[ -n "$MEDIA_WAKE_JOB_ID" && ! "$MEDIA_WAKE_JOB_ID" =~ ^madmedia-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$ ]]; then
-            echo "Rejected invalid media wake job ID" >&2
-            exit 1
-          fi
-          echo "MAD_V5_OWNER_WAKE_HINT_VALID"
-      - name: Verify Groq model availability before claiming any owner jobs
-        id: groq_model_gate
-        env:
-          GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
-        run: python3 experiments/reel-engine-v5/groq_models_preflight.py
-      - name: Enqueue owner-issued synthetic prompt in Cloudflare D1
-        if: github.event_name == 'issues' && startsWith(github.event.issue.title, '[MAD-V5-CF] ')
-        env:
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-        run: python3 services/reel-engine/cloudflare_bridge_runner.py enqueue --event "$GITHUB_EVENT_PATH"
-      - name: Lease one Cloudflare job using signed GitHub OIDC
-        if: success() && (github.event_name != 'issues' || startsWith(github.event.issue.title, '[MAD-V5-CF] '))
-        id: claim
-        run: python3 services/reel-engine/cloudflare_bridge_runner.py claim --claim-file "$RUNNER_TEMP/claim.json"
-      - name: Install pinned FFmpeg test binaries and Python SDKs for synthetic-only jobs
-        if: steps.claim.outputs.has_job == '1'
-        run: |
-          set -euo pipefail
-          timeout 120 npm install --prefix "$RUNNER_TEMP/mad-v5-synthetic-tools" --no-save --ignore-scripts --no-audit --no-fund \
-            '@ffmpeg-installer/linux-x64@4.1.0' '@ffprobe-installer/linux-x64@5.2.0'
-          mkdir -p "$RUNNER_TEMP/mad-v5-synthetic-tools/bin"
-          cp "$RUNNER_TEMP/mad-v5-synthetic-tools/node_modules/@ffmpeg-installer/linux-x64/ffmpeg" "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffmpeg"
-          cp "$RUNNER_TEMP/mad-v5-synthetic-tools/node_modules/@ffprobe-installer/linux-x64/ffprobe" "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffprobe"
-          chmod 700 "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffmpeg" "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffprobe"
-          "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffmpeg" -version | head -1
-          "$RUNNER_TEMP/mad-v5-synthetic-tools/bin/ffprobe" -version | head -1
-          echo "$RUNNER_TEMP/mad-v5-synthetic-tools/bin" >> "$GITHUB_PATH"
-          python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
-      - name: Execute canonical MAD V5 director and guarded synthetic render
-        id: render
-        if: steps.claim.outputs.has_job == '1'
-        env:
-          GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
-        run: |
-          python3 - <<'PY'
-          import os,json,pathlib,subprocess
-          root=pathlib.Path(os.environ["RUNNER_TEMP"])
-          job=json.loads((root/"claim.json").read_text())
-          subprocess.run(["python3","experiments/reel-engine-v5/git_cloud_runner.py",
-            "--mode",job["mode"],"--profile",job["profile"],"--brief",job["prompt"],
-            "--out-dir",str(root/"v5-cf-output")],check=True)
-          receipt=json.loads((root/"v5-cf-output"/"v5-technical-receipt.json").read_text())
-          assert receipt["status"]=="SYNTHETIC_TECHNICAL_CERTIFICATION_ONLY"
-          assert receipt["video"]["decoded"] and receipt["real_footage_certified"] is False
-          assert receipt["published"] is False
-          print("CLOUDFLARE_V5_SYNTHETIC_RENDER_COMPLETE",job["job_id"])
-          PY
-      - name: Commit owner-scoped Cloudflare queue receipt, including failures
-        if: always() && steps.claim.outputs.has_job == '1'
-        env:
-          RENDER_OUTCOME: ${{ steps.render.outcome }}
-        run: |
-          python3 services/reel-engine/cloudflare_bridge_runner.py complete \
-            --claim-file "$RUNNER_TEMP/claim.json" \
-            --receipt "$RUNNER_TEMP/v5-cf-output/v5-technical-receipt.json" \
-            --render-outcome "$RENDER_OUTCOME"
-      - name: Archive synthetic only MP4/technical receipt for seven days
-        if: success() && steps.claim.outputs.has_job == '1'
-        uses: actions/upload-artifact@v4
-        with:
-          name: mad-v5-cloudflare-synthetic-${{ github.run_number }}
-          path: |
-            ${{ runner.temp }}/v5-cf-output/v5-synthetic-diagnostic.mp4
-            ${{ runner.temp }}/v5-cf-output/v5-technical-receipt.json
-          retention-days: 7
-          if-no-files-found: error
-
-      - name: Claim one private real-media draft job via signed GitHub OIDC
-        id: media_claim
-        if: always() && steps.groq_model_gate.outcome == 'success' && (github.event_name != 'issues' || startsWith(github.event.issue.title, '[MAD-V5-WAKE] '))
-        run: |
-          python3 services/reel-engine/ai-reel-api-v1/media_runner.py claim \
-            --claim "$RUNNER_TEMP/media-v1-claim.json" --out "$RUNNER_TEMP/private-v1"
-      - name: Install render dependencies for accepted real-media owner job
-        id: media_install
-        # Synthetic diagnostics may fail, but that must not silently cancel real media.
-        if: always() && steps.media_claim.outputs.has_media == '1'
-        run: |
-          set -euo pipefail
-          # Ubuntu-hosted runners usually contain FFmpeg and DejaVu. Do not
-          # block owner renders on unreliable apt update/package mirrors.
-          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
-            echo "MAD_V5_MEDIA_FFMPEG_PINNED_FALLBACK"
-            timeout 120 npm install --prefix "$RUNNER_TEMP/mad-v5-private-tools" --no-save --ignore-scripts --no-audit --no-fund \
-              '@ffmpeg-installer/linux-x64@4.1.0' '@ffprobe-installer/linux-x64@5.2.0'
-            mkdir -p "$RUNNER_TEMP/mad-v5-private-tools/bin"
-            cp "$RUNNER_TEMP/mad-v5-private-tools/node_modules/@ffmpeg-installer/linux-x64/ffmpeg" "$RUNNER_TEMP/mad-v5-private-tools/bin/ffmpeg"
-            cp "$RUNNER_TEMP/mad-v5-private-tools/node_modules/@ffprobe-installer/linux-x64/ffprobe" "$RUNNER_TEMP/mad-v5-private-tools/bin/ffprobe"
-            chmod 700 "$RUNNER_TEMP/mad-v5-private-tools/bin/ffmpeg" "$RUNNER_TEMP/mad-v5-private-tools/bin/ffprobe"
-            echo "$RUNNER_TEMP/mad-v5-private-tools/bin" >> "$GITHUB_PATH"
-            export PATH="$RUNNER_TEMP/mad-v5-private-tools/bin:$PATH"
-          fi
-          test -f /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf || { echo "MAD_V5_MEDIA_FONT_MISSING"; exit 1; }
-          ffmpeg -hide_banner -version | head -n 1
-          ffprobe -hide_banner -version | head -n 1
-          ffmpeg -hide_banner -filters 2>/dev/null | grep -F 'drawtext'
-          ffmpeg -hide_banner -encoders 2>/dev/null | grep -F 'libx264'
-          timeout 120 python3 -m pip install --disable-pip-version-check 'groq==0.37.1' 'Pillow==11.3.0'
-      - name: Download verified private source, create original V5 reel and return private chunks
-        if: always() && steps.media_claim.outputs.has_media == '1' && steps.media_install.outcome == 'success'
-        id: media_render
-        env:
-          GROQ_API_KEY: ${{ secrets.REEL_ENGINE_KEY }}
-        run: |
-          python3 services/reel-engine/ai-reel-api-v1/media_runner.py render \
-            --claim "$RUNNER_TEMP/media-v1-claim.json" --out "$RUNNER_TEMP/private-v1"
-      - name: Record private real-media draft completion or explicit failure
-        if: always() && steps.media_claim.outputs.has_media == '1'
-        run: |
-          python3 services/reel-engine/ai-reel-api-v1/media_runner.py complete \
-            --claim "$RUNNER_TEMP/media-v1-claim.json" --out "$RUNNER_TEMP/private-v1"
-      # No public Actions artifact of original or generated real-media bytes.
+      - run: echo 'MAD V5 retired; use V7 private owner workflow.'

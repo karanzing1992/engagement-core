@@ -48,7 +48,20 @@ jobs:
         run: |
           node - <<'JS'
           const fs=require('node:fs');
-          const w=fs.readFileSync('.github/workflows/mad-v5-cloudflare-bridge.yml','utf8');
+          const current=fs.readFileSync('.github/workflows/mad-v5-cloudflare-bridge.yml','utf8');
+          let w=current;
+          if(current.includes('DEPRECATED | MAD V5 Cloudflare OIDC runner')) {
+            // Assert the old dispatch and cron are inert, then verify the
+            // archived V5 safety gates solely as historical rollback evidence.
+            if(current.includes('schedule:')||current.includes('types: [opened')||
+               !current.includes('if: '+String.fromCharCode(36)+'{{ false }}'))
+              throw Error('Legacy V5 runner remains operational');
+            const v7=fs.readFileSync('.github/workflows/mad-v6-kv-filmcraft.yml','utf8');
+            if(!v7.includes('services/reel-engine/v6-kv-gateway/runner.py --job-id') ||
+               !v7.includes('Install and verify FFmpeg and FFprobe'))
+              throw Error('V7 OIDC-pinned private FFmpeg owner runner missing');
+            w=fs.readFileSync('docs/archives/MAD_V5_CLOUDFLARE_BRIDGE_RETIRED_20261107.txt','utf8');
+          }
           for(const required of [
             "id: groq_model_gate",
             "python3 experiments/reel-engine-v5/groq_models_preflight.py",
