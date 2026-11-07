@@ -54,9 +54,17 @@ class DiscoveryContract(unittest.TestCase):
             if kw["provider"]=="wikimedia":
                 return {"candidates":[genuine]}
             return {"candidates":[first]}
+        def groq(model,prompt,**kw):
+            self.assertEqual(model,"openai/gpt-oss-120b")
+            self.assertTrue(kw["response_format"]["json_schema"]["strict"])
+            self.assertGreaterEqual(kw["max_tokens"],640)
+            allowed=kw["response_format"]["json_schema"]["schema"]["properties"]["id"]["enum"]
+            self.assertEqual(set(allowed),{first["id"],genuine["id"]})
+            return {"id":genuine["id"]}
         out=d.discover("cinematic wellness ritual","warm peaceful",
-                       search,lambda *a,**k:{"id":genuine["id"]},internal=True)
+                       search,groq,internal=True)
         self.assertEqual(out["selected"]["id"],genuine["id"])
+        self.assertEqual(out["selection"],"groq_120b")
         self.assertIn(('lofi ambient incategory:"Self-published work"',"wikimedia"),calls)
         self.assertEqual(out["_candidate_pool"][0]["id"],genuine["id"])
 
