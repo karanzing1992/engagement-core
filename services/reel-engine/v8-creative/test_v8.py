@@ -180,4 +180,20 @@ class V8CreativeTests(unittest.TestCase):
     width=480,height=270,fps=24,max_revisions=1)
   self.assertEqual(len(calls),2)
 
+ def test_17_director_zero_music_gain_does_not_force_discovered_track(self):
+  brief="Make a cinematic editorial reel while keeping original audio clear and duration intact"
+  evidence=self.evidence(brief)
+  plan=self.plan(evidence,music_gain=0)
+  r=execute(source=self.source,brief=brief,workdir=self.work,
+    output=self.work/"v8-creative-no-music.mp4",
+    music=self.music,music_rights=self.rights(),model_director=lambda *args:copy.deepcopy(plan),
+    model_owner_approved=True,external_inference_consent=True,
+    width=480,height=270,fps=24,max_revisions=0)
+  self.assertTrue(r["render"]["full_decode_passed"])
+  self.assertFalse(r["render"]["music_mixed"])
+  self.assertEqual(r["render"]["music_gain"],0)
+  self.assertIsNone(r["render"]["music_rights_admitted"])
+  self.assertEqual(r["render"]["source_audio_preserved_by_contract"],True)
+  self.assertFalse(r["published"])
+
 if __name__=="__main__":unittest.main()
