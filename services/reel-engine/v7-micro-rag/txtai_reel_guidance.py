@@ -182,7 +182,16 @@ def collect(brief:str,description:str,workdir:Path,*,enable:bool=True,limit:int=
                 hits=_search_for(index,records,role,brief,description,limit)
                 roles[role]={"context":_format(hits),
                              "ids":[row["id"] for row in hits]}
-        music_hints=("Openverse music audio search ambient piano Wikimedia Commons "\n                     "CC0 CC BY license source rights reviewed SHA music selection FFmpeg")\n        # Separate targeted retrieval: generic cinema prompts must not displace\n        # the research-and-rights steps when choosing a soundtrack.\n        with Embeddings().load(str(index_path)) as music_index:\n            music_hits=_search_for(music_index,records,"director",music_hints,\n                "search select verify and mix an existing licensed soundtrack",4)\n        music_search={"context":_format(music_hits),\n                      "ids":[row["id"] for row in music_hits]}\n        if not any(v["ids"] for v in roles.values()):
+        music_hints=("Openverse music audio search ambient piano Wikimedia Commons "
+                     "CC0 CC BY license source rights reviewed SHA music selection FFmpeg")
+        # Separate targeted retrieval: generic cinema prompts must not displace
+        # the research-and-rights steps when choosing a soundtrack.
+        with Embeddings().load(str(index_path)) as music_index:
+            music_hits=_search_for(music_index,records,"director",music_hints,
+                "search select verify and mix an existing licensed soundtrack",4)
+        music_search={"context":_format(music_hits),
+                      "ids":[row["id"] for row in music_hits]}
+        if not any(v["ids"] for v in roles.values()):
             raise GuidanceError("RAG_NO_RETRIEVAL")
         return {"status":"ready","engine":"txtai","retrieval":"bm25",
                 "version":source["version"],"corpus_sha256":corpus_hash,
