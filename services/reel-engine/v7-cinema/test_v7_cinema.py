@@ -55,6 +55,7 @@ class V7CinematicTests(unittest.TestCase):
         self.assertFalse(rec["published"])
         self.assertFalse(rec["creative_complete"])
         self.assertFalse(rec["music_mixed"])
+        self.assertEqual(rec["audio_mastering_mode"], "loudnorm")
         self.assertGreater((self.work / "cinematic.mp4").stat().st_size,4096)
         self.assertFalse((self.work / "v7-base-private.mp4").exists())
 
@@ -86,6 +87,28 @@ class V7CinematicTests(unittest.TestCase):
         self.assertEqual(set(PRESETS),{
             "elemental-sanctuary","sauna-cinema","guest-reflections",
             "earth-rejuvenation","clean-editorial"})
+
+
+    def test_07_highres_silent_aac_avoids_loudnorm_nan(self):
+        """Production-shaped 1080p synthetic input without source audio."""
+        silent = self.work / "silent-input.mp4"
+        subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+             "-i", str(self.raw), "-map", "0:v:0", "-c:v", "copy", "-an",
+             str(silent)], check=True, timeout=40)
+        s = self.spec()
+        s["source"] = str(silent)
+        s["source_sha256"] = v6.sha256(silent)
+        s["output"] = str(self.work / "silent-cinematic-1080.mp4")
+        s["width"] = 1080
+        s["height"] = 1920
+        s["fps"] = 30
+        result = finish(s)
+        self.assertEqual(result["audio_mastering_mode"], "near_silent_preserved")
+        self.assertTrue(result["full_decode_passed"])
+        self.assertTrue(result["audio_stream_verified"])
+        self.assertEqual((result["width"], result["height"]),(1080,1920))
+        self.assertGreater((self.work / "silent-cinematic-1080.mp4").stat().st_size,4096)
+
 
 if __name__ == "__main__":
     unittest.main()
