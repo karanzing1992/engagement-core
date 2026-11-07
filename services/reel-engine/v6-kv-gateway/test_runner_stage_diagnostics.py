@@ -27,7 +27,7 @@ class StageDiagnosticTests(unittest.TestCase):
 
     def test_redacts_unknown_model_exceptions(self):
         runner.ACTIVE_STAGE="groq_director"
-        secret="SECRET_ACCOUNT_GUEST_DO_NOT_EMIT"
+        secret=[REDACTED]
         fail=runner.safe_failure(runner.multimodel.V6Blocked(secret))
         self.assertEqual(fail,
             "V6_KV_PRIVATE_RENDER_FAILED stage=groq_director code=BLOCKED_UNCLASSIFIED")
@@ -35,7 +35,7 @@ class StageDiagnosticTests(unittest.TestCase):
 
     def test_redacts_exception_strings_for_other_types(self):
         runner.ACTIVE_STAGE="cinematic_finish"
-        secret="SECRET_GUEST_PATH"
+        secret=[REDACTED]
         fail=runner.safe_failure(RuntimeError(secret))
         self.assertEqual(fail,
             "V6_KV_PRIVATE_RENDER_FAILED stage=cinematic_finish code=NON_MODEL_FAILURE")
@@ -237,3 +237,11 @@ class StageDiagnosticTests(unittest.TestCase):
 
 if __name__=="__main__":
     unittest.main()
+
+class V7OwnerAudioIntentTests(unittest.TestCase):
+ def test_protect_dialogue_and_full_duration(self):
+  from runner import audio_intent
+  self.assertEqual(audio_intent("Make a cinematic reel from this audio and dialogs being said are important don't shorten the time also"),
+      {"dialogue_priority":True,"preserve_full_source":True})
+  self.assertFalse(audio_intent("No voice, a visual-only montage")["preserve_full_source"])
+  self.assertTrue(audio_intent("keep audio clear, do not shorten")["preserve_full_source"])
