@@ -84,7 +84,10 @@ def execute(*,source,brief,workdir,output,music=None,music_rights=None,
                 continue
             raise
         candidate=work/("v8-attempt-%d.mp4"%attempt)
-        receipt=render(evidence,proposal,work,candidate,music=music,music_rights=music_rights,
+        # Music discovery is an eligible candidate, never an order to mix it.
+        # A director-selected 0 gain means no music in the actual artifact.
+        selected_music=music if plan["audio"]["music_gain"]>0 else None
+        receipt=render(evidence,proposal,work,candidate,music=selected_music,music_rights=music_rights if selected_music else None,
            width=width,height=height,fps=fps)
         measured=inspect_output(evidence,plan,receipt,candidate)
         creative=None
