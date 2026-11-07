@@ -85,5 +85,40 @@ class StageDiagnosticTests(unittest.TestCase):
                 "GEMINI_INFERENCE_OWNER_APPROVED":owner}):
                 self.assertEqual(runner.gemini_free_path_authorized(),allowed)
 
+
+    def test_groq_fallback_reviewer_receives_txtai_text_not_role_dictionary(self):
+        """The Gemini timeout/free-tier fallback must use reviewer advice only."""
+        from unittest.mock import patch
+        captured = {}
+        proposal = {"hook": "A moment to reset", "segments": [
+            {"shot_id": "s1", "start_seconds": 0.0, "duration_seconds": 4.0,
+             "effects": [{"name": "color_grade", "parameters": {"contrast": 12}}]}]}
+        reviewer_context = "Independently check Reel timing and audio. " * 70
+
+        def reviewer(_source, _proposal, *, on_stage=None, guidance=None):
+            self.assertIsInstance(guidance, str)
+            captured["context"] = guidance
+            if on_stage:
+                on_stage("groq_reviewer")
+            return {"approved": True}
+
+        with patch.object(runner, "gemini_free_path_authorized", return_value=False), \
+             patch.object(runner.multimodel, "read_config"), \
+             patch.object(runner.multimodel, "validate_source_manifest"), \
+             patch.object(runner.multimodel, "validate_director"), \
+             patch.object(runner.multimodel, "groq_call", return_value=proposal), \
+             patch.object(runner.multimodel, "groq_strict_review", side_effect=reviewer), \
+             patch.object(runner.multimodel, "compile_reviewed_edl",
+                          return_value={"hook": "A moment to reset", "cuts": [], "operations": []}):
+            result = runner.model_plan("0" * 64, "Cinematic quiet river", "River and sky", 4.0,
+                fixture=False, guidance={
+                    "director": {"context": "Creative advice"},
+                    "reviewer": {"context": reviewer_context},
+                    "research": {"context": "Research advice"}})
+        self.assertEqual(captured["context"], reviewer_context[:1750])
+        self.assertEqual(result["model_policy"],
+                         "groq_only_fallback_gemini_free_tier_not_verified")
+        self.assertFalse(result["published"])
+
 if __name__=="__main__":
     unittest.main()
