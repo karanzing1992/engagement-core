@@ -68,7 +68,7 @@ def auto_admission_candidates(pool:object)->list[dict]:
     return [t for t in pool[:MAX_CANDIDATES] if _candidate(t) is not None]
 
 
-def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:bool=False)->dict:
+def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:bool=False,alternate_call=None)->dict:
     """Search V5 public metadata, then ask Groq to pick a REVIEW_REQUIRED lead.
 
     At most two Openverse API calls and one Commons fallback. No audio bytes
@@ -138,10 +138,13 @@ def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:b
     # Only IDs from the exact displayed shortlist may ever be returned.
     allowed_choices={item["id"]:item for item in choices}
     attempts=[]
-    for model,label in (("openai/gpt-oss-120b","groq_120b"),
-                        ("openai/gpt-oss-20b","groq_20b_recovery")):
+    selectors=[("openai/gpt-oss-120b","groq_120b",groq_call)]
+    if alternate_call is not None:
+        selectors.append(("gemini-free-flash","gemini_free_flash",alternate_call))
+    selectors.append(("openai/gpt-oss-20b","groq_20b_recovery",groq_call))
+    for model,label,caller in selectors:
         try:
-            result=groq_call(model,prompt,temperature=.1,max_tokens=220)
+            result=caller(model,prompt,temperature=.1,max_tokens=220)
             choice=result.get("id") if isinstance(result,dict) else None
             if isinstance(choice,str) and choice in allowed_choices:
                 selected=allowed_choices[choice]
