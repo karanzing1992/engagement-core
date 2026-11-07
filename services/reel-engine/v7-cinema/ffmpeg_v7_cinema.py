@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from pathlib import Path
 import sys
 from typing import Any
@@ -103,6 +104,24 @@ def _filters(profile: dict[str, float], seconds: float) -> tuple[str, str]:
     return ",".join(video), audio
 
 
+
+def _audio_peak_db(path: Path) -> float:
+    """Inspect decoded peak; near-silent AAC can make loudnorm output NaN/Inf."""
+    result = v6._exec([
+        "ffmpeg", "-hide_banner", "-loglevel", "info", "-nostats",
+        "-i", str(path), "-vn", "-af", "volumedetect", "-f", "null", "-"
+    ], 90)
+    # Private media names and FFmpeg diagnostics stay out of owner/job logs.
+    decoded = result.stderr.decode("utf-8", errors="replace")
+    m = re.search(r"max_volume:\s*(-inf|[-+]?[0-9]+(?:\.[0-9]+)?)\s*dB", decoded)
+    if not m:
+        raise V7Blocked("V7_AUDIO_PEAK_NOT_MEASURED")
+    peak = float(m.group(1))
+    if math.isnan(peak):
+        raise V7Blocked("V7_AUDIO_PEAK_INVALID")
+    return peak
+
+
 def finish(spec: dict[str, Any]) -> dict[str, Any]:
     """V6 render -> V7 finish -> independent decode; private output only."""
     work, target, profile = _check(spec)
@@ -120,6 +139,13 @@ def finish(spec: dict[str, Any]) -> dict[str, Any]:
             raise V7Blocked("V7_UPSTREAM_PUBLICATION")
         duration = float(baseline["duration_seconds"])
         video, audio = _filters(profile, duration)
+        measured_peak = _audio_peak_db(draft)
+        near_silent = measured_peak <= -55.0
+        if near_silent:
+            # Loudnorm on encoded digital silence can return NaN and crash AAC.
+            audio = re.sub(r"^loudnorm=[^,]+,", "volume=0,", audio, count=1)
+            if not audio.startswith("volume=0,"):
+                raise V7Blocked("V7_SILENT_AUDIO_GUARD_NOT_APPLIED")
         cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
                "-i", str(draft), "-vf", video, "-af", audio,
                "-map", "0:v:0", "-map", "0:a:0",
@@ -154,6 +180,8 @@ def finish(spec: dict[str, Any]) -> dict[str, Any]:
             "engine": "ffmpeg",
             "v7_preset": spec["v7_preset"],
             "cinematic_finish_applied": True,
+            "audio_mastering_mode": "near_silent_preserved" if near_silent else "loudnorm",
+            "source_audio_peak_db": round(measured_peak, 2) if math.isfinite(measured_peak) else None,
             "v7_filters": ["eq", "vignette", "noise" if profile["grain"] else "no_grain",
                             "video_fades", "loudnorm", "audio_fades"],
             "sha256": v6.sha256(target),
