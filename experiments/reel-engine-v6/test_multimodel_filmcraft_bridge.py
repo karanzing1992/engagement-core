@@ -67,5 +67,15 @@ class MultiModelBridgeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             run(source=SOURCE,brief=BRIEF,brand=BRAND,audio_mode="licensed_music")
 
+    def test_gemini_owner_approval_alone_does_not_bypass_free_tier(self):
+        from unittest.mock import patch
+        from multimodel_filmcraft_bridge import gemini_research
+        for tier,owner in (("", "true"),("true", ""),("false","true"),("true","false")):
+            with patch.dict("os.environ",{
+                "GEMINI_PROJECT_FREE_TIER_VERIFIED":tier,
+                "GEMINI_INFERENCE_OWNER_APPROVED":owner}):
+                with self.assertRaises(V6Blocked):
+                    gemini_research(SOURCE, BRIEF,approved_api_cost=True,frames=None)
+
 if __name__=="__main__":
     unittest.main()
