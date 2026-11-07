@@ -89,8 +89,16 @@ def choose(records: object, brief: str, hook: str, groq_call, *, guidance: str =
         " Approved edit hook: " + (hook or "")[:100] +
         " ALLOWLIST: " + json.dumps(choices, ensure_ascii=True, separators=(",", ":"))
     )
+    # Strict schema constrains model output to already-reviewed private SHA IDs;
+    # the model cannot invent a media URL or self-grant an external license.
+    response_format = {"type": "json_schema", "json_schema": {
+        "name": "mad_v7_reviewed_music_choice", "strict": True,
+        "schema": {"type": "object", "properties": {
+            "sha256": {"type": "string", "enum": [c["sha256"] for c in choices]}},
+            "required": ["sha256"], "additionalProperties": False}}}
     try:
-        result = groq_call("openai/gpt-oss-120b", prompt, temperature=0.1, max_tokens=200)
+        result = groq_call("openai/gpt-oss-120b", prompt, temperature=0.1,
+                           max_tokens=640, response_format=response_format)
         chosen = result.get("sha256") if isinstance(result, dict) else None
         if isinstance(chosen, str):
             for item in candidates:
