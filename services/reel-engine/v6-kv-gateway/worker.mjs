@@ -359,12 +359,16 @@ async function internal(req,e,path){
       body.receipt?.music_sha256!==selectedMusic.sha256)return error("Licensed audio receipt mismatch",422);
   }else if(body.receipt?.audio_mode==="licensed_music"&&body.receipt?.music_mixed===true){
    const digest=body.receipt?.music_sha256;
-   const record=SHA.test(digest||"")?await e.MEDIA_KV.get(LIB_META+digest,"json"):null;
-   if(!record?.ready||record.sha256!==digest||
-      !record.evidence?.reviewer_confirmed_rights||
-      body.receipt?.audio_library?.sha256!==digest||
-      body.receipt?.audio_library?.license!==record.track?.license)
-     return error("AI-selected music receipt not in approved library",422);
+   if(body.receipt?.audio_library?.automatic_source_verified===true){
+    if(!validAutoSourceMusicReceipt(body.receipt))return error("Automatic original-source music verification invalid",422);
+   }else{
+    const record=SHA.test(digest||"")?await e.MEDIA_KV.get(LIB_META+digest,"json"):null;
+    if(!record?.ready||record.sha256!==digest||
+       !record.evidence?.reviewer_confirmed_rights||
+       body.receipt?.audio_library?.sha256!==digest||
+       body.receipt?.audio_library?.license!==record.track?.license)
+      return error("AI-selected music receipt not in approved library",422);
+   }
   }else if(body.receipt?.audio_mode!=="source_ambience_only"||body.receipt?.music_mixed!==false)
     return error("Unexpected soundtrack receipt",422);
   const visual=body.receipt?.visual_presence_check;
@@ -400,6 +404,36 @@ async function cleanup(e){
     .bind(now,r.job_id,now).run();
  }
 }
+// Accept only a signed runner's independent current Commons file-page audit.
+export function validAutoSourceMusicReceipt(receipt){
+ const a=receipt?.audio_library;
+ if(!a||a.mode!=="licensed_music"||a.automatic_source_verified!==true||
+    a.verification_method!=="commons_api_live"||
+    a.attribution_in_manifest!==true||
+    a.discovery?.used_in_render!==true||a.published!==false||
+    !SHA.test(a.sha256||"")||receipt.music_sha256!==a.sha256||
+    receipt.audio_mode!=="licensed_music"||receipt.music_mixed!==true)
+     return false;
+ if(!["cc0","pdm","by"].includes(a.license)||
+    typeof a.title!=="string"||!a.title.trim()||
+    typeof a.creator!=="string"||!a.creator.trim()||
+    typeof a.credit_text!=="string"||a.credit_text.length>850||
+    !a.credit_text.includes(a.creator)||!a.credit_text.includes(a.license_url)||
+    !a.credit_text.includes(a.source))return false;
+ try{
+   const src=new URL(a.source),media=new URL(a.media_url),lic=new URL(a.license_url);
+   if(src.protocol!=="https:"||src.hostname!=="commons.wikimedia.org"||
+      !src.pathname.startsWith("/wiki/File:")||src.username||src.password||
+      media.protocol!=="https:"||media.hostname!=="upload.wikimedia.org"||
+      !media.pathname.startsWith("/wikipedia/commons/")||media.username||media.password||
+      lic.protocol!=="https:"||lic.hostname!=="creativecommons.org")return false;
+   if(a.license==="by"&&!lic.pathname.startsWith("/licenses/by/"))return false;
+   if(a.license==="cc0"&&!lic.pathname.startsWith("/publicdomain/zero/"))return false;
+   if(a.license==="pdm"&&!lic.pathname.startsWith("/publicdomain/mark/"))return false;
+   return true;
+ }catch{return false}
+}
+
 export default {
  async fetch(req,e,ctx){
   const u=new URL(req.url),origin=req.headers.get("origin")||"",headers=cors(origin);
