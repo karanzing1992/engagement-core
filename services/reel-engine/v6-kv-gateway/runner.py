@@ -9,7 +9,9 @@ from urllib.parse import urlencode
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/"services/reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
+sys.path.insert(0,str(ROOT/"services/reel-engine/v7-cinema"))
 import ffmpeg_v6_adapter as ffmpeg_editor
+from ffmpeg_v7_cinema import finish as v7_finish,preset_for as v7_preset_for,V7Blocked
 import backend_selection
 import multimodel_filmcraft_bridge as multimodel
 import audio_library_v6 as licensed_audio
@@ -19,7 +21,7 @@ GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
 CHUNK=4*1024*1024
 # Diagnostic output contains only fixed labels and allowlisted codes, never footage or provider data.
-STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","frame_sampling","model_policy","gemini_research","groq_director","groq_reviewer","edl_compile","audio_compose","filmcraft_render","filmcraft_source_preflight","filmcraft_music_rights","filmcraft_mcp_init","filmcraft_source_probe","filmcraft_edl_validate","filmcraft_sequence","filmcraft_source_import","filmcraft_timeline_place","filmcraft_effects","filmcraft_hook","filmcraft_music_mix","filmcraft_export","filmcraft_verify_output","output_upload","private_complete","ffmpeg_render","audio_library"))
+STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","frame_sampling","model_policy","gemini_research","groq_director","groq_reviewer","edl_compile","audio_compose","filmcraft_render","filmcraft_source_preflight","filmcraft_music_rights","filmcraft_mcp_init","filmcraft_source_probe","filmcraft_edl_validate","filmcraft_sequence","filmcraft_source_import","filmcraft_timeline_place","filmcraft_effects","filmcraft_hook","filmcraft_music_mix","filmcraft_export","filmcraft_verify_output","output_upload","private_complete","ffmpeg_render","audio_library","cinematic_finish"))
 ACTIVE_STAGE="start"
 SAFE_CAUSES={
  "All currently available free Flash candidate endpoints were unavailable":"GEMINI_ENDPOINT_UNAVAILABLE",
@@ -67,6 +69,7 @@ FILMCRAFT_SAFE_CAUSES={
 def safe_failure(exc):
  if isinstance(exc,multimodel.V6Blocked):code=SAFE_CAUSES.get(str(exc),"BLOCKED_UNCLASSIFIED")
  elif isinstance(exc,ffmpeg_editor.RenderBlocked):code=str(exc) if str(exc).startswith("FFMPEG_") else "FFMPEG_REJECTED"
+ elif isinstance(exc,V7Blocked):code=str(exc) if str(exc).startswith("V7_") else "V7_REJECTED"
  else:code="NON_MODEL_FAILURE"
  return "V6_KV_PRIVATE_RENDER_FAILED stage="+ACTIVE_STAGE+" code="+code
 def recoverable_gemini_timeout(exc):
@@ -241,8 +244,13 @@ def run(job_id,*,fixture=False):
     "music_sha256":claim.get("music_sha256") if music else None,
     "music_rights":rights,
     "width":1080,"height":1920,"fps":30}
-  rec=ffmpeg_editor.render(spec)
-  if (rec.get("rendered") is not True or rec.get("engine")!="ffmpeg"
+  spec["v7_preset"]=v7_preset_for(claim["brief"])
+  spec["published"]=False
+  spec["owner_approval"]=False
+  mark("cinematic_finish")
+  rec=v7_finish(spec)
+  if (rec.get("cinematic_finish_applied") is not True or rec.get("version")!="v7-source-beta"
+      or rec.get("rendered") is not True or rec.get("engine")!="ffmpeg"
       or rec.get("video_stream_verified") is not True
       or rec.get("audio_stream_verified") is not True
       or rec.get("full_decode_passed") is not True
@@ -266,13 +274,14 @@ def run(job_id,*,fixture=False):
   receipt["audio_library"]=audio_receipt
   receipt["gemini_frames_sent"]=len(frames)
   receipt["product_context"]="generic"
+  receipt["release_lane"]="v7-private"
   receipt["published"]=False
   receipt["owner_approval"]=False
   mark("private_complete")
   result=call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,
     payload={"state":"review_ready","chunks":n,"bytes":out.stat().st_size,"sha256":digest,"receipt":receipt})
   if result.get("state")!="review_ready":raise RuntimeError("Private server output certification rejected")
-  print("MAD_V6_PRIVATE_KV_FFMPEG_COMPLETED",job_id,"published=false","fixture="+str(synthetic))
+  print("MAD_V7_PRIVATE_KV_FFMPEG_COMPLETED",job_id,"published=false","fixture="+str(synthetic))
   return result
  except Exception:
   try:call("/internal/v6/jobs/"+job_id+"/complete",identity,claim=lease,payload={"state":"failed"})
