@@ -37,7 +37,8 @@ def sha1_base36(audio:bytes)->str:
 
 def meta(audio:bytes,license_name="CC BY 4.0",artist="Test Artist",restriction=""):
     return {"query":{"pages":{"123":{"title":"File:Fixture Sunrise.wav",
-        "categories":[{"title":"Category:Ambient music"}],
+        "categories":[{"title":"Category:Ambient music"},
+                      {"title":"Category:Self-published work"}],
         "imageinfo":[{"mediatype":"AUDIO","mime":"audio/wav","size":len(audio),
           "url":MEDIA,"sha1":sha1_base36(audio),"extmetadata":{
             "LicenseShortName":{"value":license_name},
@@ -81,6 +82,16 @@ class AutomatedSourceUnit(unittest.TestCase):
             result=source._source_meta(track(),opener=server(payload))
             self.assertEqual(result["license"],"by")
             self.assertEqual(result["creator"],"Test Artist")
+
+    def test_catalog_cc_claim_without_creator_own_work_must_block(self):
+        payload=b"a"*3000
+        foreign=meta(payload)
+        foreign["query"]["pages"]["123"]["categories"]=[
+            {"title":"Category:Ambient music"},
+            {"title":"Category:License reviewed"}]
+        with self.assertRaisesRegex(source.AutoLicenseBlocked,
+                                    "SOURCE_AUTHORSHIP_REVIEW_REQUIRED"):
+            source._source_meta(track(),opener=server(payload,foreign))
 
     def test_unreviewed_external_commons_audio_fails_closed(self):
         payload=b"a"*3000
@@ -262,6 +273,7 @@ class RealAudioEndToEnd(unittest.TestCase):
             self.assertTrue(admission["rights"]["automatic_source_verified"])
             self.assertFalse(admission["rights"]["human_verified"])
             self.assertIn("Test Artist",admission["provenance"]["credit_text"])
+            self.assertIn("synchronized to video",admission["provenance"]["credit_text"])
             self.assertEqual(admission["sha256"],hashlib.sha256(content).hexdigest())
             spec={"workdir":str(work),"source":str(video),"source_sha256":ffmpeg.sha256(video),
                 "output":str(out),"width":480,"height":270,"fps":24,
