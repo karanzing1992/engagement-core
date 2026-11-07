@@ -3,11 +3,13 @@
 import os,json,base64,hashlib,urllib.request,urllib.error,sys,datetime,time
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-BASE='https://andaz-vibe-creative-preview.vercel.app/'
+BASE='https://andaz-vibe-v2-review.vercel.app/'
 API='https://generativelanguage.googleapis.com/v1beta'
 OUT=Path(__file__).resolve().parent/'output'
 SNAPS=[('home_desktop','index.html',1440,900),('home_mobile','index.html',390,844),('rooms_mobile','rooms.html',390,844),('contact_mobile','contact.html',390,844),('explore_desktop','explore.html',1440,900)]
 PROMPT="""Act as a demanding INDEPENDENT creative director for distinctive hospitality brands. Examine the five ATTACHED REAL browser screenshots IN ORDER: Andaz home desktop, home mobile, rooms mobile, contact mobile, Explore desktop. Andaz Vibe Stay is a youthful, convivial, independent hostel/coliving property in Arambol Goa; pool, social experiences, AC/non-AC rooms, WhatsApp enquiry, separate Moksha partner. Photos marked PROPERTY PHOTO PLACEHOLDER are intentional placeholders; judge placeholder treatment, not absence of real photos. Assess artistic originality, globally recognisable visual identity, colour, typography and legibility, composition, empty space, emotional narrative, mobile first screen, room conversion, hierarchy, CTA, consistency and trust. Concrete findings only grounded in these images. Existing automated technical QA separately confirmed colour contrast and accessible-label violations, and an overlong mobile hero. Do not merely parrot these; independently judge visible symptoms and overlooked artistic flaws. Return JSON ONLY containing verdict (APPROVE/REVISE/REJECT), overall_artistic_score_100, seven subscores (identity, typography, palette, layout, mobile, originality, conversion), strengths array, findings array of objects {id,priority,screenshot,visual_evidence,guest_impact,precise_creative_fix}, proposed_hero_composition, proposed_design_system, final_release_conditions array. Five or more substantive findings. Artistic evaluation ONLY, no code edits or deployment."""
+PROMPT='This is the independent ARTISTIC RE-AUDIT of Andaz V2 after V1 scored 54/100 and received REJECT. Do not anchor the score to V1; assess strictly these fresh deployed V2 screenshots. Explicitly identify which previous artistic weaknesses are now improved and which remain. Keep all scores and findings grounded in what is visually present. '+PROMPT
+
 def request(key,url,payload=None,timeout=22):
     if not url.startswith(API+'/'):raise RuntimeError('API_POLICY_DENIED')
     raw=None if payload is None else json.dumps(payload,separators=(',',':')).encode()
