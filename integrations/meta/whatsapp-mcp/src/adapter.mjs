@@ -24,7 +24,17 @@ const readSet = new Set(READ_TOOLS);
 const previewSet = new Set(PREVIEW_TOOLS);
 const TENANT_PATTERN = /^[a-z0-9][a-z0-9_-]{1,63}$/;
 const ID_PATTERN = /^[0-9]{6,64}$/;
-const GRAPH_VERSION_PATTERN = /^v[0-9]{1,3}\.[0-9]{1,2}$/;
+// WBMCP v0.1.3 source: src/config/constants.ts (verified 2026-11-07).
+// WACRM currently defaults to v26.0. Do not silently downgrade it to v24.0.
+export const WBMCP_0_1_3_GRAPH_VERSIONS = Object.freeze(['v22.0', 'v23.0', 'v24.0']);
+const compatibleGraphVersions = new Set(WBMCP_0_1_3_GRAPH_VERSIONS);
+
+class GraphVersionMismatch extends Error {
+  constructor() {
+    super('The tenant Graph API version is incompatible with pinned WBMCP SDK');
+    this.name = 'GraphVersionMismatch';
+  }
+}
 
 function rejected(code, message) {
   return { ok: false, error: { code, message } };
@@ -39,12 +49,12 @@ function connectionConfig(connection, previewMode = false) {
       !ID_PATTERN.test(phoneNumberId) || !ID_PATTERN.test(businessAccountId)) {
     throw new Error('Tenant connection is incomplete');
   }
-  if (graphApiVersion && !GRAPH_VERSION_PATTERN.test(graphApiVersion)) {
-    throw new Error('Invalid configured Graph API version');
+  if (typeof graphApiVersion !== 'string' || !compatibleGraphVersions.has(graphApiVersion)) {
+    throw new GraphVersionMismatch();
   }
   return {
     accessToken, phoneNumberId, businessAccountId,
-    ...(graphApiVersion ? { graphApiVersion } : {}),
+    graphApiVersion,
     ...(appSecret ? { appSecret } : {}),
     readOnly: !previewMode,
     enableDangerousTools: previewMode,
@@ -103,7 +113,10 @@ export function createEngagementWhatsAppAdapter({ resolveConnection, authorizeTe
       let client;
       try {
         client = await clientFor(tenantId, previewSet.has(toolName));
-      } catch (_) {
+      } catch (err) {
+        if (err instanceof GraphVersionMismatch) {
+          return rejected('graph_version_mismatch', 'This SDK does not support the configured tenant Graph API version');
+        }
         return rejected('connection_unavailable', 'Approved tenant connection unavailable');
       }
       // Any caller-supplied confirmation is dropped. Preview-only calls are
