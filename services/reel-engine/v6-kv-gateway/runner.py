@@ -10,18 +10,20 @@ ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/"services/reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
 sys.path.insert(0,str(ROOT/"services/reel-engine/v7-cinema"))
+sys.path.insert(0,str(ROOT/"services/reel-engine/v7-micro-rag"))
 import ffmpeg_v6_adapter as ffmpeg_editor
 from ffmpeg_v7_cinema import finish as v7_finish,preset_for as v7_preset_for,V7Blocked
 import backend_selection
 import multimodel_filmcraft_bridge as multimodel
 import audio_library_v6 as licensed_audio
+import txtai_reel_guidance as reel_rag
 from ffmpeg_frame_samples import extract as ffmpeg_frames
 
 GATEWAY="https://mad-v7-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
 CHUNK=4*1024*1024
 # Diagnostic output contains only fixed labels and allowlisted codes, never footage or provider data.
-STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","frame_sampling","model_policy","gemini_research","groq_director","groq_reviewer","edl_compile","audio_compose","filmcraft_render","filmcraft_source_preflight","filmcraft_music_rights","filmcraft_mcp_init","filmcraft_source_probe","filmcraft_edl_validate","filmcraft_sequence","filmcraft_source_import","filmcraft_timeline_place","filmcraft_effects","filmcraft_hook","filmcraft_music_mix","filmcraft_export","filmcraft_verify_output","output_upload","private_complete","ffmpeg_render","audio_library","cinematic_finish"))
+STAGES=frozenset(("start","oidc","job_claim","source_download","media_probe","frame_sampling","model_policy","gemini_research","groq_director","groq_reviewer","edl_compile","audio_compose","filmcraft_render","filmcraft_source_preflight","filmcraft_music_rights","filmcraft_mcp_init","filmcraft_source_probe","filmcraft_edl_validate","filmcraft_sequence","filmcraft_source_import","filmcraft_timeline_place","filmcraft_effects","filmcraft_hook","filmcraft_music_mix","filmcraft_export","filmcraft_verify_output","output_upload","private_complete","ffmpeg_render","audio_library","cinematic_finish","micro_rag"))
 ACTIVE_STAGE="start"
 SAFE_CAUSES={
  "All currently available free Flash candidate endpoints were unavailable":"GEMINI_ENDPOINT_UNAVAILABLE",
@@ -112,18 +114,18 @@ def gemini_free_path_authorized():
  return (os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true"
          and os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")=="true")
 
-def model_plan(src,brief,description,duration,fixture=False,frames=None):
+def model_plan(src,brief,description,duration,fixture=False,frames=None,guidance=None):
  manifest={"source_sha256":src,"human_reviewed":True,"rights_and_consent_cleared":True,
    "external_ai_processing_consent":True,"shots":[{"id":"s1","start_seconds":0.0,
    "duration_seconds":min(120.,duration),"visible":description}]}
  brand=""  # Generic content: no brand context unless supplied by the owner.
  if fixture:
   mark("model_policy")
-  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture")
+  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture",guidance=guidance)
  fallback_reason="GEMINI_FREE_TIER_NOT_VERIFIED"
  if gemini_free_path_authorized():
   try:
-   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",frames=frames,approved_api_cost=True,on_stage=mark)
+   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",frames=frames,approved_api_cost=True,on_stage=mark,guidance=guidance)
   except multimodel.V6Blocked as ex:
    # Only allowlisted Gemini network timeouts trigger fallback. Safety, rights
    # and creative-policy failures remain terminal; provider data is never logged.
@@ -148,7 +150,8 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
          "activities. Timecodes must stay within the verified source. "
          "EXAMPLE JSON shape with concrete values: "+json.dumps(schema)+
          " Verified source: "+json.dumps(manifest["shots"])+
-         " Optional brand: "+brand+" Owner direction: "+brief)
+         " Optional brand: "+brand+" Owner direction: "+brief+
+         " Reel-making guidance: "+((guidance or {}).get("director",{}).get("context",""))[:1750])
  mark("groq_director")
  director=multimodel.groq_call("openai/gpt-oss-120b",prompt,temperature=.40,max_tokens=1800)
  try:
@@ -163,9 +166,10 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None):
           "Concrete example JSON shape: "+json.dumps(schema)+
           " Verified source: "+json.dumps(manifest["shots"])+
           " Owner direction: "+brief)
+  repair+=" Reel-making guidance: "+((guidance or {}).get("director",{}).get("context",""))[:1750]
   director=multimodel.groq_call("openai/gpt-oss-120b",repair,temperature=.2,max_tokens=1600)
   multimodel.validate_director(manifest,director)
- review=multimodel.groq_strict_review(manifest,director,on_stage=mark)
+ review=multimodel.groq_strict_review(manifest,director,on_stage=mark,guidance=guidance)
  mark("edl_compile")
  plan=multimodel.compile_reviewed_edl(manifest,director,review)
  plan.update({"model_roles":{"gemini":"SKIPPED_"+fallback_reason,
@@ -210,8 +214,13 @@ def run(job_id,*,fixture=False):
   frames=[] if synthetic else ffmpeg_frames(work,src,duration,
     consent=bool(claim.get("free_gemini_consent")) and bool(claim.get("rights_confirmed")),
     source_sha256=claim["source_sha256"])
+  mark("micro_rag")
+  knowledge=reel_rag.collect(claim["brief"],claim["source_description"],work,
+         enable=os.environ.get("MAD_V7_TXTAI_MICRO_RAG_ENABLED","false")=="true")
+  print("MAD_V7_REEL_MICRO_RAG_STATUS "+knowledge["status"],flush=True)
   mark("model_policy")
-  plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,fixture=synthetic,frames=frames)
+  plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,
+                  fixture=synthetic,frames=frames,guidance=knowledge["roles"])
   mark("audio_library")
   # Existing V5/V6 Openverse discovery is not a transferred, rights-reviewed file.
   # Never synthesize a substitute soundtrack or mislabel source audio as CC0.
@@ -275,6 +284,7 @@ def run(job_id,*,fixture=False):
   receipt["model_roles"]=plan["model_roles"]
   receipt["model_policy"]=plan.get("model_policy","gemini_free_flash_groq")
   receipt["source_sha256"]=claim["source_sha256"]
+  receipt["reel_best_practices_rag"]=reel_rag.receipt(knowledge)
   receipt["audio_library"]=audio_receipt
   receipt["gemini_frames_sent"]=len(frames)
   receipt["product_context"]="generic"

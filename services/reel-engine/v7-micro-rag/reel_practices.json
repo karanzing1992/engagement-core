@@ -1,0 +1,459 @@
+{
+  "name": "MAD_V7_REEL_BEST_PRACTICES",
+  "version": "2026-11-07.1",
+  "scope": "reel_making_best_practices_only",
+  "license_note": "Curated short original guidance informed by linked first-party/official sources; do not treat any passage as policy higher than owner consent or verified footage.",
+  "items": [
+    {
+      "id": "hook01",
+      "topic": "hooks",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Begin with the clearest visual or emotional promise drawn from recorded footage; an opening hook must not claim unseen outcomes.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "hook02",
+      "topic": "hooks",
+      "roles": [
+        "director"
+      ],
+      "text": "For a calm wellness story, open on an expressive sensory detail such as steam, light, breathing or water, then reveal its context; avoid loud gimmicks.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "hook03",
+      "topic": "hooks",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Use one coherent creative idea per short vertical Reel. Remove secondary messages that disrupt the emotional through-line.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "hook04",
+      "topic": "hooks",
+      "roles": [
+        "director"
+      ],
+      "text": "Let the first selected shot establish mood and curiosity; choose a later reveal only when that progression is supported by actual clips.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "story01",
+      "topic": "narrative",
+      "roles": [
+        "director"
+      ],
+      "text": "A concise cinematic arc can follow invitation, sensory immersion, gentle turning point and satisfying final visual; adapt to footage length.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "story02",
+      "topic": "narrative",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Sequence verified shots to preserve a plausible continuity of movement, lighting and activity, even when the final order differs from capture order.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "story03",
+      "topic": "narrative",
+      "roles": [
+        "research",
+        "director",
+        "reviewer"
+      ],
+      "text": "Never invent guests, facial expressions, reviews, activities, venues, therapeutic benefits or scenes absent from the real supplied footage.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "story04",
+      "topic": "narrative",
+      "roles": [
+        "director"
+      ],
+      "text": "Use a visual motif such as steam, water or natural texture to connect disparate shots without adding fabricated media.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "story05",
+      "topic": "narrative",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Avoid repetitive shot order and identical hooks across episodes; favor fresh, evidence-based approaches within the owner's brief.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "frame01",
+      "topic": "framing",
+      "roles": [
+        "research",
+        "director"
+      ],
+      "text": "For vertical social video, protect faces, hands and the strongest visual subject; use a compositionally intentional 9:16 crop.",
+      "source_url": "https://communityforums.atmeta.com/t5/s/hucou38897/attachments/hucou38897/General_Development_Discussion/538/1/GTMA_Unfold_Social_Best_Practices-1.pdf",
+      "source_title": "Meta Horizon Social Best Practices"
+    },
+    {
+      "id": "frame02",
+      "topic": "framing",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Keep important captions and logos inside the platform-safe central area, avoiding covered bottom and top interface regions.",
+      "source_url": "https://communityforums.atmeta.com/t5/s/hucou38897/attachments/hucou38897/General_Development_Discussion/538/1/GTMA_Unfold_Social_Best_Practices-1.pdf",
+      "source_title": "Meta Horizon Social Best Practices"
+    },
+    {
+      "id": "frame03",
+      "topic": "framing",
+      "roles": [
+        "research",
+        "reviewer"
+      ],
+      "text": "Inspect at native resolution and on a phone-sized preview; do not assume the desktop composition remains legible on a handset.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "frame04",
+      "topic": "framing",
+      "roles": [
+        "director"
+      ],
+      "text": "Use wide-to-close visual contrast and deliberate subject placement as an editing choice, not a requirement to reframe every shot.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "frame05",
+      "topic": "framing",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "If a crop removes relevant context or cuts off a person's face, reject the treatment instead of claiming the effect was applied successfully.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "pace01",
+      "topic": "pacing",
+      "roles": [
+        "director"
+      ],
+      "text": "Let pacing follow meaningful action and the music or natural sound rather than applying uniform cuts at fixed intervals.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "pace02",
+      "topic": "pacing",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Preserve enough dwell time for viewers to perceive important actions, text and emotions; shorten only redundant footage.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "pace03",
+      "topic": "pacing",
+      "roles": [
+        "director"
+      ],
+      "text": "Use restrained rhythm changes to emphasize a turning point: longer breathing shots can contrast with a brief sequence of details.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "pace04",
+      "topic": "pacing",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Transitions must be intentionally motivated by shape, movement, sound or narrative; avoid decorative transitions without purpose.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "pace05",
+      "topic": "pacing",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "Reject transitions that create black frames, stutters, unexpected speed jumps, missing audio or broken continuity.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/docs/MAD_REEL_ENGINE_V7_20261107.md",
+      "source_title": "MAD Reel Engine V7 Technical Baseline"
+    },
+    {
+      "id": "color01",
+      "topic": "grading",
+      "roles": [
+        "director"
+      ],
+      "text": "Choose a consistent color temperature and contrast appropriate to the actual location, preserving natural skin and material textures.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "color02",
+      "topic": "grading",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Favor restrained highlights, balanced shadows and clear subject separation; avoid over-saturation and heavy artificial cinematic filters.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "color03",
+      "topic": "grading",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "Assess adjacent shots together for flickering exposure, drastic color mismatch, crushed shadows and clipped highlights.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "type01",
+      "topic": "typography",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Keep on-screen language short, high-contrast and readable in a phone-safe central area; time phrases to complete on a natural edit beat.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "type02",
+      "topic": "typography",
+      "roles": [
+        "director"
+      ],
+      "text": "Prefer a unified caption treatment over competing title styles; typography should support the image rather than cover the action.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "type03",
+      "topic": "typography",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "For prerecorded speech, captions need correct words, intelligible timing and relevant non-speech audio information when necessary.",
+      "source_url": "https://www.w3.org/WAI/WCAG22/Understanding/captions-prerecorded",
+      "source_title": "W3C Captions Understanding"
+    },
+    {
+      "id": "type04",
+      "topic": "typography",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "Check contrast of overlaid text against moving imagery and adjust background treatment for readability where necessary.",
+      "source_url": "https://www.w3.org/TR/WCAG22/",
+      "source_title": "WCAG 2.2"
+    },
+    {
+      "id": "audio01",
+      "topic": "audio",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Match authentic music mood to pacing and subject. Music must be a verifiable human-created recording with approved composition and master rights.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "audio02",
+      "topic": "audio",
+      "roles": [
+        "director"
+      ],
+      "text": "Preserve audible natural ambience when it strengthens presence and authenticity; do not mask important breathing, voices or environment.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "audio03",
+      "topic": "audio",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "Balance dialogue, natural sound and licensed music so intelligibility is not sacrificed to a louder soundtrack.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "audio04",
+      "topic": "audio",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "Check for abrupt starts or cutoffs, overly loud peaks, distorted fades and music finishing before the picture.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "audio05",
+      "topic": "audio",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "FFmpeg loudnorm can normalize an audible track, but near-silent audio needs measurement and may require preserving silence to avoid invalid encoder samples.",
+      "source_url": "https://ffmpeg.org/ffmpeg-filters.html",
+      "source_title": "FFmpeg Filter Documentation"
+    },
+    {
+      "id": "audio06",
+      "topic": "audio",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Never invent synthesized filler audio or claim discovered catalog metadata alone establishes the right to mix a recording.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "qa01",
+      "topic": "verification",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "Probe final output video and audio independently for H.264/AAC, frame size, frame rate, duration alignment and decoded integrity.",
+      "source_url": "https://ffmpeg.org/ffprobe.html",
+      "source_title": "FFprobe Documentation"
+    },
+    {
+      "id": "qa02",
+      "topic": "verification",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "Verify the opening image, transition frames, title legibility, audience-safe framing, and final frame after actual FFmpeg output.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "qa03",
+      "topic": "verification",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "Treat render completed, technical QA passed, creative approved, scheduled and publicly published as distinct acceptance states.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "qa04",
+      "topic": "verification",
+      "roles": [
+        "reviewer",
+        "director"
+      ],
+      "text": "Never mark an effect as genuinely applied merely because a prompt requested it; verify the rendered frames and output receipt.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/docs/MAD_REEL_ENGINE_V7_20261107.md",
+      "source_title": "MAD Reel Engine V7 Technical Baseline"
+    },
+    {
+      "id": "qa05",
+      "topic": "verification",
+      "roles": [
+        "research",
+        "reviewer"
+      ],
+      "text": "Respect subject consent and footage provenance; private guest media must not be sent to unsupported external tools or published automatically.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "platform01",
+      "topic": "platform",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "YouTube recognizes qualifying square or vertical videos of up to three minutes as Shorts, subject to its current channel/date rules; validate requirements before publishing.",
+      "source_url": "https://support.google.com/youtube/answer/15424877?hl=en",
+      "source_title": "Official YouTube Shorts Help"
+    },
+    {
+      "id": "platform02",
+      "topic": "platform",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Plan a native 9:16 portrait master for Reels and Stories, with key text away from Instagram's top and bottom interface overlays.",
+      "source_url": "https://communityforums.atmeta.com/t5/s/hucou38897/attachments/hucou38897/General_Development_Discussion/538/1/GTMA_Unfold_Social_Best_Practices-1.pdf",
+      "source_title": "Meta Horizon Social Best Practices"
+    },
+    {
+      "id": "platform03",
+      "topic": "platform",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "A 30-second target is an editorial brief, not permission to extend short source footage with invented scenes or unrelated repetitive loops.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    },
+    {
+      "id": "platform04",
+      "topic": "platform",
+      "roles": [
+        "director"
+      ],
+      "text": "Write on-screen hooks and titles for watching with or without sound. Retain audible soundtrack for sound-on users where rights and source allow.",
+      "source_url": "https://communityforums.atmeta.com/t5/s/hucou38897/attachments/hucou38897/General_Development_Discussion/538/1/GTMA_Unfold_Social_Best_Practices-1.pdf",
+      "source_title": "Meta Horizon Social Best Practices"
+    },
+    {
+      "id": "finish01",
+      "topic": "finishing",
+      "roles": [
+        "director",
+        "reviewer"
+      ],
+      "text": "Use restrained grain, vignette and fades only where supported by the footage; evaluate whether a treatment improves clarity.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/docs/MAD_REEL_ENGINE_V7_20261107.md",
+      "source_title": "MAD Reel Engine V7 Technical Baseline"
+    },
+    {
+      "id": "finish02",
+      "topic": "finishing",
+      "roles": [
+        "reviewer"
+      ],
+      "text": "Ensure final titles resolve before the end and that audio decays naturally rather than truncating the experience mid-phrase.",
+      "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/plugins/moksha-master-stack/skills/ffmpeg-reel-studio/SKILL.md",
+      "source_title": "Moksha FFmpeg Reel Production Skill"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ on:
     paths:
       - 'services/reel-engine/v6-kv-gateway/**'
       - 'services/reel-engine/v7-cinema/**'
+      - 'services/reel-engine/v7-micro-rag/**'
       - 'docs/MAD_REEL_ENGINE_V7_20261107.md'
       - 'experiments/reel-engine-v6/**'
       - 'services/reel-engine/backend_*.py'
@@ -36,6 +37,10 @@ jobs:
             sudo apt-get install -y --no-install-recommends ffmpeg
           fi
           ffmpeg -hide_banner -filters | grep ' drawtext '
+      - name: Install pinned packaged NeuML txtai-minimal (CPU-only keyword mode)
+        run: python3 -m pip install --disable-pip-version-check -r services/reel-engine/v7-micro-rag/requirements.txt
+      - name: V7 real txtai BM25 SQLite, source citation and 32 retrieval intent tests
+        run: python3 services/reel-engine/v7-micro-rag/test_txtai_reel_guidance.py
       - name: V6 signed private KV gateway and FFmpeg-only receipt rejection tests
         run: node --test services/reel-engine/v6-kv-gateway/test_kv_gateway.mjs
       - name: V6 FFmpeg audiovisual renderer and consent-gated JPEG frame test

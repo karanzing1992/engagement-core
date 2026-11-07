@@ -1,0 +1,7 @@
+# Same upstream NeuML txtai implementation, no fork and no custom vector engine.
+# txtai-minimal version verified published by PyPI; BM25 uses no external embedding model.
+txtai-minimal==9.11.0
+numpy>=1.24,<3
+regex>=2022.8.17
+msgpack>=1.0.7
+PyYAML>=6.0
