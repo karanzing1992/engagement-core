@@ -1,100 +1,14 @@
-name: MAD Reel Engine V4 | Groq FilmCraft Cloud
-
+# DEPRECATED operational workflow: retired by V7-only owner instruction.
+# Original blob 4fd468631c3d623e66637ae7255504690399e8dc; restore from Git history only with owner authorization.
+# This does not alter the pinned V7 workflow mad-v6-kv-filmcraft.yml.
+name: DEPRECATED | mad-filmcraft-groq-cloud-pilot.yml
 on:
-  push:
-    branches:
-      - feature/mad-filmcraft-groq-actions-pilot-20261102
-      - main
-    paths:
-      - .github/workflows/mad-filmcraft-groq-cloud-pilot.yml
-      - experiments/filmcraft-groq-actions/**
   workflow_dispatch:
-    inputs:
-      mode:
-        description: Groq plan mode (live needs GROQ_API_KEY Actions secret)
-        required: true
-        type: choice
-        options:
-          - fixture
-          - live
-        default: fixture
-
 permissions:
   contents: read
-
-concurrency:
-  group: filmcraft-groq-pilot-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  filmcraft-mcp-cloud-smoke:
-    name: Reel Engine V4 synthetic Groq plan to FilmCraft MCP to MP4
+  legacy-disabled:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
-    defaults:
-      run:
-        shell: bash
     steps:
-      - name: Check out public pilot
-        uses: actions/checkout@v4
-
-      - name: Install FFmpeg on the ephemeral Ubuntu runner
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
-
-      - name: Verify runner dependencies
-        run: |
-          set -euo pipefail
-          python3 --version
-          ffmpeg -version | sed -n '1p'
-          ffprobe -version | sed -n '1p'
-          df -h "$RUNNER_TEMP"
-
-      - name: Download and verify FilmCraft v0.16.0 Linux x86_64
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/filmcraft"
-          cd "$RUNNER_TEMP/filmcraft"
-          url="https://github.com/storytold/filmcraft/releases/download/v0.16.0/filmcraft-0.16.0-linux-x86_64.tar.gz"
-          curl -fLsS --retry 2 --connect-timeout 12 --max-time 180 -o filmcraft.tar.gz "$url"
-          echo "588390eee5d7e1634f05794c4f877ddf29494d9cf74405111d67c16cbe215ae9  filmcraft.tar.gz" | sha256sum -c -
-          python3 - <<'PY'
-          import tarfile
-          with tarfile.open("filmcraft.tar.gz", "r:gz") as tf:
-              for e in tf.getmembers():
-                  p = e.name.split("/")
-                  assert not e.name.startswith("/") and ".." not in p, "Unsafe archive path"
-                  assert not (e.issym() or e.islnk() or e.isdev()), "Unsafe tar entry"
-          print("ARCHIVE_SAFETY_PASS")
-          PY
-          tar -xzf filmcraft.tar.gz
-          cli="$RUNNER_TEMP/filmcraft/filmcraft-0.16.0-linux-x86_64/bin/filmcraft-cli"
-          test -x "$cli"
-          "$cli" --version
-          echo "FILMCRAFT_CLI=$cli" >> "$GITHUB_ENV"
-
-      - name: Install official Groq SDK
-        run: python3 -m pip install --disable-pip-version-check "groq==0.37.1"
-
-      - name: Execute headless MCP synthetic edit and export
-        env:
-          RUN_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (contains(github.event.head_commit.message, '[live-groq]') && 'live' || 'fixture') }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: |
-          set -euo pipefail
-          python3 -u experiments/filmcraft-groq-actions/runner.py --mode "$RUN_MODE"
-
-      - name: Upload video and certification receipts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mad-filmcraft-pilot-${{ github.run_number }}
-          path: |
-            experiments/filmcraft-groq-actions/out/*.mp4
-            experiments/filmcraft-groq-actions/out/*.json
-            experiments/filmcraft-groq-actions/out/*.log
-            experiments/filmcraft-groq-actions/out/*.fcproj
-          if-no-files-found: warn
-          retention-days: 7
+      - run: echo 'Earlier Reel Engine versions retired; V7 is exclusive.'
