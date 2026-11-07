@@ -5,6 +5,8 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import re
+import urllib.error
 import sys
 import tempfile
 import unittest
@@ -24,18 +26,28 @@ def track(license_name="by"):
         "creator":"Test Artist","license":license_name,"license_url":LIC,
         "original_source_page":ORIG,"source_media_url":MEDIA}
 
+def sha1_base36(audio:bytes)->str:
+    n=int(hashlib.sha1(audio).hexdigest(),16)
+    alphabet="0123456789abcdefghijklmnopqrstuvwxyz"
+    result=""
+    while n:
+        n,r=divmod(n,36)
+        result=alphabet[r]+result
+    return result.zfill(31)
+
 def meta(audio:bytes,license_name="CC BY 4.0",artist="Test Artist",restriction=""):
     return {"query":{"pages":{"123":{"title":"File:Fixture Sunrise.wav",
         "imageinfo":[{"mediatype":"AUDIO","mime":"audio/wav","size":len(audio),
-          "url":MEDIA,"extmetadata":{
+          "url":MEDIA,"sha1":sha1_base36(audio),"extmetadata":{
             "LicenseShortName":{"value":license_name},
             "LicenseUrl":{"value":LIC},
             "Artist":{"value":artist},
             "Restrictions":{"value":restriction}}}]}}}}
 
 class FakeResponse:
-    def __init__(self,data:bytes,url:str):
-        self.raw=data;self.url=url;self.headers={"Content-Length":str(len(data))}
+    def __init__(self,data:bytes,url:str,*,status=200,headers=None):
+        self.raw=data;self.url=url;self.status=status
+        self.headers={"Content-Length":str(len(data)),**(headers or {})}
     def __enter__(self):return self
     def __exit__(self,*args):pass
     def read(self,n=-1):return self.raw[:n]
@@ -48,6 +60,15 @@ def server(data:bytes,payload=None,redirect=False):
         if url.startswith("https://commons.wikimedia.org/w/api.php?"):
             return FakeResponse(doc,url)
         if url==MEDIA:
+            requested=req.headers.get("Range")
+            if requested:
+                m=re.fullmatch(r"bytes=(\d+)-(\d+)",requested)
+                if not m:raise AssertionError("invalid Range")
+                a,b=map(int,m.groups())
+                return FakeResponse(data[a:b+1],
+                    "https://attacker.invalid/redirect" if redirect else url,
+                    status=206,headers={"Content-Range":f"bytes {a}-{b}/{len(data)}",
+                    "ETag":'"fixture-immutable"'})
             return FakeResponse(data,"https://attacker.invalid/redirect" if redirect else url)
         raise AssertionError("unknown URL: "+url)
     return respond
@@ -95,6 +116,107 @@ class AutomatedSourceUnit(unittest.TestCase):
             with self.assertRaises(source.AutoLicenseBlocked):
                 source.admit(track(),Path(folder),8,opener=server(payload),
                              probe=lambda *a,**k:{"duration":3})
+            self.assertEqual(list(Path(folder).iterdir()),[])
+
+class ResumableImportUnit(unittest.TestCase):
+    def test_two_serial_ranges_source_sha1_and_sha256(self):
+        payload=b"ABCDE"*(source.MEDIA_CHUNK//5+200)
+        calls=[]
+        original=server(payload)
+        def observed(req,timeout=20):
+            if req.full_url==MEDIA:calls.append(req.headers.get("Range"))
+            return original(req,timeout=timeout)
+        with tempfile.TemporaryDirectory() as folder:
+            out=Path(folder)/"audio.wav"
+            m=source._source_meta(track(),opener=observed)
+            digest,s1=source._download_media(m,out,opener=observed,sleeper=lambda x:None)
+            self.assertEqual(calls,["bytes=0-4194303",
+                                    f"bytes=4194304-{len(payload)-1}"])
+            self.assertEqual(out.stat().st_size,len(payload))
+            self.assertEqual(digest,hashlib.sha256(payload).hexdigest())
+            self.assertEqual(s1,hashlib.sha1(payload).hexdigest())
+
+    def test_429_retry_after_waits_then_resumes_without_duplicate_bytes(self):
+        payload=b"Q"*4096
+        sleeps=[];calls=[]
+        original=server(payload)
+        def throttled(req,timeout=20):
+            if req.full_url==MEDIA:
+                calls.append(req.headers.get("Range"))
+                if len(calls)==1:
+                    raise urllib.error.HTTPError(MEDIA,429,"Too Many Requests",
+                                                {"Retry-After":"10"},None)
+            return original(req,timeout=timeout)
+        with tempfile.TemporaryDirectory() as folder:
+            out=Path(folder)/"audio.wav"
+            source._download_media(source._source_meta(track(),opener=original),
+                                   out,opener=throttled,sleeper=sleeps.append)
+            self.assertEqual(calls,["bytes=0-4095","bytes=0-4095"])
+            self.assertEqual(sleeps,[10.0])
+            self.assertEqual(out.read_bytes(),payload)
+
+    def test_long_retry_after_fails_closed_and_removes_partial_file(self):
+        payload=b"Q"*4096
+        original=server(payload)
+        def blocked(req,timeout=20):
+            if req.full_url==MEDIA:
+                raise urllib.error.HTTPError(MEDIA,429,"Rate limit",
+                                            {"Retry-After":"120"},None)
+            return original(req,timeout=timeout)
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(source.AutoLicenseBlocked,
+                                        "SOURCE_RETRY_AFTER_TOO_LONG"):
+                source.admit(track(),Path(folder),3,opener=blocked,
+                             probe=lambda *a,**k:{"duration":5})
+            self.assertEqual(list(Path(folder).iterdir()),[])
+
+    def test_mismatched_content_range_cannot_stitch_wrong_bytes(self):
+        payload=b"Z"*4096;original=server(payload)
+        def bad(req,timeout=20):
+            response=original(req,timeout=timeout)
+            if req.full_url==MEDIA:
+                response.headers["Content-Range"]="bytes 10-4105/4096"
+            return response
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(source.AutoLicenseBlocked,
+                                        "MEDIA_CONTENT_RANGE_MISMATCH"):
+                source.admit(track(),Path(folder),3,opener=bad,
+                             probe=lambda *a,**k:{"duration":5})
+            self.assertEqual(list(Path(folder).iterdir()),[])
+
+    def test_changed_bytes_original_sha1_mismatch_discarded(self):
+        payload=b"Z"*4096;altered=b"Y"*4096
+        orig=server(payload); changed=server(altered)
+        def swapped(req,timeout=20):
+            if req.full_url==MEDIA:
+                return changed(req,timeout=timeout)
+            return orig(req,timeout=timeout)
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(source.AutoLicenseBlocked,
+                                        "MEDIA_ORIGINAL_SHA1_MISMATCH"):
+                source.admit(track(),Path(folder),3,opener=swapped,
+                             probe=lambda *a,**k:{"duration":5})
+            self.assertEqual(list(Path(folder).iterdir()),[])
+
+    def test_missing_origin_sha1_rejected_before_download(self):
+        payload=b"Z"*4096
+        altered=meta(payload)
+        del altered["query"]["pages"]["123"]["imageinfo"][0]["sha1"]
+        with self.assertRaisesRegex(source.AutoLicenseBlocked,"MEDIA_ORIGINAL_DIGEST_MISSING"):
+            source._source_meta(track(),opener=server(payload,altered))
+
+    def test_http_200_response_cannot_resume_after_first_range(self):
+        payload=b"J"*(source.MEDIA_CHUNK+100)
+        original=server(payload)
+        def no_ranges(req,timeout=20):
+            resp=original(req,timeout=timeout)
+            if req.full_url==MEDIA and req.headers.get("Range","").startswith("bytes=4194304-"):
+                resp.status=200
+            return resp
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(source.AutoLicenseBlocked,"MEDIA_RANGE_NOT_SUPPORTED"):
+                source.admit(track(),Path(folder),3,opener=no_ranges,
+                             probe=lambda *a,**k:{"duration":5})
             self.assertEqual(list(Path(folder).iterdir()),[])
 
 class RealAudioEndToEnd(unittest.TestCase):

@@ -10,8 +10,12 @@ All downloaded files remain in the already-private ephemeral GitHub runner.
 from __future__ import annotations
 import hashlib
 import json
+import time
+from datetime import datetime,timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -19,6 +23,13 @@ MAX_BYTES=16*1024*1024
 MAX_JSON=320000
 LICENSE_ROOT="https://creativecommons.org/"
 EXT={".mp3",".ogg",".opus",".wav",".flac",".m4a"}
+# A contact-identifiable User-Agent is required by Wikimedia's robot policies.
+USER_AGENT="MAD-ReelEngine/1.1 (https://github.com/karanzing1992/engagement-core; audio provenance verification) Python-urllib"
+# Transfer at most four serial ranges for the existing 16 MiB admission limit.
+MEDIA_CHUNK=4*1024*1024
+MAX_SEGMENT_RETRIES=2
+MAX_RETRY_WAIT=30
+PACING_SECONDS=0.35
 
 class AutoLicenseBlocked(ValueError):
     pass
@@ -33,7 +44,7 @@ def _url(url:str,host:str)->str:
 
 def _request(url:str,*,opener=None,cap:int=MAX_JSON)->bytes:
     req=urllib.request.Request(url,headers={
-        "User-Agent":"MAD-ReelEngine-V7-licensed-source/1.0 (Commons attribution audit)",
+        "User-Agent":USER_AGENT,
         "Accept":"application/json, audio/*"})
     if opener is None:
         # Avoid credentials and unexpected off-host redirects when fetching bytes.
@@ -59,6 +70,112 @@ def _request(url:str,*,opener=None,cap:int=MAX_JSON)->bytes:
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):
         raise AutoLicenseBlocked("SOURCE_REDIRECT_BLOCKED")
+
+def _retry_after(value:str|None,attempt:int)->float:
+    """Honor Retry-After as seconds or HTTP-date; fail closed on long waits."""
+    if value:
+        try:
+            delay=float(value.strip())
+        except (TypeError,ValueError):
+            try:
+                when=parsedate_to_datetime(value)
+                if when.tzinfo is None:
+                    when=when.replace(tzinfo=timezone.utc)
+                delay=(when-datetime.now(timezone.utc)).total_seconds()
+            except (TypeError,ValueError,OverflowError):
+                delay=5*(2**attempt)
+        return max(0.0,delay)
+    return float(5*(2**attempt))
+
+def _download_media(meta:dict,output:Path,*,opener=None,sleeper=None)->tuple[str,str]:
+    """Download one checked Wikimedia original using *sequential* ranged reads.
+
+    The original API's SHA1 is mandatory: computing our own SHA256 alone would
+    fingerprint corruption, not authenticate bytes against the source.
+    """
+    size=meta["size"]
+    expected=meta["sha1"]
+    _url(meta["media_url"],"upload.wikimedia.org")
+    if not 1024<=size<=MAX_BYTES or not re.fullmatch(r"[a-z0-9]{20,40}",expected):
+        raise AutoLicenseBlocked("MEDIA_ORIGINAL_DIGEST_INVALID")
+    client=opener or urllib.request.build_opener(_NoRedirect()).open
+    pause=time.sleep if sleeper is None else sleeper
+    hashed=hashlib.sha256()
+    source_hash=hashlib.sha1()
+    offset=0
+    strong_etag=None
+    with output.open("xb") as target:
+        while offset<size:
+            end=min(size-1,offset+MEDIA_CHUNK-1)
+            expected_bytes=end-offset+1
+            headers={"User-Agent":USER_AGENT,"Accept":"audio/*",
+                     "Range":f"bytes={offset}-{end}"}
+            if strong_etag and offset:
+                headers["If-Range"]=strong_etag
+            for attempt in range(MAX_SEGMENT_RETRIES+1):
+                request=urllib.request.Request(meta["media_url"],headers=headers)
+                try:
+                    with client(request,timeout=20) as response:
+                        if hasattr(response,"geturl") and response.geturl()!=meta["media_url"]:
+                            raise AutoLicenseBlocked("SOURCE_REDIRECT_BLOCKED")
+                        status=getattr(response,"status",200)
+                        h=getattr(response,"headers",{}) or {}
+                        # 200 is only acceptable for the initial, entire file;
+                        # never append a full response to already stored segments.
+                        if status==206:
+                            found=re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)",
+                                               str(h.get("Content-Range","")))
+                            if not found or tuple(map(int,found.groups()))!=(offset,end,size):
+                                raise AutoLicenseBlocked("MEDIA_CONTENT_RANGE_MISMATCH")
+                            cap=expected_bytes
+                        elif status==200 and offset==0:
+                            cap=size
+                        else:
+                            raise AutoLicenseBlocked("MEDIA_RANGE_NOT_SUPPORTED")
+                        length=h.get("Content-Length")
+                        if length is not None:
+                            try:
+                                if int(length)!=cap:raise AutoLicenseBlocked("MEDIA_LENGTH_MISMATCH")
+                            except ValueError:
+                                raise AutoLicenseBlocked("MEDIA_LENGTH_MISMATCH") from None
+                        etag=h.get("ETag")
+                        if offset==0 and isinstance(etag,str) and etag.startswith('"') and etag.endswith('"'):
+                            strong_etag=etag
+                        data=response.read(cap+1)
+                        if len(data)!=cap:
+                            raise AutoLicenseBlocked("MEDIA_LENGTH_MISMATCH")
+                        target.write(data)
+                        hashed.update(data)
+                        source_hash.update(data)
+                        offset+=len(data)
+                        if status==200:
+                            offset=size
+                        break
+                except urllib.error.HTTPError as error:
+                    if error.code not in (429,503):
+                        raise AutoLicenseBlocked("SOURCE_UNAVAILABLE") from None
+                    if attempt>=MAX_SEGMENT_RETRIES:
+                        raise AutoLicenseBlocked("SOURCE_RATE_LIMITED") from None
+                    delay=_retry_after((error.headers or {}).get("Retry-After"),attempt)
+                    if delay>MAX_RETRY_WAIT:
+                        raise AutoLicenseBlocked("SOURCE_RETRY_AFTER_TOO_LONG") from None
+                    pause(delay)
+                except AutoLicenseBlocked:
+                    raise
+                except Exception:
+                    raise AutoLicenseBlocked("SOURCE_UNAVAILABLE") from None
+            if offset<size:
+                # One requester, short politeness spacing, never parallel ranges.
+                pause(PACING_SECONDS)
+    # MediaWiki's imageinfo SHA1 is base36 (some deployments use hex).
+    actual=source_hash.hexdigest()
+    if re.fullmatch(r"[0-9a-f]{40}",expected):
+        good=actual==expected
+    else:
+        good=int(actual,16)==int(expected,36)
+    if not good:
+        raise AutoLicenseBlocked("MEDIA_ORIGINAL_SHA1_MISMATCH")
+    return hashed.hexdigest(),actual
 
 def _license(info:dict)->str:
     ext=info.get("extmetadata") or {}
@@ -88,7 +205,7 @@ def _source_meta(track:dict,opener=None)->dict:
         raise AutoLicenseBlocked("COMMONS_TITLE_INVALID")
     params=urllib.parse.urlencode({
         "action":"query","format":"json","titles":title,
-        "prop":"imageinfo","iiprop":"url|mediatype|extmetadata|mime|size"})
+        "prop":"imageinfo","iiprop":"url|mediatype|extmetadata|mime|size|sha1"})
     api="https://commons.wikimedia.org/w/api.php?"+params
     _url(api,"commons.wikimedia.org")
     try:
@@ -131,9 +248,13 @@ def _source_meta(track:dict,opener=None)->dict:
     size=info.get("size")
     if type(size) is not int or not 1024<=size<=MAX_BYTES:
         raise AutoLicenseBlocked("MEDIA_SIZE_NOT_ELIGIBLE")
+    original_sha1=info.get("sha1")
+    if not isinstance(original_sha1,str) or not re.fullmatch(r"[a-z0-9]{20,40}",original_sha1):
+        raise AutoLicenseBlocked("MEDIA_ORIGINAL_DIGEST_MISSING")
     return {"source_page":orig.split("?",1)[0],"title":title[5:][:150],
             "creator":creator,"media_url":original,"license":lic,
-            "license_url":label,"size":size,"source_kind":"wikimedia_commons"}
+            "license_url":label,"size":size,"sha1":original_sha1,
+            "source_kind":"wikimedia_commons"}
 
 def admit(track:dict,workdir:Path,required_seconds:float,*,opener=None,probe=None)->dict:
     """Machine-check source + bytes: an owner-authorized *automatic* admission.
@@ -152,16 +273,14 @@ def admit(track:dict,workdir:Path,required_seconds:float,*,opener=None,probe=Non
     if output.exists():
         raise AutoLicenseBlocked("AUTO_AUDIO_ALREADY_EXISTS")
     try:
-        raw=_request(meta["media_url"],opener=opener,cap=MAX_BYTES)
-        if len(raw)!=meta["size"]:
+        digest,original_sha1=_download_media(meta,output,opener=opener)
+        if output.stat().st_size!=meta["size"]:
             raise AutoLicenseBlocked("MEDIA_LENGTH_MISMATCH")
-        output.write_bytes(raw)
         if probe is None:
             raise AutoLicenseBlocked("AUDIO_PROBE_REQUIRED")
         p=probe(output,require_video=False)
         if float(p["duration"])<float(required_seconds)-.1:
             raise AutoLicenseBlocked("AUTO_MUSIC_TOO_SHORT")
-        digest=hashlib.sha256(raw).hexdigest()
         lic={"by":"CC BY","cc0":"CC0","pdm":"PDM"}[meta["license"]]
         credit=f'{meta["title"]} — {meta["creator"]} | {lic} | {meta["license_url"]} | {meta["source_page"]}'
         if len(credit)>850:
@@ -178,7 +297,8 @@ def admit(track:dict,workdir:Path,required_seconds:float,*,opener=None,probe=Non
              "verification_method":"commons_api_live","source":meta["source_page"],
              "media_url":meta["media_url"],"title":meta["title"],"creator":meta["creator"],
              "license":meta["license"],"license_url":meta["license_url"],
-             "sha256":digest,"attribution_required":meta["license"]=="by",
+             "sha256":digest,"original_sha1":original_sha1,
+              "transfer_method":"serial_http_range", "attribution_required":meta["license"]=="by",
              "credit_text":credit,"attribution_in_manifest":True,
              "published":False}}
     except Exception:
