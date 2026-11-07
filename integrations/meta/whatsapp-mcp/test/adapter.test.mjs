@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEngagementWhatsAppAdapter, READ_TOOLS, PREVIEW_TOOLS } from '../src/adapter.mjs';
 
-const credentials = Object.freeze({ accessToken: 'synthetic-token-abcdefghijkl', phoneNumberId: '123456789012', businessAccountId: '123456789013' });
+const credentials = Object.freeze({ accessToken: 'synthetic-token-abcdefghijkl', phoneNumberId: '123456789012', businessAccountId: '123456789013', graphApiVersion: 'v24.0' });
 function setup() {
   const calls = [];
   const adapter = createEngagementWhatsAppAdapter({
@@ -86,4 +86,42 @@ test('cross-principal access is rejected before fetching tenant secret', async (
   const result = await adapter.invoke({ tenantId: 'brand_a', principal: 'operator_b', toolName: 'whatsapp_get_business_account' });
   assert.equal(result.error.code, 'forbidden');
   assert.equal(calls.length, 0);
+});
+
+test('WACRM v26.0 does not silently downgrade to upstream WBMCP v24.0', async () => {
+  let resolved = 0;
+  const adapter = createEngagementWhatsAppAdapter({
+    authorizeTenant: () => true,
+    resolveConnection: async () => { resolved++; return { ...credentials, graphApiVersion: 'v26.0' }; },
+    sdkFactory: () => { throw new Error('Must not instantiate incompatible SDK'); },
+  });
+  const result = await adapter.invoke({ tenantId: 'brand_a', principal: 'operator_a', toolName: 'whatsapp_get_business_account' });
+  assert.equal(result.error.code, 'graph_version_mismatch');
+  assert.equal(resolved, 1);
+});
+
+test('missing Graph version is rejected rather than accepting upstream default', async () => {
+  let called = false;
+  const adapter = createEngagementWhatsAppAdapter({
+    authorizeTenant: () => true,
+    resolveConnection: async () => { const { graphApiVersion, ...rest } = credentials; return rest; },
+    sdkFactory: () => { called = true; throw new Error('Unexpected call'); },
+  });
+  const result = await adapter.invoke({ tenantId: 'brand_a', principal: 'operator_a', toolName: 'whatsapp_get_business_account' });
+  assert.equal(result.error.code, 'graph_version_mismatch');
+  assert.equal(called, false);
+});
+
+test('supported versions are passed through explicitly, without a default', async () => {
+  for (const graphApiVersion of ['v22.0', 'v23.0', 'v24.0']) {
+    let received;
+    const adapter = createEngagementWhatsAppAdapter({
+      authorizeTenant: () => true,
+      resolveConnection: async () => ({ ...credentials, graphApiVersion }),
+      sdkFactory: config => { received = config; return { callTool: async () => ({ ok: true }) }; },
+    });
+    const result = await adapter.invoke({ tenantId: 'brand_a', principal: 'operator_a', toolName: 'whatsapp_get_business_account' });
+    assert.equal(result.ok, true);
+    assert.equal(received.graphApiVersion, graphApiVersion);
+  }
 });
