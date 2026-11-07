@@ -54,6 +54,36 @@ class DiscoveryContract(unittest.TestCase):
         self.assertEqual(out["status"],"source_check_required")
         self.assertEqual(calls,["openverse","openverse","wikimedia"])
 
+    def test_real_author_commons_shortlist_is_always_searched(self):
+        """An indexed ambient hit cannot hide the separately checked originals."""
+        calls=[]
+        real=candidate(i="c"*32,title="Purrple Cat - Saturday Morning.ogg")
+        real["source_media_url"]="https://upload.wikimedia.org/wikipedia/commons/e/e2/Purrple_Cat_-_Saturday_Morning.ogg"
+        real["original_source_page"]="https://commons.wikimedia.org/wiki/File:Purrple_Cat_-_Saturday_Morning.ogg"
+        def search(query,**kwargs):
+            calls.append((kwargs["provider"],query))
+            if kwargs["provider"]=="wikimedia":
+                return {"candidates":[real]}
+            return {"candidates":[candidate(i="a"*32)]}
+        out=d.discover("calm sunrise wellness","gentle morning",search,
+             lambda *a,**kw:{"id":real["id"]},internal=True)
+        self.assertIn(("wikimedia","Purrple Cat"),calls)
+        self.assertEqual(out["selected"]["id"],real["id"])
+        self.assertEqual(out["selection"],"groq_120b")
+        self.assertEqual(out["_candidate_pool"][0]["id"],real["id"])
+        self.assertFalse(out["used_in_render"])
+
+    def test_model_cannot_select_candidate_excluded_from_eight_item_shortlist(self):
+        def search(query,**kwargs):
+            if kwargs["provider"]=="wikimedia":
+                return {"candidates":[candidate(i="b"*32,title="Original wellness melody")]}
+            return {"candidates":[candidate(i=f"{j:032x}",title=f"External indexed {j}")
+                                  for j in range(1,7)]}
+        out=d.discover("calm ritual","",search,
+              lambda *a,**k:{"id":f"{6:032x}"},internal=True)
+        self.assertNotEqual(out["selected"]["id"],f"{6:032x}")
+        self.assertEqual(out["selection"],"deterministic_fallback")
+
     def test_noncommercial_and_sharealike_not_shortlisted(self):
         bad=candidate(lic="by-nc")
         bad2=candidate(i="b"*32,lic="by-sa")
