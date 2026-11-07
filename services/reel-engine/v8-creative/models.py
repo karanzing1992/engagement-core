@@ -29,7 +29,7 @@ def gemini_source_analyst(evidence,workdir):
     source=evidence["source"];work=Path(workdir)
     frames=sample_frames(work,source["path"],source["duration"],count=3,consent=True,
         source_sha256=source["sha256"])
-    manifest={"external_ai_processing_consent":True,"shots":[{"id":"source",
+    manifest={"external_ai_processing_consent":True,"shots":[{"id":"s1",
         "visible":"Observed video source; semantics unknown until sampled frames are analyzed",
         "start_seconds":0.0,"duration_seconds":source["duration"]}]}
     model,analysis=ai.gemini_research(manifest,evidence["owner_intent"]["brief"],
