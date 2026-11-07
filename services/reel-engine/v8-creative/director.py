@@ -94,10 +94,16 @@ def compile_optional_presentation(evidence,proposal):
         elif transition not in TRANSITIONS:
             segment["transition"]="cut"
             adjustments.append({"segment":index,"field":"transition","reason":"unimplemented_transition_rejected"})
-        if not owner["transitions_allowed"] and segment.get("transition")!="cut":
-            # Owner constraints do not turn into forced artistic defaults:
-            # the later strict validator rejects such proposals.
-            pass
+        if index>0 and not owner["transitions_allowed"] and segment.get("transition")!="cut":
+            # Owner explicitly requested no transitions. Do not render a
+            # stylistic substitution, and record why this effect was discarded.
+            segment["transition"]="cut"
+            adjustments.append({"segment":index,"field":"transition","reason":"owner_explicitly_requested_no_transitions"})
+        elif index>0 and segment.get("transition")=="dissolve" and owner["keep_source_audio"]:
+            # Xfade changes source-video length. Do not retime continuous
+            # dialogue/audio just to satisfy an optional transition style.
+            segment["transition"]="dip-to-black"
+            adjustments.append({"segment":index,"field":"transition","reason":"continuous_source_audio_takes_precedence"})
         text=segment.get("text")
         if text is not None and (
             not isinstance(text,str) or not 1<=len(text.strip())<=90
