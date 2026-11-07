@@ -49,7 +49,7 @@ def run():
     parts=[{'text':PROMPT}]
     for name,blob,_ in images:
         parts.extend([{'text':name},{'inline_data':{'mime_type':'image/jpeg','data':base64.b64encode(blob).decode()}}])
-    req={'contents':[{'role':'user','parts':parts}],'generationConfig':{'temperature':0.2,'maxOutputTokens':2800,'responseMimeType':'application/json'}}
+    req={'contents':[{'role':'user','parts':parts}],'generationConfig':{'temperature':0.2,'maxOutputTokens':7000,'responseMimeType':'application/json'}}
     if len(json.dumps(req))>12000000:raise RuntimeError('REQUEST_SIZE_LIMIT')
     response=None
     error_states=[]
@@ -71,7 +71,10 @@ def run():
         if response is not None:break
     if response is None:raise RuntimeError('FREE_FLASH_UNAVAILABLE')
     text=''.join(p.get('text','') for p in (response.get('candidates') or [{}])[0].get('content',{}).get('parts',[]))
-    obj=json.loads(text)
+    (OUT/'gemini_raw_response.txt').write_text(text)
+    print('GEMINI_OUTPUT_RECEIPT',json.dumps({'model':model,'response_chars':len(text),'finish_reason':(response.get('candidates') or [{}])[0].get('finishReason'),'usage':response.get('usageMetadata',{})}),flush=True)
+    try:obj=json.loads(text)
+    except json.JSONDecodeError as exc:raise RuntimeError('GEMINI_STRUCTURED_RESPONSE_INCOMPLETE') from None
     if obj.get('verdict') not in ('APPROVE','REVISE','REJECT') or not obj.get('findings'):raise RuntimeError('GEMINI_REVIEW_INVALID')
     receipt={'provider':'Google Gemini Developer API','model':model,'free_tier':'owner-attested','screenshots':[{'label':n,'sha256':sha} for n,_,sha in images],'usage':response.get('usageMetadata',{}),'response':obj,'website_changes':False,'timestamp_utc':datetime.datetime.now(datetime.timezone.utc).isoformat()}
     (OUT/'gemini_review.json').write_text(json.dumps(receipt,indent=2,ensure_ascii=False))
