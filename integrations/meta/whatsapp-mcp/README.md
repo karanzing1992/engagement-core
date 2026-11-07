@@ -1,4 +1,6 @@
-# Engagement Core — Meta WhatsApp MCP adapter (Phase 1, SOURCE ONLY)
+# META CORE — WhatsApp MCP Adapter (Phase 1, SOURCE ONLY)
+
+**Internal product/workstream name:** **META CORE**. This is the shared Meta-platform API/MCP integration layer owned by Engagement Core. Phase 1 supports official WhatsApp Business Cloud API; Instagram, Messenger and other Meta channels are future adapters, not implemented capabilities. META CORE is separate from **WACRM**, which remains the intended customer-facing WhatsApp CRM and source of truth. The name is internal only; it does not rename a Meta application, repository, existing deployed service, OAuth audience, or the upstream WBMCP package.
 
 A tenant-scoped **integration adapter**, not a replacement CRM, WhatsApp inbox, webhook receiver, WACRM broker, or standalone publicly registered MCP service.
 
@@ -35,7 +37,7 @@ const health = await meta.invoke({
 
 The example names `engagementCorePolicy`, `connectionVault`, and `serverVerifiedUser` are **integration contracts**, not implemented services. Do not deploy the snippet without their own authorization tests.
 
-## WACRM ownership boundary
+## META CORE and WACRM ownership boundary
 
 | Existing first-party component | Reused responsibility |
 | --- | --- |
@@ -43,7 +45,7 @@ The example names `engagementCorePolicy`, `connectionVault`, and `serverVerified
 | `moksha_wordpress/packages/wacrm-consumer/wacrm-consumer.php` | HMAC timestamp/body relay verification, WABA+phone matching, event idempotency and contacts/event storage |
 | Engagement Core WordPress source | Existing social engagement and scheduling, not a new CRM database |
 | Engagement CRM draft PR #73 | Future customer-site authoritative contacts, conversations, staff permissions and transactional outbox |
-| This WBMCP adapter | Agent-facing allowed official WhatsApp account/tool functions; never a second webhook receiver |
+| META CORE WhatsApp adapter (WBMCP-backed) | Agent-facing allowed official WhatsApp account/tool functions; never a second webhook receiver |
 
 The WACRM Consumer launch safety PR #52 remains draft/unmerged. **Do not connect existing business phone numbers** as part of this Phase 1 source delivery; preserve WhatsApp Business mobile-app coexistence.
 
