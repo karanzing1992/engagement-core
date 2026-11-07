@@ -10,7 +10,7 @@ import runner
 def main(job_id,*,live_models=False,groq_only=False):
  if os.environ.get("GITHUB_EVENT_NAME")!="issues" or os.environ.get("GITHUB_ACTOR")!="karanzing1992":
   raise RuntimeError("Owner-only synthetic QA event required")
- if not runner.GATEWAY.startswith("https://mad-v6-kv-private-beta."):
+ if not runner.GATEWAY.startswith("https://mad-v7-kv-private-beta."):
   raise RuntimeError("Unrecognized private KV test destination")
  work=Path(os.environ["RUNNER_TEMP"])/("mad-v6-seed-"+job_id)
  work.mkdir(mode=0o700,parents=True,exist_ok=True)

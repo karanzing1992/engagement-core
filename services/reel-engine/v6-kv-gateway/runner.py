@@ -17,7 +17,7 @@ import multimodel_filmcraft_bridge as multimodel
 import audio_library_v6 as licensed_audio
 from ffmpeg_frame_samples import extract as ffmpeg_frames
 
-GATEWAY="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev"
+GATEWAY="https://mad-v7-kv-private-beta.karanbizweb360.workers.dev"
 AUD="mad-v6-cloudflare-kv/1"
 CHUNK=4*1024*1024
 # Diagnostic output contains only fixed labels and allowlisted codes, never footage or provider data.
