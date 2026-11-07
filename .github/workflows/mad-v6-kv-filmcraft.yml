@@ -26,6 +26,7 @@ jobs:
       GEMINI_PROJECT_FREE_TIER_VERIFIED: "true"
       GEMINI_FREE_TIER_OWNER_ATTESTED_ON: "2026-11-07"
       GEMINI_INFERENCE_OWNER_APPROVED: "true"
+      MAD_V7_TXTAI_MICRO_RAG_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,6 +37,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install pinned open-source txtai Reel Micro-RAG for Python 3.12
+        run: python3 -m pip install --disable-pip-version-check -r services/reel-engine/v7-micro-rag/requirements.txt
+      - name: Test actual packaged txtai citation-backed retrieval
+        run: python3 services/reel-engine/v7-micro-rag/test_txtai_reel_guidance.py
       - name: Test isolated V6 KV gateway contract
         run: node --test services/reel-engine/v6-kv-gateway/test_kv_gateway.mjs
 
@@ -82,14 +87,14 @@ jobs:
           test -n "${REEL_ENGINE_KEY:-${GROQ_API_KEY:-}}"
           if [[ "$GITHUB_EVENT_NAME" == "issues" ]]; then
             if [[ "$QA_ISSUE_TITLE" == "[MAD-V6-LIVE-GROQ-AUDIO-QA] "* ]]; then
-              /usr/bin/python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID" --groq-only
+              python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID" --groq-only
             elif [[ "$QA_ISSUE_TITLE" == "[MAD-V6-LIVE-MULTIMODAL-AUDIO-QA] "* ]]; then
-              /usr/bin/python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID" --live-models
+              python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID" --live-models
             else
-              /usr/bin/python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID"
+              python3 services/reel-engine/v6-kv-gateway/synthetic_qa.py --job-id "$OWNER_JOB_ID"
             fi
           else
-            /usr/bin/python3 services/reel-engine/v6-kv-gateway/runner.py --job-id "$OWNER_JOB_ID"
+            python3 services/reel-engine/v6-kv-gateway/runner.py --job-id "$OWNER_JOB_ID"
           fi
       - name: No raw or finished videos enter GitHub Actions artifacts
         if: always()
