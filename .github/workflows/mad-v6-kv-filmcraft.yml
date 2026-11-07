@@ -2,6 +2,10 @@ name: MAD V6 KV FFmpeg Owner Runner
 on:
   issues:
     types: [opened]
+  pull_request:
+    paths:
+      - 'services/reel-engine/v6-kv-gateway/**'
+      - '.github/workflows/mad-v6-kv-filmcraft.yml'
   workflow_dispatch:
     inputs:
       job_id:
@@ -11,6 +15,28 @@ permissions:
   contents: read
   id-token: write
 jobs:
+  v7-reviewed-music-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check V7 selector, signed music gateway and old V6 contract
+        run: |
+          set -euo pipefail
+          python3 -m py_compile services/reel-engine/v6-kv-gateway/v7_auto_music.py services/reel-engine/v6-kv-gateway/runner.py
+          python3 services/reel-engine/v6-kv-gateway/test_v7_auto_music.py
+          node --check services/reel-engine/v6-kv-gateway/worker.mjs
+          node --test services/reel-engine/v6-kv-gateway/test_kv_gateway.mjs
   run-v6:
     if: github.event_name == 'workflow_dispatch' || (github.actor == github.repository_owner && github.event.issue.user.login == github.repository_owner && (startsWith(github.event.issue.title, '[MAD-V6-SYNTHETIC-QA] ') || (startsWith(github.event.issue.title, '[MAD-V6-LIVE-MULTIMODAL-AUDIO-QA] ') || startsWith(github.event.issue.title, '[MAD-V6-LIVE-GROQ-AUDIO-QA] '))))
     runs-on: ubuntu-24.04
