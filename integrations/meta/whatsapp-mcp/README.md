@@ -4,6 +4,16 @@
 
 A tenant-scoped **integration adapter**, not a replacement CRM, WhatsApp inbox, webhook receiver, WACRM broker, or standalone publicly registered MCP service.
 
+## Phase 1-C certification update (2026-11-07)
+
+The **actual pinned Dojo SDK and MCP packages** were installed on Dell using `npm ci` from a clean clone, with **26/26 tests passing**, including a simulated Graph API v26 template read via the real SDK. Explicitly added `@opentelemetry/api@1.9.0` after the Dojo SDK failed to import it despite marking that peer optional. The lockfile is committed and verified by SHA-256.
+
+**Security release blocker:** `npm audit --omit=dev --audit-level=high` reports **3 high** entries via the vulnerable Zod dependency chain ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)). Keep this a source-only draft; do not expose remote MCP tools or accept production traffic until a reviewed compatible mitigation passes independent QA.
+
+**WACRM source finding:** Central's route table holds activation/WABA/phone, state and encrypted relay secret; the present code returns an access token during signup but **does not store a durable, per-tenant access token for META CORE**. The new `src/wacrm-route-boundary.mjs` is a fail-closed integration contract, not an existing credential vault or an operational WACRM connection. WACRM's owning team/lane must supply trusted activation/owner mapping and credential custody before connected QA.
+
+See [full Phase 1-C certification](../../../docs/META_CORE_PHASE1C_CERTIFICATION_20261107.md).
+
 ## Phase 1-B decision — official Graph v26.0 path
 
 Current WACRM Central source defaults to **Graph API v26.0**. The originally selected WBMCP 0.1.3 SDK only accepts **v22.0–v24.0** (source verified in `src/config/constants.ts`). Its existing `src/adapter.mjs` is retained as a **legacy candidate** and now rejects missing or incompatible Graph versions rather than silently falling back to v24.
