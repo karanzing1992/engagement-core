@@ -32,6 +32,16 @@ Adapt the maintained first-party WACRM transport and the open-source WBMCP offic
 3. `test/adapter.test.mjs`: 8 synthetic contract/policy tests.
 4. `integrations/meta/whatsapp-mcp/README.md`: WACRM separation, host contract, future integration acceptance gates and rollback.
 
+## Phase 1-C — clean installed SDK and WACRM route boundary (2026-11-07)
+
+**Source evidence:** [META CORE Phase 1-C Certification](META_CORE_PHASE1C_CERTIFICATION_20261107.md).
+
+- Source includes a pinned `package-lock.json` from Dell; **fresh clean checkout at commit `7f61cc48d9191e61632e1a3d0f7cb0cda14a6d97`**, `npm ci --ignore-scripts`, all **26/26 tests PASS** on Node v24.22.0. Lockfile SHA-256: `a527bbe7969a7567f077fa536c80de912fa65c891076534446c7b752ff26f885`.
+- Installed Dojo v26 SDK/MCP successfully performs **mock-only Graph v26 template reads**; rejects unauthorized principals and attempts to send. `@opentelemetry/api@1.9.0` is explicitly added because the upstream module requires it at import time, despite optional peer metadata.
+- Added `src/wacrm-route-boundary.mjs` (trusted Central activation/WABA/phone and credential-binding interface) and negative tests. **No actual Central token vault was found in current WACRM main**; its Meta token is returned during signup but not durably stored in the route table. The `resolveCredential` hook is intentionally **unimplemented** and requires a separately reviewed WACRM implementation.
+- **SECURITY NO-GO:** npm audit reports three high affected entries via Zod [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5); no compatible fix verified. Do not merge/deploy/activate remote MCP until vulnerability is remediated and independently checked.
+- No Meta production API call, real customer conversation, Meta app/phone change, GitHub default-branch merge, or Master event published.
+
 ## Phase 1-B — 2026-11-07 source-verified compatibility and security increment
 
 **Finding:** Current first-party WACRM Central code defaults to **Meta Graph API v26.0**. Pinned WBMCP 0.1.3 upstream `src/config/constants.ts` only lists `v22.0`, `v23.0` and `v24.0`. The original META CORE adapter is therefore not suitable for the current WACRM v26 tenant without an intentional SDK change. It now **fails closed** with `graph_version_mismatch`, including when Graph version is omitted, instead of using the older default.
