@@ -205,7 +205,7 @@ def _source_meta(track:dict,opener=None)->dict:
         raise AutoLicenseBlocked("COMMONS_TITLE_INVALID")
     params=urllib.parse.urlencode({
         "action":"query","format":"json","titles":title,
-        "prop":"imageinfo","iiprop":"url|mediatype|extmetadata|mime|size|sha1"})
+        "prop":"imageinfo|categories","cllimit":"max",\n        "iiprop":"url|mediatype|extmetadata|mime|size|sha1"})
     api="https://commons.wikimedia.org/w/api.php?"+params
     _url(api,"commons.wikimedia.org")
     try:
@@ -213,6 +213,17 @@ def _source_meta(track:dict,opener=None)->dict:
         pages=list(obj["query"]["pages"].values())
         if len(pages)!=1 or pages[0].get("title","").replace("_"," ")!=title:
             raise AutoLicenseBlocked("SOURCE_FILE_MISMATCH")
+        # Commons originals imported from other platforms can claim CC BY before
+        # an independent Commons reviewer confirms the upstream license.
+        # Read hidden review categories in the *same* canonical API response.
+        # No categories / incomplete category pagination is not proof of review.
+        categories=pages[0].get("categories")
+        if not isinstance(categories,list) or not categories or "continue" in obj:
+            raise AutoLicenseBlocked("SOURCE_LICENSE_REVIEW_UNKNOWN")
+        if any(re.search(r"license review needed|copyright violation|license dispute|possibly unfree",
+                         str(cat.get("title","")),re.I) for cat in categories
+               if isinstance(cat,dict)):
+            raise AutoLicenseBlocked("SOURCE_LICENSE_REVIEW_PENDING")
         info=pages[0]["imageinfo"][0]
     except (KeyError,IndexError,ValueError,TypeError) as exc:
         if isinstance(exc,AutoLicenseBlocked):raise
