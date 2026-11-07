@@ -94,7 +94,7 @@ def token():
  bearer=os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN","")
  if not uri.startswith("https://") or not bearer:raise ValueError("GitHub runner OIDC missing")
  join="&" if "?" in uri else "?"
- req=Request(uri+join+urlencode({"audience":AUD}),headers={"Authorization":"[REDACTED]
+ req=Request(uri+join+urlencode({"audience":AUD}),headers={"Authorization":"Bearer "+bearer,"Accept":"application/json"})
  with urlopen(req,timeout=15) as res:value=json.load(res).get("value")
  if not isinstance(value,str) or value.count(".")!=2:raise ValueError("Invalid short-lived signed identity")
  return value
@@ -103,7 +103,7 @@ def call(path,identity,method="POST",claim=None,payload=None,data=None,digest=No
   raise ValueError("Disallowed private runner endpoint or ambiguous payload")
  method=method.upper()
  content=json.dumps(payload,separators=(",",":")).encode() if payload is not None else data
- headers={"Authorization":"[REDACTED]
+ headers={"Authorization":"Bearer "+identity,"User-Agent":"MAD-V6-Private-KV-FFmpeg"}
  if claim:headers["X-V6-Claim"]=claim
  if digest:headers["X-Chunk-SHA256"]=digest
  if content is not None:headers["Content-Type"]="application/json" if payload is not None else "application/octet-stream"
