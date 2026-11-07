@@ -2,7 +2,27 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import {DatabaseSync} from "node:sqlite";
 import {createHash,webcrypto} from "node:crypto";
-import worker from "./worker.mjs";
+import worker,{validAutoSourceMusicReceipt} from "./worker.mjs";
+test("signed auto music receipt admits only official Commons original-license proof and TASL",()=>{
+ const sha="a".repeat(64);
+ const audio={mode:"licensed_music",automatic_source_verified:true,
+  verification_method:"commons_api_live",attribution_in_manifest:true,published:false,
+  license:"by",title:"Sunrise",creator:"Recorded Artist",
+  license_url:"https://creativecommons.org/licenses/by/4.0/",
+  source:"https://commons.wikimedia.org/wiki/File:Sunrise.ogg",
+  media_url:"https://upload.wikimedia.org/wikipedia/commons/1/12/Sunrise.ogg",
+  credit_text:"Sunrise — Recorded Artist | CC BY 4.0 | https://creativecommons.org/licenses/by/4.0/ | https://commons.wikimedia.org/wiki/File:Sunrise.ogg",
+  sha256:sha,discovery:{used_in_render:true}};
+ const base={audio_library:audio,music_sha256:sha,audio_mode:"licensed_music",music_mixed:true};
+ assert.equal(validAutoSourceMusicReceipt(base),true);
+ assert.equal(validAutoSourceMusicReceipt({...base,audio_library:{...audio,media_url:"https://attacker.example/x.mp3"}}),false);
+ assert.equal(validAutoSourceMusicReceipt({...base,audio_library:{...audio,license:"by-sa"}}),false);
+ assert.equal(validAutoSourceMusicReceipt({...base,audio_library:{...audio,attribution_in_manifest:false}}),false);
+ assert.equal(validAutoSourceMusicReceipt({...base,music_sha256:"b".repeat(64)}),false);
+ assert.equal(validAutoSourceMusicReceipt({...base,audio_library:{...audio,source:"https://commons.wikimedia.org.evil.invalid/wiki/File:Sunrise.ogg"}}),false);
+ assert.equal(validAutoSourceMusicReceipt({...base,audio_library:{...audio,verification_method:"catalog_only"}}),false);
+});
+
 const origin="https://mad-v6-owner-private-beta.pages.dev";
 const base="https://mad-v6-kv-private-beta.karanbizweb360.workers.dev";
 const owner="Bearer nk-"+("a".repeat(40));

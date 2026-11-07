@@ -38,7 +38,7 @@ class DiscoveryContract(unittest.TestCase):
             return {"candidates":[candidate()] if term=="ambient" else []}
         out=d.discover("gentle wellness sauna","a calm breath",search,
               lambda model,prompt,**kw:{"id":"a"*32},guidance="Source: Openverse")
-        self.assertEqual(out["status"],"review_required")
+        self.assertEqual(out["status"],"source_check_required")
         self.assertEqual(out["selection"],"groq_120b")
         self.assertFalse(out["used_in_render"])
         self.assertEqual(out["selected"]["id"],"a"*32)
@@ -51,7 +51,7 @@ class DiscoveryContract(unittest.TestCase):
             calls.append(kwargs["provider"])
             return {"candidates":[candidate()] if kwargs["provider"]=="wikimedia" else []}
         out=d.discover("silent meditation","peace",search,lambda *x,**y:{"id":"a"*32})
-        self.assertEqual(out["status"],"review_required")
+        self.assertEqual(out["status"],"source_check_required")
         self.assertEqual(calls,["openverse","openverse","wikimedia"])
 
     def test_noncommercial_and_sharealike_not_shortlisted(self):

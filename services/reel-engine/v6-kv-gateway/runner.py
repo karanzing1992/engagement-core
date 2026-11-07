@@ -19,6 +19,7 @@ import multimodel_filmcraft_bridge as multimodel
 import audio_library_v6 as licensed_audio
 import v7_auto_music as auto_music
 import v7_music_discovery as music_discovery
+import v7_verified_source as source_music
 import music_provider
 import txtai_reel_guidance as reel_rag
 from ffmpeg_frame_samples import extract as ffmpeg_frames
@@ -295,13 +296,37 @@ def run(job_id,*,fixture=False):
       possible.unlink(missing_ok=True)
     if music is None:
      audio_receipt["automatic_selection"]={**decision,"state":"no_usable_reviewed_track"}
-     # AI search may recommend Openverse/Commons but never auto-clears rights.
-     # Actual FFmpeg mix remains strictly SHA-verified and reviewer-approved.
+     # Owner-authorized automatic source checks (not blanket Openverse trust):
+     # the original Commons file API must independently agree with the search
+     # license, then private source audio bytes are probed and SHA-pinned.
      try:
       leads=music_discovery.discover(claim["brief"],plan["hook"],
        music_provider.search,multimodel.groq_call,
-       guidance=knowledge.get("music_search",{}).get("context",""))
+       guidance=knowledge.get("music_search",{}).get("context",""),
+       internal=True)
+      pool=leads.pop("_candidate_pool",[])
       audio_receipt["discovery"]=leads
+      if os.environ.get("MAD_V7_AUTO_SOURCE_MUSIC_ENABLED","false")=="true":
+       for candidate in pool[:4]:
+        try:
+         verified=source_music.admit(candidate,work,duration_needed,
+           probe=ffmpeg_editor.probe)
+         music=verified["path"]
+         rights=verified["rights"]
+         audio_receipt={**verified["provenance"],
+            "mode":"licensed_music","licensed_track":True,
+            "music_mixed":True,"composed_audio":False,
+            "automatic_source_verified":True,
+            "discovery":{**leads,"used_in_render":True}}
+         break
+        except (source_music.AutoLicenseBlocked,ffmpeg_editor.RenderBlocked,
+                ValueError,RuntimeError):
+         # Never use indexed track without a matching original source and
+         # a valid duration/codecs. No arbitrary provider downloads.
+         continue
+      if music is None:
+       audio_receipt["discovery"]={**leads,
+        "status":"no_eligible_original_source_or_media","used_in_render":False}
      except Exception:
       audio_receipt["discovery"]={"status":"unavailable",
        "rights_status":"DISCOVERY_ONLY_UNVERIFIED","used_in_render":False}

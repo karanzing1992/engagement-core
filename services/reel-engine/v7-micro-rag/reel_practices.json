@@ -1,6 +1,6 @@
 {
   "name": "MAD_V7_REEL_BEST_PRACTICES",
-  "version": "2026-11-07.2",
+  "version": "2026-11-07.3",
   "scope": "reel_making_best_practices_only",
   "license_note": "Curated short original guidance informed by linked first-party/official sources; do not treat any passage as policy higher than owner consent or verified footage.",
   "items": [
@@ -496,7 +496,7 @@
         "director",
         "reviewer"
       ],
-      "text": "An audio search result is only a suggestion. Verify the recording's original source page, its composition and master recording reuse rights, allowed license, creator credit, any platform constraints and evidence of approval before treating it as usable audio.",
+      "text": "Treat Openverse and Wikimedia Commons as searchable open-license sources, with no manual per-track review by default. Before actual use automatically recheck the original file's current license, author, commercial/adaptation permission and any explicit conflict; skip records without machine-checkable source evidence.",
       "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/experiments/reel-engine-v5/music_provider.py",
       "source_title": "MAD V5 Open-Licensed Music Provider"
     },
@@ -507,7 +507,7 @@
         "director",
         "reviewer"
       ],
-      "text": "AI may propose one discovered external soundtrack by exact allowlisted source ID, but recommendation status is REVIEW_REQUIRED. It cannot grant rights, download unverified audio, fake a review receipt or bypass V6's independent evidence gate.",
+      "text": "Groq may select one exact allowlisted source ID; its recommendation cannot grant rights. Automatically check the original Commons file API, CC0/PDM/CC BY terms, credit and media SHA before mixing. Reject contradictory license, provider restrictions, URLs or file metadata.",
       "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/services/reel-engine/v6-kv-gateway/v7_auto_music.py",
       "source_title": "MAD V7 Reviewed Music Selector"
     },
@@ -518,7 +518,7 @@
         "director",
         "reviewer"
       ],
-      "text": "For a final reel, choose an exact SHA256 from the owner-private, independently cleared V6 recording catalog. If that catalog is empty, retain source ambience and include a shortlist for rights review; never auto-promote discovery metadata to a cleared track.",
+      "text": "Prefer a pre-cleared owner-private SHA recording when available. Otherwise V7 may automatically use a new Openverse-discovered Commons recording or direct Wikimedia Commons file after current original-file API corroboration and secure audio probe. Keep unsupported source hosts as recommendations.",
       "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/services/reel-engine/v6-kv-gateway/v7_auto_music.py",
       "source_title": "MAD V7 Reviewed Music Selector"
     },
@@ -539,7 +539,7 @@
         "director",
         "reviewer"
       ],
-      "text": "Before FFmpeg use, independently recheck approved audio bytes against SHA256, sufficient duration, readable codec and the original V6 rights evidence; mix the complete licensed recording with bounded gain, natural fades and full-length audio verification.",
+      "text": "Use a private, bounded HTTPS fetch only from a checked official original media URL; verify byte count, audio codec, duration and SHA before FFmpeg mixing. Provide complete CC BY Title/Author/Source/License attribution with the private delivery manifest; never auto-post.",
       "source_url": "https://github.com/karanzing1992/engagement-core/blob/main/services/reel-engine/v6-kv-gateway/v7_auto_music.py",
       "source_title": "MAD V7 Reviewed Music Selector"
     },
@@ -550,7 +550,7 @@
         "research",
         "reviewer"
       ],
-      "text": "Do not treat Instagram's in-app song selection or Openverse indexing as a transferable license to bake that track into a separately rendered commercial Reel. The publication rights for both composition and recording remain separate checks.",
+      "text": "Neither an Openverse index result nor an Instagram in-app sound option guarantees transferable commercial music rights. Respect source conflicts and track-specific restrictions even under the owner's default opt-in for source-verified open-license use.",
       "source_url": "https://about.fb.com/news/2020/08/introducing-instagram-reels/",
       "source_title": "Official Instagram Reels Introduction"
     },

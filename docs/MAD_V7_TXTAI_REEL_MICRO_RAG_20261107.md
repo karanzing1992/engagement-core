@@ -63,3 +63,25 @@ The existing Dell LiteRAG is intentionally **not** a runtime dependency: V7 must
 - CI contract requires real pinned txtai index build/reload and grounded retrieval, source discovery with an offline stub, poison candidate and approval bypass rejection, and **real synthetic test audio** processed through SHA approval, V6 rights admission, licensed FFmpeg mix, V7 mastering and full A/V ffprobe/decode. The disposable synthetic tone is only a test fixture, never owner music.
 - Meta's documented API limits are not guarantees of publishing eligibility or improved reach. Keep mobile-safe text, actual footage and separate real listening/artistic acceptance gates.
 - **Rollback:** revert this PR; retains previous 43-item corpus and original V7 approved-soundtrack selector. Public publishing stays disabled.
+
+
+## 2026-11-07.3 — Owner default: automatic source-verified open-license music
+
+**Owner instruction:** new music discovered through Openverse or Wikimedia Commons should normally be usable without manual per-track approval, unless the specific work's source, license or restrictions say otherwise.
+
+**Implementation boundary:** Openverse aggregates third-party metadata and expressly disclaims independent license verification. Wikimedia Commons asks reusers to verify the individual file; this release honors the owner's preferred *automatic workflow*, while substituting live machine verification for manual reviewer attestation. "Automatic verification" is not a guarantee of copyright ownership. Refer to:
+- https://docs.openverse.org/terms_of_service
+- https://commons.wikimedia.org/wiki/Commons:Reusing_content_outside_Wikimedia/en
+- https://creativecommons.org/licenses/by/4.0/deed.en
+
+**New automatic use flow:**
+1. Existing Groq V7 music curator selects candidates from existing V5 Openverse and Wikimedia Commons official search APIs; dedicated NeuML txtai BM25 music retrieval now describes the new source verification policy (corpus 2026-11-07.3).
+2. Previously owner-cleared SHA256 music in private KV retains first priority.
+3. If empty, the owner-private GitHub runner searches both sources. Auto-admission currently covers **original Commons audio files** with original Commons URLs, whether discovered through Wikimedia search or indexed in Openverse. Other Openverse third-party hosts (Jamendo/Freesound/etc.) remain discovery-only until host-specific original-rights verification is certified; being listed by Openverse alone is not sufficient.
+4. Live MediaWiki `action=query&prop=imageinfo` independently rechecks the original file title, audio media type, current license and license URL, named creator, any explicit restrictions, canonical direct upload URL and byte length. Allow CC0 / Public Domain Mark / CC BY only; reject BY-SA, NC, ND, unsupported licenses, mismatches, warnings, missing creator or other explicit limitations. Only read `upload.wikimedia.org/wikipedia/commons/` over HTTPS; no off-host redirect, unsafe media host or arbitrary model URL.
+5. Download a **max 16 MiB** recording exclusively into the job's private ephemeral directory. Validate byte count, codec, minimum edited duration and SHA256; use the existing FFmpeg renderer and V7 master. No persistent catalog promotion or generated music is needed.
+6. Keep **automatic-source** evidence distinct from `human_verified` in FFmpeg, model receipt and the private Cloudflare Worker; new signed receipt gate binds SHA, checked original Commons file URL, official media URL, license, creator and Title/Author/Source/License (TASL) attribution. CC BY caption credit is carried for later owner-approved publication. Runner receives no publishing authority.
+7. Preserve reviewed per-job audio override, owner auth, OIDC lease, sensitive media separation, private 30-minute preview and existing shutdown/expiry. `MAD_V7_AUTO_SOURCE_MUSIC_ENABLED=true` enables this in the signed V7 runner, and `false` reverts to the previously certified reviewed-private-library-only behavior.
+
+**QA:** PR checks must run actual Python admission-negative tests, simulated Commons API evidence, malicious URL/redirect/licensing restrictions tests, exact media hash and verified duration tests, signed Worker receipt allow/deny tests and the synthetic-source FFmpeg/V7 real audio-video decode. Production source deployment and live licensed-music artistic listening are **separate** gates. Do not label all discovered Openverse audio legally verified.
+
