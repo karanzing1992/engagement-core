@@ -1,29 +1,14 @@
-name: MAD V6 | Owner Private Gateway Security Tests
+# LEGACY REEL ENGINE WORKFLOW RETIRED 2026-11-07: V7 exclusive.
+# Original blob SHA cd9da88231816a464bbbc3615971bf93846ab9ea, retrievable from Git history; no data deleted.
+# V7 signed OIDC path mad-v6-kv-filmcraft.yml and V7-dependent KV CI are PROTECTED.
+name: DEPRECATED | mad-v6-private-gateway-ci.yml
 on:
-  push:
-    branches: [feature/reel-engine-v6-gemini-pro-filmcraft-20261106]
-    paths:
-      - services/reel-engine/v6-private-gateway/**
-      - .github/workflows/mad-v6-private-gateway-ci.yml
-  pull_request:
-    paths:
-      - services/reel-engine/v6-private-gateway/**
-      - .github/workflows/mad-v6-private-gateway-ci.yml
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  owner-gateway:
+  retired:
+    if: ${{ false }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Strict 30-minute expiry, private repository, CORS, owner isolation and music catalog
-        run: node --test services/reel-engine/v6-private-gateway/test_gateway.mjs
+      - run: echo 'Standalone legacy V6 Reel Engine workflow retired; use V7.'
