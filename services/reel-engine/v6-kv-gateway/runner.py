@@ -16,6 +16,7 @@ from ffmpeg_v7_cinema import finish as v7_finish,preset_for as v7_preset_for,V7B
 import backend_selection
 import multimodel_filmcraft_bridge as multimodel
 import audio_library_v6 as licensed_audio
+import v7_auto_music as auto_music
 import txtai_reel_guidance as reel_rag
 from ffmpeg_frame_samples import extract as ffmpeg_frames
 
@@ -106,7 +107,7 @@ def call(path,identity,method="POST",claim=None,payload=None,data=None,digest=No
   with urlopen(req,timeout=80) as res:
    body=res.read(CHUNK+8192)
    if len(body)>CHUNK+4096:raise ValueError("Signed gateway response exceeded allowed size")
-   if method=="GET" and ("/source/" in path or path.endswith("/music")):return body
+   if method=="GET" and ("/source/" in path or path.endswith("/music") or "/music-library/" in path):return body
    return json.loads(body)
  except HTTPError as e:
   raise RuntimeError("Signed V6 KV endpoint rejected "+str(e.code)) from None
@@ -246,6 +247,50 @@ def run(job_id,*,fixture=False):
       "license":claim["music_track"]["license"],
       "source":claim["music_track"]["original_source_page"],
       "attribution_required":claim["music_track"]["license"]=="by"}
+  elif claim.get("audio_mode")=="source_ambience_only":
+   # Job-specific approved music always wins. Otherwise the V7 AI picks only
+   # from V5/V6 reviewer-cleared recordings in owner-private Cloudflare KV.
+   # Synthetic CI stays source-only to preserve deterministic rights evidence.
+   if not synthetic:
+    items=call("/internal/v6/jobs/"+job_id+"/music-library",identity,
+               method="GET",claim=lease)
+    preferred,decision=auto_music.choose(items.get("tracks",[]),
+       claim["brief"],plan["hook"],multimodel.groq_call)
+    audio_receipt["automatic_selection"]=decision
+    duration_needed=sum(round(float(c["seconds"])*30)/30 for c in plan["cuts"])
+    for index,entry in enumerate(preferred[:4]):
+     ext={"audio/mpeg":"mp3","audio/wav":"wav","audio/ogg":"ogg",
+          "audio/flac":"flac","audio/mp4":"m4a"}.get(entry["mime"])
+     if not ext:continue
+     possible=work/("approved-music."+ext)
+     try:
+      content=call("/internal/v6/jobs/"+job_id+"/music-library/"+entry["sha256"],
+                   identity,method="GET",claim=lease)
+      if len(content)!=entry["bytes"] or hashlib.sha256(content).hexdigest()!=entry["sha256"]:
+       raise RuntimeError("Reviewed music bytes did not match private index")
+      possible.write_bytes(content)
+      if ffmpeg_editor.probe(possible,require_video=False)["duration"] < duration_needed-.1:
+       raise RuntimeError("Reviewed soundtrack shorter than selected edit")
+      admitted=licensed_audio.admit(entry["track"],entry["evidence"],
+                                    possible,entry["sha256"])
+      music=possible
+      rights=admitted["filmcraft_rights"]
+      rights["attribution_approved"]=entry["evidence"].get("attribution_approved") is True
+      audio_receipt={"mode":"licensed_music","licensed_track":True,
+       "music_mixed":True,"composed_audio":False,"sha256":entry["sha256"],
+       "title":entry["track"]["title"],"creator":entry["track"]["creator"],
+       "license":entry["track"]["license"],
+       "source":entry["track"]["original_source_page"],
+       "attribution_required":entry["track"]["license"]=="by",
+       "automatic_selection":{**decision,
+          "actual_selection":"ai_first_choice" if index==0 and decision["selection"]=="groq_120b"
+           else "ranked_eligible_recovery","sha256":entry["sha256"]}}
+      break
+     except (RuntimeError,ValueError,licensed_audio.AudioBlocked,
+             ffmpeg_editor.RenderBlocked):
+      possible.unlink(missing_ok=True)
+    if music is None:
+     audio_receipt["automatic_selection"]={**decision,"state":"no_usable_reviewed_track"}
   elif claim.get("audio_mode")!="source_ambience_only":
    raise RuntimeError("Unknown audio mode")
   mark("ffmpeg_render")
@@ -254,7 +299,7 @@ def run(job_id,*,fixture=False):
     "workdir":str(work),"output":str(out),
     "cuts":plan["cuts"],"operations":plan["operations"],"hook":plan["hook"],
     "music":str(music) if music else None,
-    "music_sha256":claim.get("music_sha256") if music else None,
+    "music_sha256":sha(music) if music else None,
     "music_rights":rights,
     "width":1080,"height":1920,"fps":30}
   spec["v7_preset"]=v7_preset_for(claim["brief"])
