@@ -4,6 +4,18 @@
 
 A tenant-scoped **integration adapter**, not a replacement CRM, WhatsApp inbox, webhook receiver, WACRM broker, or standalone publicly registered MCP service.
 
+## Phase 1-B decision — official Graph v26.0 path
+
+Current WACRM Central source defaults to **Graph API v26.0**. The originally selected WBMCP 0.1.3 SDK only accepts **v22.0–v24.0** (source verified in `src/config/constants.ts`). Its existing `src/adapter.mjs` is retained as a **legacy candidate** and now rejects missing or incompatible Graph versions rather than silently falling back to v24.
+
+**Preferred v26 candidate:** [DojoCodingLabs/whatsapp-adapter](https://github.com/DojoCodingLabs/whatsapp-adapter), `@dojocoding/whatsapp-sdk` **0.10.0** and `@dojocoding/whatsapp-mcp` **0.5.0**, both MIT licensed in repository source, with an embedded `createWhatsAppToolset` and `GRAPH_API_VERSION = "v26.0"`.
+
+- `src/dojo-v26.mjs` is a narrow, server-only **read adapter** for exactly three Dojo MCP tools: `whatsapp_list_templates`, `whatsapp_get_template`, and `whatsapp_get_media_info`. All sending, uploads, read acknowledgements, phone lifecycle and subscription operations remain **inaccessible**.
+- Must be hosted beside the authorized **WACRM Central** connection vault, not in a browser or the Consumer WordPress plugin. Never expose WACRM's Meta app secret to a consumer site.
+- It does not yet provide live outbound messages or a remote HTTP MCP endpoint; future WACRM consent, outbox, retries and signed webhooks are the single customer-message flow.
+- The 2026-11-07 local synthetic Node suite: **18/18 PASS** across legacy-v24 guard and Dojo-v26 read candidate. SDK factories were mocked, so **no third-party SDK was installed or executed** and **no real Meta request was made**.
+- External npm registry requests from the isolated test container timed out. A reproducible `package-lock.json`, actual upstream installed-package compatibility, npm provenance/advisories, Dojo mock transport tests and WACRM sandbox integration remain **open gates**. Do not claim installed SDK parity from source inspection.
+
 ## What exists
 
 - Uses the existing upstream [WBMCP](https://github.com/saravanaspar/WBMCP) SDK, pinned to source package version **0.1.3**, to access the **official WhatsApp Business Cloud API**. No WhatsApp Web/session emulation.
@@ -56,14 +68,14 @@ cd integrations/meta/whatsapp-mcp
 node --test test/*.test.mjs
 ```
 
-The test suite has no network access and injects a synthetic SDK implementation. Recorded sandbox result: **8/8 PASS on Node v22.16.0, 2026-11-07**. This certifies adapter policy behavior with mocks **only**; it does not validate the installed WBMCP package, Graph version parity, webhook delivery, real credentials, OAuth, Meta approval scope or production sending.
+The test suites have no network access and inject synthetic SDK implementations. Recorded sandbox result: **18/18 PASS on Node v22.16.0, 2026-11-07** (11 WBMCP adapter + 7 Dojo read candidate). This certifies adapter policy behavior with mocks **only**; it does not validate the installed WBMCP package, Graph version parity, webhook delivery, real credentials, OAuth, Meta approval scope or production sending.
 
 Before a connected test, verify package registry provenance and install pinned package from a reviewed lockfile; check its real `readOnly` and `dryRun` controls in a provider-less test. WBMCP source shows the `readOnly` guard preceding the dangerous-tool execution; this is why preview calls use a separate SDK configuration. The allowlist and forced dry-run are the outer guard. Never open a direct public call-through to the entire WBMCP tool catalog.
 
 ## Non-negotiable next gates
 
 1. Direct Meta approval + exact scope + phone/coexistence verified. No re-pair/migration/register/deregister.
-2. Test real pinned upstream SDK offline; verify deny-without-dryRun, preview only, and error sanitization.
+2. Generate verified npm lockfile and test real pinned Dojo SDK 0.10.0 / MCP 0.5.0 in an offline fake-transport mode. Confirm v26 path, read-only exports, schemas and auth errors. Legacy WBMCP is v24-only and stays blocked on WACRM v26.
 3. Connect to the **existing** WACRM owner/tenant connection vault through a reviewed, narrowly scoped adapter; ensure WACRM and WordPress source-of-truth remain separate from this SDK.
 4. Preserve and certify existing webhook signatures, durable per-tenant retries, echo/status/media history and dead-letter/replay semantics.
 5. Build only the **WACRM-owned** consent + audited outbox send workflow, with human approvals and WhatsApp policy checks. Do not add send to this adapter without a separate reviewed owner release.
@@ -78,4 +90,4 @@ Before a connected test, verify package registry provenance and install pinned p
 - New dependencies: none installed in production. Node >=20 required for future adapter host. Local synthetic tests cost no API calls. **Meta messaging and hosting are not inherently free**; any chargeable production use needs separate approval and spending controls.
 - Rollback: do not merge this draft; if future integration fails, disable/unmount the adapter without changing phone registrations, webhooks, CRM tables or the current WACRM relay.
 
-**Status:** SOURCE_ONLY / MOCK_QA_8_OF_8 / CONNECTED_QA_PENDING / PRODUCTION_NO_GO.
+**Status:** SOURCE_ONLY / MOCK_QA_18_OF_18 / DOJO_V26_CANDIDATE / INSTALLED_SDK_QA_PENDING / CONNECTED_QA_PENDING / PRODUCTION_NO_GO.
