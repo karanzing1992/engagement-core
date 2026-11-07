@@ -18,6 +18,47 @@ const numberIdPattern = /^\d{6,64}$/;
 
 function denied(code, message) { return { ok: false, error: { code, message } }; }
 
+// Bounded structural ingress before auth and SDK/Zod parsing; no JSON stringify
+// of untrusted, potentially huge or cyclic structures.
+function boundedArgs(root) {
+  const stack = [{ value: root, depth: 0 }];
+  const seen = new WeakSet();
+  let visited = 0;
+  try {
+    while (stack.length > 0) {
+      const { value, depth } = stack.pop();
+      if (++visited > 256 || depth > 8) return false;
+      if (value === null || typeof value === 'boolean') continue;
+      if (typeof value === 'string') {
+        if (value.length > 8192) return false;
+        continue;
+      }
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value)) return false;
+        continue;
+      }
+      if (typeof value !== 'object' || seen.has(value)) return false;
+      seen.add(value);
+      if (Array.isArray(value)) {
+        if (value.length > 128) return false;
+        for (const item of value) stack.push({ value: item, depth: depth + 1 });
+        continue;
+      }
+      const proto = Object.getPrototypeOf(value);
+      if (proto !== Object.prototype && proto !== null) return false;
+      const keys = Object.keys(value);
+      if (keys.length > 32) return false;
+      for (const key of keys) {
+        if (key.length > 64 || key === '__proto__' || key === 'constructor' || key === 'prototype') return false;
+        const d = Object.getOwnPropertyDescriptor(value, key);
+        if (!d || !Object.hasOwn(d, 'value')) return false;
+        stack.push({ value: d.value, depth: depth + 1 });
+      }
+    }
+  } catch (_) { return false; }
+  return true;
+}
+
 function configFor(connection) {
   if (!connection || typeof connection !== 'object' || Array.isArray(connection)) {
     throw new Error('No configured tenant connection');
@@ -59,7 +100,7 @@ export function createMetaCoreDojoReadAdapter({ authorizeTenant, resolveConnecti
     async invoke({ principal, tenantId, toolName, args = {} } = {}) {
       if (!allowed.has(toolName)) return denied('tool_not_allowed', 'This META CORE tool is not enabled');
       if (typeof tenantId !== 'string' || !tenantPattern.test(tenantId)) return denied('forbidden', 'Tenant authorization failed');
-      if (!args || typeof args !== 'object' || Array.isArray(args)) return denied('invalid_input', 'Tool arguments must be an object');
+      if (!args || typeof args !== 'object' || Array.isArray(args) || !boundedArgs(args)) return denied('invalid_input', 'Tool arguments exceed safe bounds');
       try {
         if (await authorizeTenant(principal, tenantId, toolName) !== true) {
           return denied('forbidden', 'Tenant authorization failed');
