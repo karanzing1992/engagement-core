@@ -104,6 +104,20 @@ class DiscoveryContract(unittest.TestCase):
         self.assertEqual(out["_candidate_pool"][0]["id"],commons["id"])
         self.assertEqual(len(out["_candidate_pool"]),8)
 
+    def test_fifth_candidate_still_reaches_original_license_check(self):
+        # Real Commons ambient API: first four leads failed independent source
+        # admission, fifth passed. 4-item truncation silently forced ambience.
+        cases=[candidate(i=(str(k)*32)[:32]) for k in range(1,9)]
+        attempted=[]
+        for item in d.auto_admission_candidates(cases):
+            attempted.append(item["id"])
+            if len(attempted)==5:
+                break
+        self.assertEqual(len(attempted),5)
+        self.assertEqual(attempted[4],cases[4]["id"])
+        self.assertEqual(len(d.auto_admission_candidates(cases+[candidate(i="9"*32)])),8)
+        self.assertEqual(d.auto_admission_candidates(None),[])
+
     def test_preapproved_catalog_is_separate_from_discovery(self):
         unreviewed=candidate()
         self.assertEqual(auto.eligible([unreviewed]),[])

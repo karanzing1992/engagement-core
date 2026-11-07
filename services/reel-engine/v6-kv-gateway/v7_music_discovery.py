@@ -56,6 +56,18 @@ def _candidate(item:object)->dict|None:
         "source_media_url":item.get("source_media_url","") if _https(item.get("source_media_url","")) else "",
         "source":item["source"],"provider":item.get("provider","")}
 
+def auto_admission_candidates(pool:object)->list[dict]:
+    """Bounded, ordered license-recheck queue (not only the first four items).
+
+    Real source QA found the fifth Commons candidate was the first license-valid
+    recording. Checking only four therefore silently lost legitimate music.
+    All eight allowlisted leads may be tried, never arbitrary URLs.
+    """
+    if not isinstance(pool,list):
+        return []
+    return [t for t in pool[:MAX_CANDIDATES] if _candidate(t) is not None]
+
+
 def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:bool=False)->dict:
     """Search V5 public metadata, then ask Groq to pick a REVIEW_REQUIRED lead.
 
