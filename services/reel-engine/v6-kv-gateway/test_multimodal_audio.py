@@ -24,7 +24,7 @@ class IntegrationTests(unittest.TestCase):
      '{"observations":[{"shot_id":"s1","visible":"abstract geometry"}],'
      '"research_scope":"Source imagery and approved human description only"}'}]}}]}
   models={"models":[{"name":"models/gemini-3.8-flash","supportedGenerationMethods":["generateContent"]}]}
-  with patch.dict(os.environ,{"GEMINI_API_KEY":"synthetic-test","GEMINI_INFERENCE_OWNER_APPROVED":"true"},clear=False),patch.object(mm,"discover_models",return_value=models),patch.object(mm,"post_json",side_effect=call):
+  with patch.dict(os.environ,{"GEMINI_API_KEY":"synthetic-test","GEMINI_INFERENCE_OWNER_APPROVED":"true","GEMINI_PROJECT_FREE_TIER_VERIFIED":"true"},clear=False),patch.object(mm,"discover_models",return_value=models),patch.object(mm,"post_json",side_effect=call):
    model,result=mm.gemini_research(SOURCE,"Make a cinematic generic product montage.",approved_api_cost=True,frames=[FRAME])
   self.assertEqual(model,"gemini-3.8-flash")
   parts=captured[0][1]["contents"][0]["parts"]
@@ -64,7 +64,7 @@ class IntegrationTests(unittest.TestCase):
    return {"candidates":[{"content":{"parts":[{"text":
      '{"observations":[{"shot_id":"s1","visible":"abstract geometry"}],'
      '"research_scope":"Grounded visual evidence from the sampled frames"}'}]}}]}
-  with patch.dict(os.environ,{"GEMINI_INFERENCE_OWNER_APPROVED":"true","GEMINI_API_KEY":"synthetic-test"}),patch.object(mm,"discover_models",return_value=catalog),patch.object(mm,"post_json",side_effect=pretend),patch.object(mm.time,"sleep",return_value=None):
+  with patch.dict(os.environ,{"GEMINI_INFERENCE_OWNER_APPROVED":"true","GEMINI_PROJECT_FREE_TIER_VERIFIED":"true","GEMINI_API_KEY":"synthetic-test"}),patch.object(mm,"discover_models",return_value=catalog),patch.object(mm,"post_json",side_effect=pretend),patch.object(mm.time,"sleep",return_value=None):
    model,_=mm.gemini_research(SOURCE,"Generic footage",approved_api_cost=True,frames=[FRAME])
   self.assertEqual(model,"gemini-3.7-flash")
   self.assertEqual(len(urls),3)
