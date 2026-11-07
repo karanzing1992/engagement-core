@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'services/reel-engine/v6-kv-gateway/**'
+      - 'services/reel-engine/v7-cinema/**'
+      - 'docs/MAD_REEL_ENGINE_V7_20261107.md'
       - 'experiments/reel-engine-v6/**'
       - 'services/reel-engine/backend_*.py'
       - 'services/reel-engine/backend_policy.json'
@@ -38,6 +40,8 @@ jobs:
         run: node --test services/reel-engine/v6-kv-gateway/test_kv_gateway.mjs
       - name: V6 FFmpeg audiovisual renderer and consent-gated JPEG frame test
         run: python3 services/reel-engine/v6-kv-gateway/test_ffmpeg_v6_smoke.py
+      - name: V7 cinematic finishing, audio mastering, full decode and safe creative controls
+        run: python3 services/reel-engine/v7-cinema/test_v7_cinema.py
       - name: Private runner redaction and bounded diagnostic tests
         run: python3 services/reel-engine/v6-kv-gateway/test_runner_stage_diagnostics.py
       - name: Gemini / Groq reviewed EDL, audio discovery and provider fixture regression
