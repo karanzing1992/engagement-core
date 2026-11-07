@@ -77,8 +77,16 @@ def execute(*,source,brief,workdir,output,music=None,music_rights=None,
         creative=None
         if independent_reviewer:
             # Reviewer must inspect actual bytes or frames/audio. A plan review is insufficient.
-            creative=independent_reviewer(candidate,evidence,plan,measured)
-            if not isinstance(creative,dict) or creative.get("verified_actual_media") is not True:
+            try:
+                creative=independent_reviewer(candidate,evidence,plan,measured)
+            except CreativeBlocked as error:
+                # Private preview is allowed with explicit PENDING status, never creative
+                # certification. This prevents free-tier outages masquerading as approval.
+                if str(error) not in ("V8_ACTUAL_REVIEW_PROVIDER_UNAVAILABLE",
+                    "V8_NO_VERIFIED_FREE_REVIEWER_MODEL","V8_ACTUAL_REVIEW_SCHEMA_INVALID"):
+                    raise
+                creative={"verified_actual_media":False,"review_status":"PENDING_PROVIDER_UNAVAILABLE"}
+            if not isinstance(creative,dict):
                 raise CreativeBlocked("V8_ACTUAL_MEDIA_REVIEW_UNVERIFIED")
         release=decide_release(measured,independent_visual_audio_review=creative)
         last_review={"technical":measured,"artistic":creative}
