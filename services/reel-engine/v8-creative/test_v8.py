@@ -121,4 +121,36 @@ class V8CreativeTests(unittest.TestCase):
   p=self.plan(x)
   with self.assertRaisesRegex(CreativeBlocked,"TRANSITION_FORBIDDEN"):validate_plan(x,p)
 
+ def test_13_bounded_director_plan_repair(self):
+  brief="Preserve original dialogue and full video, but no music"
+  valid=self.plan(self.evidence(brief),music_gain=0)
+  invalid=copy.deepcopy(valid);invalid["segments"][0]["transition"]="dip-to-black"
+  calls=[]
+  def director(_prompt,_evidence,review):
+   calls.append(review)
+   return copy.deepcopy(invalid if len(calls)==1 else valid)
+  r=execute(source=self.source,brief=brief,workdir=self.work,
+   output=self.work/"v8-plan-repaired.mp4",model_director=director,
+   model_owner_approved=True,external_inference_consent=True,
+   width=480,height=270,fps=24,max_revisions=1)
+  self.assertEqual(r["attempts"],2)
+  self.assertEqual(calls[1]["validation_code"],"V8_TRANSITION_INVALID")
+  self.assertTrue(r["release"]["private_preview_ready"])
+  self.assertFalse(r["release"]["creative_certified"])
+  self.assertFalse(r["published"])
+ def test_14_bounded_director_never_launders_invalid_plan(self):
+  brief="Preserve original dialogue and full video, but no music"
+  invalid=self.plan(self.evidence(brief),music_gain=0)
+  invalid["segments"][0]["transition"]="dip-to-black"
+  calls=[]
+  def director(_prompt,_evidence,review):
+   calls.append(review)
+   return copy.deepcopy(invalid)
+  with self.assertRaisesRegex(CreativeBlocked,"V8_TRANSITION_INVALID"):
+   execute(source=self.source,brief=brief,workdir=self.work,
+    output=self.work/"v8-repair-blocked.mp4",model_director=director,
+    model_owner_approved=True,external_inference_consent=True,
+    width=480,height=270,fps=24,max_revisions=1)
+  self.assertEqual(len(calls),2)
+
 if __name__=="__main__":unittest.main()
