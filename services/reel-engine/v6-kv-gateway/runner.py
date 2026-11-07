@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/"services/reel-engine"))
 sys.path.insert(0,str(ROOT/"experiments/reel-engine-v6"))
+sys.path.insert(0,str(ROOT/"experiments/reel-engine-v5"))
 sys.path.insert(0,str(ROOT/"services/reel-engine/v7-cinema"))
 sys.path.insert(0,str(ROOT/"services/reel-engine/v7-micro-rag"))
 import ffmpeg_v6_adapter as ffmpeg_editor
@@ -17,6 +18,8 @@ import backend_selection
 import multimodel_filmcraft_bridge as multimodel
 import audio_library_v6 as licensed_audio
 import v7_auto_music as auto_music
+import v7_music_discovery as music_discovery
+import music_provider
 import txtai_reel_guidance as reel_rag
 from ffmpeg_frame_samples import extract as ffmpeg_frames
 
@@ -255,7 +258,8 @@ def run(job_id,*,fixture=False):
     items=call("/internal/v6/jobs/"+job_id+"/music-library",identity,
                method="GET",claim=lease)
     preferred,decision=auto_music.choose(items.get("tracks",[]),
-       claim["brief"],plan["hook"],multimodel.groq_call)
+       claim["brief"],plan["hook"],multimodel.groq_call,
+       guidance=knowledge.get("music_search",{}).get("context",""))
     audio_receipt["automatic_selection"]=decision
     duration_needed=sum(round(float(c["seconds"])*30)/30 for c in plan["cuts"])
     for index,entry in enumerate(preferred[:4]):
@@ -291,6 +295,16 @@ def run(job_id,*,fixture=False):
       possible.unlink(missing_ok=True)
     if music is None:
      audio_receipt["automatic_selection"]={**decision,"state":"no_usable_reviewed_track"}
+     # AI search may recommend Openverse/Commons but never auto-clears rights.
+     # Actual FFmpeg mix remains strictly SHA-verified and reviewer-approved.
+     try:
+      leads=music_discovery.discover(claim["brief"],plan["hook"],
+       music_provider.search,multimodel.groq_call,
+       guidance=knowledge.get("music_search",{}).get("context",""))
+      audio_receipt["discovery"]=leads
+     except Exception:
+      audio_receipt["discovery"]={"status":"unavailable",
+       "rights_status":"DISCOVERY_ONLY_UNVERIFIED","used_in_render":False}
   elif claim.get("audio_mode")!="source_ambience_only":
    raise RuntimeError("Unknown audio mode")
   mark("ffmpeg_render")
