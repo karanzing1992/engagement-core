@@ -1,5 +1,7 @@
 # META CORE — Phase 1-D: Dependency, Tenant Custody and Simulated Integration Certification
 
+> **Superseded for production decisions:** The later [META CORE Production Readiness & Security Gate](META_CORE_PRODUCTION_READINESS_20261107.md) records the updated tokenless Central broker, encrypted signup response, Base64-fallback fix, **39 Node**, **101 PHP** and **23 actual ephemeral WordPress/MySQL** checks. This document is an earlier source-only certification snapshot; its blockers and counts are retained as historical observations rather than current status. Neither PR is merged or live.
+
 **Date:** 2026-11-07 (Asia/Kolkata)  
 **Repository:** `karanzing1992/engagement-core` · **draft PR:** [#215](https://github.com/karanzing1992/engagement-core/pull/215)  
 **WACRM owning repository:** `karanzing1992/moksha_wordpress` · **separate draft PR:** [#134](https://github.com/karanzing1992/moksha_wordpress/pull/134)  
