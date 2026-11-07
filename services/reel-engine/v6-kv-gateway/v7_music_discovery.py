@@ -134,10 +134,19 @@ def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:b
             ensure_ascii=True,separators=(",",":")))
     selected=choices[0]
     method="deterministic_fallback"
+    allowed_choices={item["id"]:item for item in choices}
+    # 120B JSON-object mode with a 160-token budget may finish reasoning
+    # before emitting its ID. The provider supports strict schema decoding;
+    # force the exact visible eight-ID whitelist at generation time too.
+    response_format={"type":"json_schema","json_schema":{
+        "name":"mad_v7_music_source_choice","strict":True,
+        "schema":{"type":"object","properties":{
+            "id":{"type":"string","enum":list(allowed_choices)}},
+            "required":["id"],"additionalProperties":False}}}
     try:
-        result=groq_call("openai/gpt-oss-120b",prompt,temperature=.1,max_tokens=160)
+        result=groq_call("openai/gpt-oss-120b",prompt,temperature=.1,
+                         max_tokens=640,response_format=response_format)
         choice=result.get("id") if isinstance(result,dict) else None
-        allowed_choices={item["id"]:item for item in choices}
         if isinstance(choice,str) and choice in allowed_choices:
             selected=allowed_choices[choice]
             method="groq_120b"
