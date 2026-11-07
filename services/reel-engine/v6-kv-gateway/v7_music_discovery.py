@@ -91,19 +91,27 @@ def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:b
                     break
         if len(candidates)>=MAX_CANDIDATES:
             break
-    if not any(_https(t.get("source_media_url","")) and
-            urlsplit(t["original_source_page"]).hostname=="commons.wikimedia.org"
-            for t in candidates.values()):
-        attempted.append("wikimedia:ambient")
-        try:
-            result=search_fn("ambient",limit=6,provider="wikimedia")
-            rows=result.get("candidates",[]) if isinstance(result,dict) else []
-        except Exception:
-            rows=[]
-        for item in rows[:6]:
-            value=_candidate(item)
-            if value and value["title"] and value["creator"]:
-                candidates[value["id"]]=value
+    # Always perform an original-author-focused Commons query. A random
+    # Openverse listing linked to Commons is not evidence that the uploader
+    # owns BOTH recording and composition. Preserve the original provenance
+    # gate: discovery candidates never become automatically rights approved.
+    search_text=(brief+" "+hook).casefold()
+    if any(word in search_text for word in ("dance","fitness","upbeat","energetic","workout")):
+        commons_query='instrumental music incategory:"Self-published work"'
+    elif "piano" in search_text:
+        commons_query='piano music incategory:"Self-published work"'
+    else:
+        commons_query='lofi ambient incategory:"Self-published work"'
+    attempted.append("wikimedia:self_published_original")
+    try:
+        result=search_fn(commons_query,limit=12,provider="wikimedia")
+        rows=result.get("candidates",[]) if isinstance(result,dict) else []
+    except Exception:
+        rows=[]
+    for item in rows[:12]:
+        value=_candidate(item)
+        if value and value["title"] and value["creator"]:
+            candidates[value["id"]]=value
     if not candidates:
         return {"status":"no_candidates","rights_status":"DISCOVERY_ONLY_UNVERIFIED",
                 "candidate_count":0,"provider_queries":attempted,"used_in_render":False}
@@ -129,8 +137,9 @@ def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:b
     try:
         result=groq_call("openai/gpt-oss-120b",prompt,temperature=.1,max_tokens=160)
         choice=result.get("id") if isinstance(result,dict) else None
-        if isinstance(choice,str) and choice in candidates:
-            selected=candidates[choice]
+        allowed_choices={item["id"]:item for item in choices}
+        if isinstance(choice,str) and choice in allowed_choices:
+            selected=allowed_choices[choice]
             method="groq_120b"
     except Exception:
         pass
