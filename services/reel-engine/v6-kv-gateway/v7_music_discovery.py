@@ -68,7 +68,7 @@ def auto_admission_candidates(pool:object)->list[dict]:
     return [t for t in pool[:MAX_CANDIDATES] if _candidate(t) is not None]
 
 
-def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:bool=False,alternate_call=None)->dict:
+def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:bool=False,alternate_call=None,metadata_only:bool=False)->dict:
     """Search V5 public metadata, then ask Groq to pick a REVIEW_REQUIRED lead.
 
     At most two Openverse API calls and one Commons fallback. No audio bytes
@@ -138,10 +138,11 @@ def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:b
     # Only IDs from the exact displayed shortlist may ever be returned.
     allowed_choices={item["id"]:item for item in choices}
     attempts=[]
-    selectors=[("openai/gpt-oss-120b","groq_120b",groq_call)]
-    if alternate_call is not None:
+    selectors=[] if metadata_only else [("openai/gpt-oss-120b","groq_120b",groq_call)]
+    if not metadata_only and alternate_call is not None:
         selectors.append(("gemini-free-flash","gemini_free_flash",alternate_call))
-    selectors.append(("openai/gpt-oss-20b","groq_20b_recovery",groq_call))
+    if not metadata_only:
+        selectors.append(("openai/gpt-oss-20b","groq_20b_recovery",groq_call))
     for model,label,caller in selectors:
         try:
             result=caller(model,prompt,temperature=.1,max_tokens=220)
@@ -155,6 +156,7 @@ def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:b
         except Exception:
             # No provider payload or private prompt may enter the receipt.
             attempts.append("provider_unavailable")
+    if metadata_only:method="metadata_only"
     public_selected={k:v for k,v in selected.items() if k not in ("source_media_url",)}
     result={"status":"source_check_required","rights_status":"DISCOVERY_ONLY_UNVERIFIED",
             "candidate_count":len(candidates),"provider_queries":attempted,
@@ -165,3 +167,25 @@ def discover(brief:str,hook:str,search_fn,groq_call,*,guidance:str="",internal:b
         # or the public-facing receipt.
         result["_candidate_pool"]=([selected]+[v for v in choices if v["id"]!=selected["id"]])[:MAX_CANDIDATES]
     return result
+
+
+def use_director_choice(prepared:object,chosen_id:object)->dict|None:
+    """Apply an integrated creative-director model choice to the SAME shortlist.
+
+    The chooser has no authority over license verification, media bytes,
+    candidate hosts, source categories or public publishing.
+    """
+    if not isinstance(prepared,dict) or prepared.get("selection")!="metadata_only":
+        return None
+    pool=prepared.get("_candidate_pool",[])
+    if not isinstance(pool,list) or not isinstance(chosen_id,str):
+        return None
+    for candidate in pool[:MAX_CANDIDATES]:
+        if candidate.get("id")==chosen_id and _candidate(candidate):
+            out=dict(prepared)
+            out["selected"]={k:v for k,v in candidate.items() if k!="source_media_url"}
+            out["selection"]="groq_director_integrated"
+            out["selection_attempts"]=["selected_in_creative_plan"]
+            out["_candidate_pool"]=[candidate]+[v for v in pool if v.get("id")!=chosen_id]
+            return out
+    return None

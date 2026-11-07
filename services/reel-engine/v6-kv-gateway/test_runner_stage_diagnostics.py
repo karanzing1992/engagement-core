@@ -199,5 +199,41 @@ class StageDiagnosticTests(unittest.TestCase):
                 bridge.gemini_music_choice("ignored","Select music")
         post.assert_not_called()
 
+
+    def test_live_director_reuses_call_for_exact_allowlisted_music_choice(self):
+        from unittest.mock import patch
+        bridge=runner.multimodel
+        track_id="b"*32
+        proposal={"hook":"Soothe and reset","music_candidate_id":track_id,
+            "segments":[{"shot_id":"s1","start_seconds":0.0,
+                         "duration_seconds":4.0,"effects":[]}]}
+        calls=[]
+        def director(model,prompt,**kw):
+            calls.append((model,prompt))
+            return proposal
+        src={"source_sha256":"0"*64,"human_reviewed":True,
+            "rights_and_consent_cleared":True,"external_ai_processing_consent":True,
+            "shots":[{"id":"s1","start_seconds":0.0,
+                      "duration_seconds":4.0,"visible":"Forest sanctuary"}]}
+        candidates=[{"id":track_id,"title":"Royalty-cleared meditation original",
+                     "creator":"Fixture artist","license":"by"}]
+        with patch.object(bridge,"read_config"), \
+             patch.object(bridge,"validate_source_manifest"), \
+             patch.object(bridge,"resolve_audio",return_value={"mode":"source_ambience_only"}), \
+             patch.object(bridge,"gemini_research",return_value=("gemini-3.6-flash",
+                    {"observations":[{"shot_id":"s1","visible":"Forest sanctuary"}],
+                     "research_scope":"Verified only actual forest sanctuary"})), \
+             patch.object(bridge,"groq_call",side_effect=director), \
+             patch.object(bridge,"groq_strict_review",return_value={"approved":True}), \
+             patch.object(bridge,"compile_reviewed_edl",
+                 return_value={"hook":"Soothe and reset","cuts":[],"operations":[]}):
+            out=bridge.run(source=src,brief="Cinematic meditation ritual",mode="live",
+                           approved_api_cost=True,music_candidates=candidates)
+        self.assertEqual(out["music_candidate_id"],track_id)
+        self.assertEqual(out["music_choice_role"],"groq_director_integrated")
+        self.assertEqual(len(calls),1)
+        self.assertIn(track_id,calls[0][1])
+        self.assertFalse(out["published"])
+
 if __name__=="__main__":
     unittest.main()

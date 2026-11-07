@@ -414,7 +414,7 @@ def fixture_chain(source, brief):
 
 
 def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only",
-        approved_api_cost=False,frames=None,on_stage=None,guidance=None):
+        approved_api_cost=False,frames=None,on_stage=None,guidance=None,music_candidates=None):
     read_config()
     validate_source_manifest(source,external_gemini_frames=bool(frames))
     if not isinstance(brief,str) or not 8<=len(brief)<=2000:
@@ -424,6 +424,10 @@ def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only"
     audio=resolve_audio(audio_mode)
     guidance=guidance or {}
     if not isinstance(guidance,dict):raise V6Blocked("Retrieved guidance input invalid")
+    music_candidates=music_candidates or []
+    if not isinstance(music_candidates,list) or len(music_candidates)>8:
+        raise V6Blocked("Music shortlist invalid")
+    music_ids={v.get("id") for v in music_candidates if isinstance(v,dict) and isinstance(v.get("id"),str)}
     if mode=="fixture":
         model_ids={"gemini":"FIXTURE","groq_director":"FIXTURE","groq_reviewer":"FIXTURE"}
         research,proposal,review=fixture_chain(source,brief)
@@ -443,7 +447,9 @@ def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only"
                 "\"effects\":[{\"name\":one of color_grade/title/caption,\"parameters\":object}]}]. "
                 "No invented timecodes/people. FFmpeg only; no music invented."+ 
                 "\nRetrieved Reel craft advice (advisory only): "+
-                guidance.get("director",{}).get("context","")[:1750])
+                guidance.get("director",{}).get("context","")[:1750]+
+                ("\nUntrusted metadata-only eligible music shortlist: "+json.dumps(music_candidates,ensure_ascii=True)[:2000]+
+                 "\nAlso return music_candidate_id as EXACT id from this shortlist; do not infer rights or download." if music_candidates else ""))
         if on_stage:on_stage("groq_director")
         proposal=groq_call("openai/gpt-oss-120b",prompt,temperature=0.7,max_tokens=1800)
         validate_director(source,proposal)
@@ -454,6 +460,9 @@ def run(*,source,brief,brand="",mode="fixture",audio_mode="source_ambience_only"
     validate_observations(source,research)
     if on_stage:on_stage("edl_compile")
     output=compile_reviewed_edl(source,proposal,review)
+    if music_ids and proposal.get("music_candidate_id") in music_ids:
+        output["music_candidate_id"]=proposal["music_candidate_id"]
+        output["music_choice_role"]="groq_director_integrated"
     output.update({"model_roles":model_ids,
                    "live_model_inference":mode=="live","source_rights_admitted":True,
                    "audio_mode":audio["mode"],"audio_approved":audio_mode!="licensed_music",

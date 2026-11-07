@@ -248,5 +248,25 @@ class SyntheticEndToEndFFmpeg(unittest.TestCase):
         self.assertEqual(result["selection_attempts"],["provider_unavailable","selected"])
         self.assertFalse(result["used_in_render"])
 
+
+    def test_integrated_director_uses_exact_prefetched_music_allowlist(self):
+        first=candidate(i="a"*32,title="Morning meditation")
+        other=candidate(i="b"*32,title="Calm cinematic piano")
+        called=[]
+        def should_not_call(*a,**kw):
+            called.append("unexpected_model_call")
+            raise AssertionError("metadata prefetch must never invoke AI")
+        prepared=d.discover("cinematic ritual","gentle piano",
+            lambda *a,**kw:{"candidates":[first,other]},
+            should_not_call,metadata_only=True,internal=True)
+        self.assertEqual(prepared["selection"],"metadata_only")
+        self.assertEqual(called,[])
+        selected=d.use_director_choice(prepared,other["id"])
+        self.assertEqual(selected["selection"],"groq_director_integrated")
+        self.assertEqual(selected["_candidate_pool"][0]["id"],other["id"])
+        self.assertEqual(selected["selection_attempts"],["selected_in_creative_plan"])
+        self.assertIsNone(d.use_director_choice(prepared,"https://attacker.example/file.ogg"))
+        self.assertEqual(prepared["selection"],"metadata_only")
+
 if __name__=="__main__":
     unittest.main(verbosity=2)

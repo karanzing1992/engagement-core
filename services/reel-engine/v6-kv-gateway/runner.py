@@ -120,18 +120,18 @@ def gemini_free_path_authorized():
  return (os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")=="true"
          and os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")=="true")
 
-def model_plan(src,brief,description,duration,fixture=False,frames=None,guidance=None):
+def model_plan(src,brief,description,duration,fixture=False,frames=None,guidance=None,music_candidates=None):
  manifest={"source_sha256":src,"human_reviewed":True,"rights_and_consent_cleared":True,
    "external_ai_processing_consent":True,"shots":[{"id":"s1","start_seconds":0.0,
    "duration_seconds":min(120.,duration),"visible":description}]}
  brand=""  # Generic content: no brand context unless supplied by the owner.
  if fixture:
   mark("model_policy")
-  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture",guidance=guidance)
+  return multimodel.run(source=manifest,brief=brief,brand=brand,mode="fixture",guidance=guidance,music_candidates=music_candidates)
  fallback_reason="GEMINI_FREE_TIER_NOT_VERIFIED"
  if gemini_free_path_authorized():
   try:
-   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",frames=frames,approved_api_cost=True,on_stage=mark,guidance=guidance)
+   return multimodel.run(source=manifest,brief=brief,brand=brand,mode="live",frames=frames,approved_api_cost=True,on_stage=mark,guidance=guidance,music_candidates=music_candidates)
   except multimodel.V6Blocked as ex:
    # Only allowlisted Gemini network timeouts trigger fallback. Safety, rights
    # and creative-policy failures remain terminal; provider data is never logged.
@@ -157,7 +157,8 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None,guidance
          "EXAMPLE JSON shape with concrete values: "+json.dumps(schema)+
          " Verified source: "+json.dumps(manifest["shots"])+
          " Optional brand: "+brand+" Owner direction: "+brief+
-         " Reel-making guidance: "+((guidance or {}).get("director",{}).get("context",""))[:1750])
+         " Reel-making guidance: "+((guidance or {}).get("director",{}).get("context",""))[:1750]+
+          (" Choose music_candidate_id as exact ID from UNTRUSTED metadata list: "+json.dumps(music_candidates)[:2000] if music_candidates else ""))
  mark("groq_director")
  director=multimodel.groq_call("openai/gpt-oss-120b",prompt,temperature=.40,max_tokens=1800)
  try:
@@ -179,6 +180,10 @@ def model_plan(src,brief,description,duration,fixture=False,frames=None,guidance
     guidance=((guidance or {}).get("reviewer",{}).get("context",""))[:1750])
  mark("edl_compile")
  plan=multimodel.compile_reviewed_edl(manifest,director,review)
+ allowed_music_ids={x.get("id") for x in (music_candidates or []) if isinstance(x,dict)}
+ if allowed_music_ids and director.get("music_candidate_id") in allowed_music_ids:
+  plan["music_candidate_id"]=director["music_candidate_id"]
+  plan["music_choice_role"]="groq_director_integrated"
  plan.update({"model_roles":{"gemini":"SKIPPED_"+fallback_reason,
     "groq_director":"openai/gpt-oss-120b","groq_reviewer":"openai/gpt-oss-20b"},
     "model_policy":"groq_only_fallback_"+fallback_reason.lower(),"live_model_inference":True,
@@ -228,9 +233,23 @@ def run(job_id,*,fixture=False):
   # Never silently bypass the owner-enabled knowledge gate in a real V7 render.
   if os.environ.get("MAD_V7_TXTAI_MICRO_RAG_ENABLED","false")=="true" and knowledge["status"]!="ready":
    raise multimodel.V6Blocked("V7 required Reel RAG unavailable")
+  # Metadata-only shortlist exists before creative planning; no extra AI request.
+  prepared_music=None;music_candidates=[]
+  if (claim.get("audio_mode")!="licensed_music" and
+      os.environ.get("MAD_V7_AUTO_SOURCE_MUSIC_ENABLED","false")=="true"):
+   try:
+    prepared_music=music_discovery.discover(claim["brief"],claim["source_description"],
+      music_provider.search,lambda *a,**k:{},metadata_only=True,internal=True,
+      guidance=knowledge.get("music_search",{}).get("context",""))
+    music_candidates=[{"id":v["id"],"title":v["title"],"creator":v["creator"],
+                       "license":v["license"]} for v in
+                      prepared_music.get("_candidate_pool",[])[:8]]
+   except Exception:
+    prepared_music=None;music_candidates=[]
   mark("model_policy")
   plan=model_plan(claim["source_sha256"],claim["brief"],claim["source_description"],duration,
-                  fixture=synthetic,frames=frames,guidance=knowledge["roles"])
+                  fixture=synthetic,frames=frames,guidance=knowledge["roles"],
+                  music_candidates=music_candidates)
   mark("audio_library")
   # Existing V5/V6 Openverse discovery is not a transferred, rights-reviewed file.
   # Never synthesize a substitute soundtrack or mislabel source audio as CC0.
@@ -305,12 +324,15 @@ def run(job_id,*,fixture=False):
      # the original Commons file API must independently agree with the search
      # license, then private source audio bytes are probed and SHA-pinned.
      try:
-      leads=music_discovery.discover(claim["brief"],plan["hook"],
-       music_provider.search,multimodel.groq_call,
-       guidance=knowledge.get("music_search",{}).get("context",""),
-       internal=True,
-       alternate_call=(multimodel.gemini_music_choice if
-                       gemini_free_path_authorized() else None))
+      leads=music_discovery.use_director_choice(
+          prepared_music,plan.get("music_candidate_id"))
+      if leads is None:
+       leads=music_discovery.discover(claim["brief"],plan["hook"],
+        music_provider.search,multimodel.groq_call,
+        guidance=knowledge.get("music_search",{}).get("context",""),
+        internal=True,
+        alternate_call=(multimodel.gemini_music_choice if
+                        gemini_free_path_authorized() else None))
       pool=leads.pop("_candidate_pool",[])
       audio_receipt["discovery"]=leads
       if os.environ.get("MAD_V7_AUTO_SOURCE_MUSIC_ENABLED","false")=="true":
