@@ -1,7 +1,7 @@
 // Restricted synthetic test-only entry; invoked only after pinned owner GitHub OIDC verification.
 const hash=async body=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",body)),x=>x.toString(16).padStart(2,"0")).join("");
 const reply=(status,data)=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json","cache-control":"no-store"}});
-export async function seedSynthetic(req,env,id,now){
+export async function seedSynthetic(req,env,id,now,v8=false){
  const bytes=Number(req.headers.get("content-length"));
  const expected=req.headers.get("x-chunk-sha256")||"";
  if(!Number.isInteger(bytes)||bytes<1024||bytes>262144||!/^[a-f0-9]{64}$/.test(expected))
@@ -14,9 +14,9 @@ export async function seedSynthetic(req,env,id,now){
   return reply(422,{error:"Synthetic source integrity or MP4 signature invalid"});
  await env.MEDIA_KV.put("private/mad-v6/source/"+id+"/0",source,{expirationTtl:3600});
  const d="SYNTHETIC QA: GStreamer-generated moving test pattern with no people or customer recordings.";
- const brief="Make an original cinematic wellness QA reel using only the synthetic moving test pattern.";
+ const brief=v8?"[MAD-V8] Make an original cinematic synthetic reel; preserve the full duration and keep its source audio clear. Apply meaningful transitions where appropriate.":"Make an original cinematic wellness QA reel using only the synthetic moving test pattern.";
  const row=await env.DB.prepare("INSERT INTO mad_v6_kv_jobs(job_id,project_id,file_name,mime,bytes,source_sha256,source_chunks,source_description,brief,state,created_at,updated_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,'sent',?,?,?)")
-   .bind(id,"synthetic-owner-qa","gstreamer-qa.mp4","video/mp4",bytes,expected,1,d,brief,now,now,now+3600).run();
+   .bind(id,"synthetic-owner-qa",v8?"v8-synthetic-tone-qa.mp4":"gstreamer-qa.mp4","video/mp4",bytes,expected,1,d,brief,now,now,now+3600).run();
  if(!row.meta?.changes)return reply(409,{error:"Synthetic job admission declined"});
  await env.DB.prepare("INSERT INTO mad_v6_kv_parts(job_id,kind,idx,bytes,sha256) VALUES(?,'source',0,?,?)")
    .bind(id,bytes,expected).run();

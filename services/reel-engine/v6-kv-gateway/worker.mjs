@@ -271,9 +271,9 @@ async function internal(req,e,path){
  if(!claims)return error("Authenticated GitHub runner required",401);
  const p=path.split("/").filter(Boolean),now=TIME(),id=p[3];
  if(!JOB.test(id||""))return error("Invalid private render job",400);
- if(p[4]==="seed"&&p.length===5&&req.method==="POST"){
+ if((p[4]==="seed"||p[4]==="seed-v8")&&p.length===5&&req.method==="POST"){
   if(claims.event_name!=="issues"||String(claims.actor_id)!==OWNER_ID)return error("Owner-signed synthetic QA only",403);
-  return seedSynthetic(req,e,id,now);
+  return seedSynthetic(req,e,id,now,p[4]==="seed-v8");
  }
  if(p[4]==="claim"&&req.method==="POST"){
   if(claims.event_name==="issues"){
