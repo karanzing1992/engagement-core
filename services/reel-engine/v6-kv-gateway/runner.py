@@ -453,6 +453,10 @@ def run(job_id,*,fixture=False):
   receipt["model_policy"]=plan.get("model_policy","gemini_free_flash_groq")
   receipt["source_sha256"]=claim["source_sha256"]
   receipt["reel_best_practices_rag"]=reel_rag.receipt(knowledge)
+  if v8_mode and rec.get("music_mixed") is False:
+   audio_receipt={"mode":"source_ambience_only","licensed_track":False,"music_mixed":False,
+                 "composed_audio":False,"eligible_music_not_used":bool(music),
+                 "selection":"creative_director_zero_music_gain"}
   receipt["audio_library"]=audio_receipt
   receipt["gemini_frames_sent"]=len(frames)
   receipt["product_context"]="generic"
