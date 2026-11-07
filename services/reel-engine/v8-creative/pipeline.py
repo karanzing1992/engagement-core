@@ -4,7 +4,7 @@ import json,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"v7-micro-rag"))
 from intelligence import inspect,SourceBlocked
-from director import director_prompt,fallback_plan,validate_plan,CreativeBlocked
+from director import director_prompt,fallback_plan,validate_plan,compile_optional_presentation,CreativeBlocked
 from editor import render
 from critic import inspect_output,decide_release
 
@@ -69,6 +69,7 @@ def execute(*,source,brief,workdir,output,music=None,music_rights=None,
         if not isinstance(proposal,dict):raise CreativeBlocked("V8_DIRECTOR_NON_OBJECT")
         proposal=dict(proposal)
         if not music:proposal["audio"]=dict(proposal["audio"],music_gain=0.0)
+        proposal,optional_adjustments=compile_optional_presentation(evidence,proposal)
         try:
             plan=validate_plan(evidence,proposal)
         except CreativeBlocked as invalid:
@@ -110,7 +111,8 @@ def execute(*,source,brief,workdir,output,music=None,music_rights=None,
              "rag":rag_status,"attempts":attempt+1,"source_evidence":{
                "duration":evidence["source"]["duration"],"has_audio":evidence["source"]["has_audio"],
                "scene_count":len(evidence["shots"]),"transcript_inferred":False},
-             "plan":plan,"render":receipt,"independent_review":last_review,
+             "plan":plan,"plan_optional_adjustments":optional_adjustments,
+             "render":receipt,"independent_review":last_review,
              "release":release,"published":False,"owner_approval":False}
         candidate.unlink(missing_ok=True)
     raise AssertionError("unreachable")
