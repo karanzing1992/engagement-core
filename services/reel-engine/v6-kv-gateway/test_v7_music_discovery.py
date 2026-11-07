@@ -81,8 +81,8 @@ class DiscoveryContract(unittest.TestCase):
             return {"candidates":[candidate(i=f"{j:032x}",title=f"External indexed {j}")
                                   for j in range(base,base+6)]}
         out=d.discover("calm ritual","",search,
-              lambda *a,**k:{"id":f"{12:032x}"},internal=True)
-        self.assertNotEqual(out["selected"]["id"],f"{12:032x}")
+              lambda *a,**k:{"id":f"{6:032x}"},internal=True)
+        self.assertNotEqual(out["selected"]["id"],f"{6:032x}")
         self.assertEqual(out["selection"],"deterministic_fallback")
 
     def test_noncommercial_and_sharealike_not_shortlisted(self):
