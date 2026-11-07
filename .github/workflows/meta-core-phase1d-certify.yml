@@ -1,0 +1,39 @@
+name: META CORE Phase 1-D isolated certification
+on:
+  pull_request:
+    paths:
+      - 'integrations/meta/whatsapp-mcp/**'
+      - 'docs/META_CORE_PHASE1D_CERTIFICATION_20261107.md'
+      - '.github/workflows/meta-core-phase1d-certify.yml'
+  push:
+    branches:
+      - feat/meta-whatsapp-mcp-phase1-20261107
+permissions:
+  contents: read
+concurrency:
+  group: meta-core-p1d-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  read-only-transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout synthetic source, no persistent Git credential
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pin Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: integrations/meta/whatsapp-mcp/package-lock.json
+      - name: Install pinned dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Run synthetic Graph v26 and tenant isolation tests
+        run: npm test
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Fail on high or critical vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: integrations/meta/whatsapp-mcp
