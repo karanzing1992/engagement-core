@@ -225,6 +225,12 @@ def _source_meta(track:dict,opener=None)->dict:
                          str(cat.get("title","")),re.I) for cat in categories
                if isinstance(cat,dict)):
             raise AutoLicenseBlocked("SOURCE_LICENSE_REVIEW_PENDING")
+        # Automated release requires affirmative evidence of first-party authorship,
+        # not merely a third-party catalog's CC label. Existing owner-reviewed
+        # private library remains separately eligible under its reviewer receipts.
+        if not any(str(cat.get("title","")).casefold()=="category:self-published work"
+                   for cat in categories if isinstance(cat,dict)):
+            raise AutoLicenseBlocked("SOURCE_AUTHORSHIP_REVIEW_REQUIRED")
         info=pages[0]["imageinfo"][0]
     except (KeyError,IndexError,ValueError,TypeError) as exc:
         if isinstance(exc,AutoLicenseBlocked):raise
@@ -294,7 +300,9 @@ def admit(track:dict,workdir:Path,required_seconds:float,*,opener=None,probe=Non
         if float(p["duration"])<float(required_seconds)-.1:
             raise AutoLicenseBlocked("AUTO_MUSIC_TOO_SHORT")
         lic={"by":"CC BY","cc0":"CC0","pdm":"PDM"}[meta["license"]]
-        credit=f'{meta["title"]} — {meta["creator"]} | {lic} | {meta["license_url"]} | {meta["source_page"]}'
+        credit=(f'{meta["title"]} — {meta["creator"]} | {lic} | '
+                f'{meta["license_url"]} | {meta["source_page"]} | '
+                'Adaptation: excerpted, synchronized to video, mixed and audio-level adjusted.')
         if len(credit)>850:
             raise AutoLicenseBlocked("CREDIT_TOO_LONG")
         rights={"human_verified":False,"automatic_source_verified":True,
