@@ -12,8 +12,9 @@ import argparse
 import json
 import math
 from pathlib import Path
-import subprocess
+import sys
 from typing import Any
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'v6-kv-gateway'))
 import ffmpeg_v6_adapter as v6
 
 # These are declarative presets, not arbitrary command strings from models.
