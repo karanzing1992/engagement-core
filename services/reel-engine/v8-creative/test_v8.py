@@ -124,7 +124,7 @@ class V8CreativeTests(unittest.TestCase):
  def test_13_bounded_director_plan_repair(self):
   brief="Preserve original dialogue and full video, but no music"
   valid=self.plan(self.evidence(brief),music_gain=0)
-  invalid=copy.deepcopy(valid);invalid["segments"][0]["transition"]="dip-to-black"
+  invalid=copy.deepcopy(valid);invalid["segments"][0]["start"]=0.4
   calls=[]
   def director(_prompt,_evidence,review):
    calls.append(review)
@@ -134,19 +134,46 @@ class V8CreativeTests(unittest.TestCase):
    model_owner_approved=True,external_inference_consent=True,
    width=480,height=270,fps=24,max_revisions=1)
   self.assertEqual(r["attempts"],2)
-  self.assertEqual(calls[1]["validation_code"],"V8_TRANSITION_INVALID")
+  self.assertEqual(calls[1]["validation_code"],"V8_PROTECTED_DURATION_GAP")
   self.assertTrue(r["release"]["private_preview_ready"])
   self.assertFalse(r["release"]["creative_certified"])
   self.assertFalse(r["published"])
+ def test_15_presentation_compiler_keeps_source_and_owner_contract(self):
+  from director import compile_optional_presentation
+  ev=self.evidence("Preserve original dialogue for the entire video and keep it clear")
+  original=self.plan(ev,music_gain=0)
+  original["segments"][0]["transition"]="dissolve"
+  original["segments"][0]["text"]={"text":"invented"}
+  original["segments"][1]["grade"]="style_that_does_not_exist"
+  original["segments"][1]["transition"]="giant-flash"
+  normalized,changes=compile_optional_presentation(ev,original)
+  self.assertEqual(normalized["segments"][0]["transition"],"cut")
+  self.assertEqual(normalized["segments"][1]["transition"],"cut")
+  self.assertIsNone(normalized["segments"][0]["text"])
+  self.assertEqual(normalized["segments"][1]["grade"],"natural")
+  self.assertGreaterEqual(len(changes),3)
+  self.assertEqual(normalized["segments"][0]["start"],original["segments"][0]["start"])
+  self.assertEqual(normalized["segments"][1]["end"],original["segments"][1]["end"])
+  self.assertTrue(validate_plan(ev,normalized))
+ def test_16_presentation_compiler_never_launders_trimming(self):
+  from director import compile_optional_presentation
+  ev=self.evidence("Preserve full dialogue, do not shorten")
+  invalid=self.plan(ev,music_gain=0)
+  invalid["segments"][0]["transition"]="unavailable_transition"
+  invalid["segments"][0]["start"]=0.8
+  normalized,changes=compile_optional_presentation(ev,invalid)
+  self.assertEqual(normalized["segments"][0]["transition"],"cut")
+  with self.assertRaises(CreativeBlocked):validate_plan(ev,normalized)
+
  def test_14_bounded_director_never_launders_invalid_plan(self):
   brief="Preserve original dialogue and full video, but no music"
   invalid=self.plan(self.evidence(brief),music_gain=0)
-  invalid["segments"][0]["transition"]="dip-to-black"
+  invalid["segments"][0]["start"]=0.4
   calls=[]
   def director(_prompt,_evidence,review):
    calls.append(review)
    return copy.deepcopy(invalid)
-  with self.assertRaisesRegex(CreativeBlocked,"V8_TRANSITION_INVALID"):
+  with self.assertRaisesRegex(CreativeBlocked,"V8_PROTECTED_DURATION_GAP"):
    execute(source=self.source,brief=brief,workdir=self.work,
     output=self.work/"v8-repair-blocked.mp4",model_director=director,
     model_owner_approved=True,external_inference_consent=True,

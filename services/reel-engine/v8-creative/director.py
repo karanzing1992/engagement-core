@@ -66,6 +66,54 @@ def fallback_plan(evidence):
                 "music_gain":0.06 if owner["dialogue_priority"] else (0.12 if owner["music_allowed"] else 0.0)},
        "captions":[]}
 
+def compile_optional_presentation(evidence,proposal):
+    """Non-semantic model-output compiler; preserve facts and owner constraints.
+
+    The director may propose imaginative visual styling, but invalid optional
+    transition/overlay tokens are NOT allowed to abort an otherwise source-safe
+    timeline. Fail-closed constraints on timecodes, dialogue audio, permissions,
+    music levels and source provenance are validated separately and never
+    auto-corrected here. Receipt explicitly records every alteration.
+    """
+    if not isinstance(proposal,dict):
+        raise CreativeBlocked("V8_DIRECTOR_NON_OBJECT")
+    result=dict(proposal)
+    segments=result.get("segments")
+    if not isinstance(segments,list) or not 1<=len(segments)<=16:
+        raise CreativeBlocked("V8_SEGMENT_COUNT")
+    owner=evidence["owner_intent"];adjustments=[]
+    clean=[]
+    for index,original in enumerate(segments):
+        if not isinstance(original,dict):
+            raise CreativeBlocked("V8_SEGMENT_FIELDS")
+        segment=dict(original)
+        transition=segment.get("transition")
+        if index==0 and transition!="cut":
+            segment["transition"]="cut"
+            adjustments.append({"segment":index,"field":"transition","reason":"first_boundary_has_no_previous_shot"})
+        elif transition not in TRANSITIONS:
+            segment["transition"]="cut"
+            adjustments.append({"segment":index,"field":"transition","reason":"unimplemented_transition_rejected"})
+        if not owner["transitions_allowed"] and segment.get("transition")!="cut":
+            # Owner constraints do not turn into forced artistic defaults:
+            # the later strict validator rejects such proposals.
+            pass
+        text=segment.get("text")
+        if text is not None and (
+            not isinstance(text,str) or not 1<=len(text.strip())<=90
+            or any(ord(c)<32 for c in text)
+            or owner["dialogue_priority"]
+        ):
+            segment["text"]=None
+            adjustments.append({"segment":index,"field":"text","reason":"unsafe_or_unverified_overlay_not_rendered"})
+        if segment.get("grade") not in GRADES:
+            segment["grade"]="natural"
+            adjustments.append({"segment":index,"field":"grade","reason":"unimplemented_grade_rejected"})
+        clean.append(segment)
+    result["segments"]=clean
+    return result,adjustments
+
+
 def validate_plan(evidence,proposal):
     if not isinstance(proposal,dict) or set(proposal)-ALLOWED_KEYS:raise CreativeBlocked("V8_DIRECTOR_UNTRUSTED_FIELDS")
     if proposal.get("treatment") not in TREATMENTS:raise CreativeBlocked("V8_TREATMENT_INVALID")
