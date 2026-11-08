@@ -42,3 +42,9 @@ The current private plugin's personal scope allows distribution to the owning Ch
 ## Current safe checkpoint
 
 No shared cross-project code execution service is proven. The existing `KaranZi` Shaadi development pipeline is independent; the `karanzing1992/moksha_wordpress` pilot remains dormant (policy `enabled:false`). **No existing project's files, workflow triggers, privileges, credentials or runner settings are modified by this document.**
+
+## Shared GitHub Actions cost gate (8 November 2026)
+
+Every participating project doing CI engineering must consider the **documentation-only** [public CI host / private source cost and security SOP](GITHUB_PUBLIC_CI_PRIVATE_SOURCE_COST_AND_SECURITY_POLICY_20261108.md) before accepting avoidable private GitHub-hosted CI minutes. Standard GitHub-hosted runners used by public repositories are generally free under current GitHub billing; this is **not** a universal license to run private projects or expose their source. Larger runners and extra storage can be chargeable. Inspect each repository's own permissions, owner-account billing, data sensitivity and project terms.
+
+**Per-project lane first:** This cost SOP is a *reusable method*, not an executable instruction, runner enrollment, credential grant or owner-approved migration. Never send a project's private source to another venture's public host or token without separately verified authorization. `KaranZi` game, `karanzing1992` business, `aarondash5-star` DeluluTech and Ashwakaal Support Channels are distinct lanes. Record the immutable source SHA, read-only token scope, redacted CI run evidence, retained original required checks and any owner exception. Leave releases, branch protection and production unaffected until independently accepted. The verified reference run is https://github.com/aarondash5-star/business-house-matrix/actions/runs/42462288388, with original-required-check parity NOT certified.
