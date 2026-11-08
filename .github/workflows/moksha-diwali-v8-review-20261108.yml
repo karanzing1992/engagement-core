@@ -18,7 +18,7 @@ jobs:
         run: |
           set -euo pipefail
           command -v ffmpeg
-          ffmpeg -version >/dev/null
+          echo FFMPEG=$(command -v ffmpeg); ffmpeg -version 2>&1 || true; ls -l "$(command -v ffmpeg)" || true
           mkdir -p "$HOME/moksha-diwali-v8-20261108/engine" "$HOME/moksha-diwali-v8-20261108/private"
           cp -a "$GITHUB_WORKSPACE"/. "$HOME/moksha-diwali-v8-20261108/engine/"
           cp jobs/diwali-20261108/*.py "$HOME/moksha-diwali-v8-20261108/"
