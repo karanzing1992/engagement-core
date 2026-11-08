@@ -1,0 +1,69 @@
+name: Moksha Diwali V8 revised-reel source bundle
+on:
+  push:
+    branches:
+      - feat/moksha-diwali-v8-review-20261108
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download source-verified open-licensed music and real Diwali imagery
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source-bundle
+          cp assets/brand/moksha-logo-source.jpg source-bundle/moksha-official-source.jpg
+          echo "76e89b83667827da4b5d89143fb267f4000a9392eff685129c838c3d0b24748c  source-bundle/moksha-official-source.jpg" | sha256sum -c -
+          python3 - <<'PY'
+          import urllib.parse,urllib.request,json,hashlib,time,pathlib
+          folder=pathlib.Path('source-bundle')
+          ua='MokshaReelBot/1.0 (https://github.com/karanzing1992/engagement-core)'
+          files={
+              'flute_folk_2.wav':'Indian Folk Classical Flute Music (2).wav',
+              'carnatic_flute.ogg':'Carnatic flute.ogg',
+              'veena_cc0.ogg':'Shri Nilotpala Nayike, rendered on the Veena by L Ramakishnan.ogg',
+              'festival_temple.jpg':'Diwali Festival at temple 01.jpg',
+              'festival_lights.jpg':'Diwali, the festival of lights.jpg'
+          }
+          out=[]
+          for filename,title in files.items():
+              qs=urllib.parse.urlencode({'action':'query','format':'json','prop':'imageinfo','iiprop':'url|sha1|size|extmetadata','titles':'File:'+title})
+              q=urllib.request.Request('https://commons.wikimedia.org/w/api.php?'+qs,headers={'User-Agent':ua})
+              page=next(iter(json.load(urllib.request.urlopen(q,timeout=25))['query']['pages'].values()))
+              m=page['imageinfo'][0]
+              lic=m['extmetadata']['LicenseShortName']['value']
+              assert lic in ('CC0','CC BY 4.0','CC BY-SA 3.0','CC BY-SA 4.0','Public domain'),(title,lic)
+              assert 1000<m['size']<35_000_000,(title,m['size'])
+              data=bytearray()
+              for start in range(0,m['size'],4*1024*1024):
+                  end=min(m['size']-1,start+4*1024*1024-1)
+                  req=urllib.request.Request(m['url'],headers={'User-Agent':ua,'Range':f'bytes={start}-{end}'})
+                  for retry in range(3):
+                      try:
+                          with urllib.request.urlopen(req,timeout=60) as resp:
+                              content=resp.read()
+                              assert resp.status==206 and resp.headers.get('Content-Range')==f'bytes {start}-{end}/{m["size"]}'
+                              assert len(content)==end-start+1
+                          break
+                      except urllib.error.HTTPError as ex:
+                          if ex.code not in (429,503) or retry==2:raise
+                          pause=min(25,int(ex.headers.get('Retry-After','10')))
+                          time.sleep(max(1,pause))
+                  data.extend(content)
+              assert hashlib.sha1(data).hexdigest()==m['sha1'] and len(data)==m['size']
+              (folder/filename).write_bytes(data)
+              out.append({'file':filename,'source':'https://commons.wikimedia.org/wiki/File:'+urllib.parse.quote(title.replace(' ','_')),'sha1':m['sha1'],'sha256':hashlib.sha256(data).hexdigest(),'size':len(data),'license':lic,'attribution_required':not lic in ('CC0','Public domain'),'edited':True})
+              print('VERIFIED',filename,lic,len(data),flush=True)
+          (folder/'SOURCE_LICENSES.json').write_text(json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: moksha-diwali-v8-updated-sources-20261108
+          path: source-bundle/
+          retention-days: 1
+          if-no-files-found: error
