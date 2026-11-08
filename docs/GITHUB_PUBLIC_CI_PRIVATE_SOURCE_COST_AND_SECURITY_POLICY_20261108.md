@@ -21,7 +21,7 @@ GitHub documents that **standard GitHub-hosted runners for public repositories**
 | Field | Verified state |
 |---|---|
 | Private source | `aarondash5-star/delulutech`, source candidate SHA `4bff39c2acb868fad212d82c42ef4bd252041bea` |
-| Existing public CI host | `aarondash5-star/business-house-matrix`, draft PR #45, dedicated branch `ci/dlt-wpmanager-public-runner-20261108` |
+| Existing public CI host | `aarondash5-star/business-house-matrix`, public CI infrastructure PR #45 merged (squash `3de362f5d110851be4bee5e016aeec8a20bdbe2e`), dedicated branch `ci/dlt-wpmanager-public-runner-20261108` |
 | Source workflow | `.github/workflows/dlt-main-private-source-cert.yml` in the public CI host |
 | Configured GitHub Environment | `DELULUTECH_SOURCE_READ_TOKEN` (Environment *name*) |
 | Effective secret *name* | `DELULU_PRIVATE_TOKEN` (Environment secret, not its value) |
@@ -31,7 +31,7 @@ GitHub documents that **standard GitHub-hosted runners for public repositories**
 | OAuth isolation suite | PASS — job `128673963407`: selected consent/access-boundary tests |
 | Private source / customer data published | **No** source mirror, no public build artifacts, no cache; private checkout temporary and cleaned. Public logs use summary-only test verdicts |
 | Deploy, merge, production authentication | **None** |
-| Certification boundary | Does **not** prove 1:1 coverage of original `WP Manager 2.0 OAuth Consent QA` or set source-repository required checks to green. Original private-source PR #57 still draft. Production release remains NO-GO |
+| Certification boundary | All 3 **applicable original OAuth Consent QA executable jobs passed** externally on [Actions #42464447351](https://github.com/aarondash5-star/business-house-matrix/actions/runs/42464447351), including local workerd smoke and independent legacy ChatGPT regression; PR #10-only live staging correctly skipped. Original artifact/base64 output intentionally not reproduced in public. **Does NOT set source-repository required checks to green**; private source PR #57 still draft, production release remains NO-GO |
 | Owner security exception | GitHub Environment has **no branch restrictions by explicit owner directive**. Only workflow-level owner/repository/branch/event guards exist. This is a known residual risk and **must not** be copied as the default |
 
 The first runs failed because (a) a token secret was absent/wrong name, (b) a token lacked read access to the private source, and (c) an owner-created new Environment was not the one referenced in the workflow. The successful fix was **selecting the actual Environment plus the actual Environment secret name** and verifying repository access. The words `Environment` and `secret` are distinct concepts even when the user gives them identical names.
@@ -159,4 +159,10 @@ Do not reuse credential values or customer data across accounts or ventures. One
 
 Version this policy under `karanzing1992/engagement-core`; link it from participating repo READMEs or `docs/ci/` during each **owner-approved adoption**. A draft PR is not published policy until merged/accepted. Report verified new platform capability via the authorized Supabase Master event inbox where required; Master Doc publication, skill release and consumer ACK must be independently verified. Retest billing policy each quarter or when GitHub announces a change.
 
-**Evidence links:** GitHub's public-runner billing and security docs above; actual [CI success #42462288388](https://github.com/aarondash5-star/business-house-matrix/actions/runs/42462288388), [public draft PR #45](https://github.com/aarondash5-star/business-house-matrix/pull/45) and [private source draft PR #57](https://github.com/aarondash5-star/delulutech/pull/57).
+**Evidence links:** GitHub's public-runner billing and security docs above; actual [CI success #42462288388](https://github.com/aarondash5-star/business-house-matrix/actions/runs/42462288388), [public merged PR #45](https://github.com/aarondash5-star/business-house-matrix/pull/45) and [private source draft PR #57](https://github.com/aarondash5-star/delulutech/pull/57).
+
+## 8 November 2026 end-state addendum — independently verified original consent test parity
+
+Original private `aarondash5-star/delulutech` required Actions checks remained failed at historic [consent run #42404634487](https://github.com/aarondash5-star/delulutech/actions/runs/42404634487) and [production run #42404634489](https://github.com/aarondash5-star/delulutech/actions/runs/42404634489). They were **not** silently re-marked green or bypassed. The exact original consent workflow (blob `58abce572ab7e3bb3fb8bb7cf5495623afeb7ebd`) was inspected at immutable source SHA `4bff39c2...`; its three applicable jobs all passed on the public runner [#42464447351](https://github.com/aarondash5-star/business-house-matrix/actions/runs/42464447351): consent assets + local Wrangler smoke, independent legacy ChatGPT-app tests, Cloudflare OAuth V2 build/security regression. The fourth live staging job only targets PR #10 and is not eligible for PR #57. Unlike original private jobs, no source bundle base64 logs/artifacts or private dependency caches were published. Exact certification matrix: https://github.com/aarondash5-star/business-house-matrix/blob/main/docs/DELULUTECH_WPM_PRIVATE_CHECKS_PARITY_20261108.md.
+
+Public runner's CI-only PR #45 was merged to main at `3de362f5d110851be4bee5e016aeec8a20bdbe2e`, following green public Matrix checks and external test success. Original private OAuth source PR #57 remains unmerged because required source check status and live Google owner consent/release are separate gates. **Never interpret public CI parity as a source-repo required check conclusion or production approval.**
