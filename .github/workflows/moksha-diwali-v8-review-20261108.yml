@@ -1,0 +1,72 @@
+name: Moksha Diwali V8 — one-off private review
+on:
+  push:
+    branches:
+      - feat/moksha-diwali-v8-review-20261108
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  render:
+    name: Licensed source and V8 render
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare V8 isolated staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffmpeg
+          ffmpeg -filters | grep -E ' subtitles | ass ' >/dev/null
+          mkdir -p "$HOME/moksha-diwali-v8-20261108/engine" "$HOME/moksha-diwali-v8-20261108/private"
+          cp -a "$GITHUB_WORKSPACE"/. "$HOME/moksha-diwali-v8-20261108/engine/"
+          cp jobs/diwali-20261108/*.py "$HOME/moksha-diwali-v8-20261108/"
+          cp jobs/diwali-20261108/diwali_titles.ass "$HOME/moksha-diwali-v8-20261108/private/"
+      - name: Download original sources and check SHA1 against Commons
+        run: python3 "$HOME/moksha-diwali-v8-20261108/download_licensed.py"
+      - name: Assemble India-relevant licensed original visual shots
+        run: python3 "$HOME/moksha-diwali-v8-20261108/make_base.py"
+      - name: Run V8 director compiler, FFmpeg, rights gate and actual-output critic
+        run: python3 "$HOME/moksha-diwali-v8-20261108/render_with_v8.py"
+      - name: Finish mobile-safe text, HD picture, and mastered soundtrack
+        shell: bash
+        run: |
+          set -euo pipefail
+          W="$HOME/moksha-diwali-v8-20261108/private"
+          ffmpeg -hide_banner -loglevel error -y -i "$W/v8-native.mp4" \
+            -vf "scale=1080:1920:flags=lanczos,subtitles='$W/diwali_titles.ass':force_style='ScaledBorderAndShadow=yes',format=yuv420p" \
+            -af "loudnorm=I=-17:TP=-1.5:LRA=11,afade=t=in:st=0:d=0.6,afade=t=out:st=16.9:d=1.5" \
+            -c:v libx264 -preset veryfast -crf 19 -r 30 -pix_fmt yuv420p \
+            -c:a aac -b:a 192k -ar 48000 -ac 2 -movflags +faststart \
+            "$W/Moksha_Diwali_V8_The_Light_Within_2026.mp4"
+          ffmpeg -hide_banner -loglevel error -xerror \
+            -i "$W/Moksha_Diwali_V8_The_Light_Within_2026.mp4" -f null -
+          ffprobe -v error -show_entries format=duration,size:stream=codec_name,width,height,r_frame_rate \
+            -of compact=p=0 "$W/Moksha_Diwali_V8_The_Light_Within_2026.mp4"
+          sha256sum "$W/Moksha_Diwali_V8_The_Light_Within_2026.mp4" > "$W/RENDER_SHA256.txt"
+          cat > "$W/ATTRIBUTION_AND_RIGHTS.txt" <<'CREDITS'
+MOKSHA FAMILY — THE LIGHT WITHIN / HAPPY DIWALI
+Private review copy, not approved for publication.
+Visual source adaptations, cropped/graded/timed/overlaid by the Moksha V8 Reel workflow:
+"Diwali deep.jpg" by Shantanoo — CC BY 4.0
+https://commons.wikimedia.org/wiki/File:Diwali_deep.jpg
+"Diwali k deepak.jpg" by Abhimeena3213 — CC BY 4.0
+https://commons.wikimedia.org/wiki/File:Diwali_k_deepak.jpg
+"Happy Diwali.webm" by Pratiksha — CC BY-SA 3.0
+https://commons.wikimedia.org/wiki/File:Happy_Diwali.webm
+"Rangoli in diwali 2025.jpg" by Anushka10patel — CC BY 4.0
+https://commons.wikimedia.org/wiki/File:Rangoli_in_diwali_2025.jpg
+Music: "A Man Approaches with Bowed Sitar, Rishikesh" by Samuel Corwin — CC BY 4.0
+https://commons.wikimedia.org/wiki/File:Samuel_Corwin_-_A_Man_Approaches_with_Bowed_Sitar%2C_Rishikesh.ogg
+Creative Commons licenses: https://creativecommons.org/licenses/by/4.0/ and https://creativecommons.org/licenses/by-sa/3.0/
+You must respect CC BY-SA 3.0 share-alike requirements for adaptations of the included clip and include the appropriate credits and license with any distribution. No personal footage, platform posting, or paid asset.
+CREDITS
+          mkdir -p "$GITHUB_WORKSPACE/review-output"
+          cp "$W/Moksha_Diwali_V8_The_Light_Within_2026.mp4" "$W/RENDER_SHA256.txt" "$W/ATTRIBUTION_AND_RIGHTS.txt" "$W/source_manifest.json" "$W/v8_receipt.json" "$W/diwali_titles.ass" "$GITHUB_WORKSPACE/review-output/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: moksha-diwali-v8-review-20261108
+          path: review-output/
+          retention-days: 1
+          if-no-files-found: error
