@@ -46,22 +46,22 @@ jobs:
             -of compact=p=0 "$W/Moksha_Diwali_V8_The_Light_Within_2026.mp4"
           sha256sum "$W/Moksha_Diwali_V8_The_Light_Within_2026.mp4" > "$W/RENDER_SHA256.txt"
           cat > "$W/ATTRIBUTION_AND_RIGHTS.txt" <<'CREDITS'
-MOKSHA FAMILY — THE LIGHT WITHIN / HAPPY DIWALI
-Private review copy, not approved for publication.
-Visual source adaptations, cropped/graded/timed/overlaid by the Moksha V8 Reel workflow:
-"Diwali deep.jpg" by Shantanoo — CC BY 4.0
-https://commons.wikimedia.org/wiki/File:Diwali_deep.jpg
-"Diwali k deepak.jpg" by Abhimeena3213 — CC BY 4.0
-https://commons.wikimedia.org/wiki/File:Diwali_k_deepak.jpg
-"Happy Diwali.webm" by Pratiksha — CC BY-SA 3.0
-https://commons.wikimedia.org/wiki/File:Happy_Diwali.webm
-"Rangoli in diwali 2025.jpg" by Anushka10patel — CC BY 4.0
-https://commons.wikimedia.org/wiki/File:Rangoli_in_diwali_2025.jpg
-Music: "A Man Approaches with Bowed Sitar, Rishikesh" by Samuel Corwin — CC BY 4.0
-https://commons.wikimedia.org/wiki/File:Samuel_Corwin_-_A_Man_Approaches_with_Bowed_Sitar%2C_Rishikesh.ogg
-Creative Commons licenses: https://creativecommons.org/licenses/by/4.0/ and https://creativecommons.org/licenses/by-sa/3.0/
-You must respect CC BY-SA 3.0 share-alike requirements for adaptations of the included clip and include the appropriate credits and license with any distribution. No personal footage, platform posting, or paid asset.
-CREDITS
+          MOKSHA FAMILY — THE LIGHT WITHIN / HAPPY DIWALI
+          Private review copy, not approved for publication.
+          Visual source adaptations, cropped/graded/timed/overlaid by the Moksha V8 Reel workflow:
+          "Diwali deep.jpg" by Shantanoo — CC BY 4.0
+          https://commons.wikimedia.org/wiki/File:Diwali_deep.jpg
+          "Diwali k deepak.jpg" by Abhimeena3213 — CC BY 4.0
+          https://commons.wikimedia.org/wiki/File:Diwali_k_deepak.jpg
+          "Happy Diwali.webm" by Pratiksha — CC BY-SA 3.0
+          https://commons.wikimedia.org/wiki/File:Happy_Diwali.webm
+          "Rangoli in diwali 2025.jpg" by Anushka10patel — CC BY 4.0
+          https://commons.wikimedia.org/wiki/File:Rangoli_in_diwali_2025.jpg
+          Music: "A Man Approaches with Bowed Sitar, Rishikesh" by Samuel Corwin — CC BY 4.0
+          https://commons.wikimedia.org/wiki/File:Samuel_Corwin_-_A_Man_Approaches_with_Bowed_Sitar%2C_Rishikesh.ogg
+          Creative Commons licenses: https://creativecommons.org/licenses/by/4.0/ and https://creativecommons.org/licenses/by-sa/3.0/
+          You must respect CC BY-SA 3.0 share-alike requirements for adaptations of the included clip and include the appropriate credits and license with any distribution. No personal footage, platform posting, or paid asset.
+          CREDITS
           mkdir -p "$GITHUB_WORKSPACE/review-output"
           cp "$W/Moksha_Diwali_V8_The_Light_Within_2026.mp4" "$W/RENDER_SHA256.txt" "$W/ATTRIBUTION_AND_RIGHTS.txt" "$W/source_manifest.json" "$W/v8_receipt.json" "$W/diwali_titles.ass" "$GITHUB_WORKSPACE/review-output/"
       - uses: actions/upload-artifact@v4
