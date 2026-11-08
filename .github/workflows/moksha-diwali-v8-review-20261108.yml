@@ -18,7 +18,7 @@ jobs:
         run: |
           set -euo pipefail
           command -v ffmpeg
-          ffmpeg -filters | grep -E ' subtitles | ass ' >/dev/null
+          ffmpeg -hide_banner -filters 2>&1 | grep -E '(subtitles|ass)' >/dev/null
           mkdir -p "$HOME/moksha-diwali-v8-20261108/engine" "$HOME/moksha-diwali-v8-20261108/private"
           cp -a "$GITHUB_WORKSPACE"/. "$HOME/moksha-diwali-v8-20261108/engine/"
           cp jobs/diwali-20261108/*.py "$HOME/moksha-diwali-v8-20261108/"
