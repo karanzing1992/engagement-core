@@ -20,12 +20,13 @@ const copyKeys=new Set([
   'type','quality_rating','messaging_limit_tier','throughput','display_phone_number',
   'verified_name','code_verification_status','description','about','address',
   'vertical','is_cart_enabled','is_catalog_visible','success','accepted',
-  'flowId','resourceId','messageId','mimeType','sha256','fileSize','bytes',
+  'flowId','resourceId','messageId','mediaId','mimeType','sha256','fileSize','bytes',
   'start','end','sent','delivered','read','failed','statusTimestamp','timestamp',
   'requestCount','errorCount','errorRate','durationMs','active','health_status',
   'validation_errors','json_version','data_api_version','categories',
   'granularity','data_points','metrics','result'
 ]);
+const analyticsCopyKeys=new Set(['analytics','template_analytics','template_id','clicked','cost','currency']);
 const tenantPattern=/^wacrm_[a-f0-9]{40}$/;
 const idPattern=/^[0-9]{6,64}$/;
 const actorIdPattern=/^[A-Za-z0-9_.:-]{1,128}$/;
@@ -86,7 +87,7 @@ function inputSnapshot(value,depth=0,seen=new WeakSet(),budget={nodes:0}){
   return Object.freeze(copy);
 }
 
-function safeRead(value,depth=0){
+function safeRead(value,depth=0,allowAnalytics=false){
   if(depth>7)throw new Error('depth');
   if(value===null||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
@@ -97,7 +98,7 @@ function safeRead(value,depth=0){
   }
   if(Array.isArray(value)){
     if(value.length>100)throw new Error('size');
-    return value.map(x=>safeRead(x,depth+1));
+    return value.map(x=>safeRead(x,depth+1,allowAnalytics));
   }
   if(!plain(value))throw new Error('shape');
   const descriptors=Object.getOwnPropertyDescriptors(value);
@@ -109,7 +110,8 @@ function safeRead(value,depth=0){
        !Object.hasOwn(descriptors[key],'value'))throw new Error('sensitive');
     // Drop non-allowlisted public Graph fields, never echo credentials,
     // signed CDN URLs, customer message text or raw webhook payloads.
-    if(copyKeys.has(key))out[key]=safeRead(descriptors[key].value,depth+1);
+    if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key)))
+      out[key]=safeRead(descriptors[key].value,depth+1,allowAnalytics);
   }
   return out;
 }
@@ -127,13 +129,21 @@ function sanitize(result,def){
     ?descriptors.structuredContent.value:Object.hasOwn(descriptors,'data')
       ?descriptors.data.value:result;
   if(!plain(value))throw new Error('provider');
-  const data=safeRead(value);
+  const analyticsKey=def.name==='whatsapp_get_business_analytics'?'analytics':
+    def.name==='whatsapp_get_template_analytics'?'template_analytics':null;
+  const data=safeRead(value,0,analyticsKey!==null);
+  if(analyticsKey&&!Object.hasOwn(data,analyticsKey))throw new Error('missing_analytics');
   if(Buffer.byteLength(JSON.stringify(data),'utf8')>65536)
     throw new Error('provider');
   if(def.kind==='read'&&!Object.keys(data).length)throw new Error('empty_read');
+  const mediaUpload=def.name==='whatsapp_upload_media_from_url';
+  if(mediaUpload&&(typeof data.mediaId!=='string'||
+      !/^(?:[0-9]{6,64}|media\.mock-[1-9][0-9]*)$/.test(data.mediaId)))
+    throw new Error('bad_media_id');
   if(def.kind!=='read'&&!Object.hasOwn(data,'accepted')&&
       !Object.hasOwn(data,'success')&&!Object.hasOwn(data,'messageId')&&
-      !Object.hasOwn(data,'resourceId'))throw new Error('missing_receipt');
+      !Object.hasOwn(data,'resourceId')&&!(mediaUpload&&Object.hasOwn(data,'mediaId')))
+    throw new Error('missing_receipt');
   if(data.messageId!==undefined&&
       (typeof data.messageId!=='string'||!opaque.test(data.messageId)))
     throw new Error('bad_id');
