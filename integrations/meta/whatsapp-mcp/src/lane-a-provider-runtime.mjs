@@ -48,13 +48,22 @@ function plain(value){
  * Snapshot MCP arguments synchronously before any async host callback.
  * The caller retains ownership of its object; downstream policy/route callbacks
  * must never observe later mutations or invoke getters from untrusted inputs.
+ *
+ * Require JSON-tree-shaped inputs (no cycles or repeated object references),
+ * preventing alias-based expansion. The trusted catalog schema ONLY permits
+ * "phone" only at contacts[].phones[].phone (pinned Dojo 0.5.0).
+ * A cumulative UTF-8 value budget prevents multi-node preflight exhaustion.
  */
-function inputSnapshot(value,depth=0,seen=new WeakSet(),budget={nodes:0}){
+function inputSnapshot(value,toolName,depth=0,seen=new WeakSet(),budget={nodes:0,bytes:0},path=''){
   if(++budget.nodes>1024||depth>12)throw new Error('input_size');
   if(value===null||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
-  if(typeof value==='string'&&Buffer.byteLength(value,'utf8')<=32768&&
-      !value.includes('\u0000'))return value;
+  if(typeof value==='string'){
+    const bytes=Buffer.byteLength(value,'utf8');
+    if(bytes>32768||(budget.bytes+=bytes)>65536||value.includes('\u0000'))
+      throw new Error('input_size');
+    return value;
+  }
   if(typeof value!=='object'||nodeTypes.isProxy(value)||seen.has(value))
     throw new Error('input_shape');
   seen.add(value);
@@ -67,7 +76,8 @@ function inputSnapshot(value,depth=0,seen=new WeakSet(),budget={nodes:0}){
       throw new Error('input_array');
     return Object.freeze(Array.from({length:value.length},(_,i)=>{
       if(!Object.hasOwn(descriptors,String(i)))throw new Error('input_sparse');
-      return inputSnapshot(descriptors[i].value,depth+1,seen,budget);
+      return inputSnapshot(descriptors[i].value,
+        toolName,depth+1,seen,budget,path+'[]');
     }));
   }
   if(!plain(value))throw new Error('input_object');
@@ -78,13 +88,16 @@ function inputSnapshot(value,depth=0,seen=new WeakSet(),budget={nodes:0}){
   for(const key of keys){
     if(typeof key!=='string'||key.length>128||
       ['__proto__','constructor','prototype'].includes(key)||
-      // Contacts legitimately contain phone; ingress Zod validates its shape.
-      // Do not confuse contact fields with bearer/tenant/Graph credentials.
-      (deniedKey.test(key)&&key!=='phone')||!Object.hasOwn(descriptors[key],'value'))
+      // Pinned Dojo contacts use contacts[].phones[].phone. No other
+      // operation or nesting level can receive this credential-like key.
+      (deniedKey.test(key)&&!(key==='phone'&&
+        toolName==='whatsapp_send_contacts'&&path==='contacts[].phones[]'))||
+      !Object.hasOwn(descriptors[key],'value'))
       throw new Error('input_key');
     Object.defineProperty(copy,key,{
       enumerable:true,configurable:false,writable:false,
-      value:inputSnapshot(descriptors[key].value,depth+1,seen,budget)
+      value:inputSnapshot(descriptors[key].value,
+        toolName,depth+1,seen,budget,path?path+'.'+key:key)
     });
   }
   return Object.freeze(copy);
@@ -97,7 +110,9 @@ function inputSnapshot(value,depth=0,seen=new WeakSet(),budget={nodes:0}){
  *
  * Every output value is recreated from own *data* descriptors. Bounded
  * depth/node counts support Meta's nested analytics clicked/cost arrays but
- * prevent recursive payload exhaustion and alias-based cycles.
+ * prevent recursive payload exhaustion and alias-based cycles. Reused object
+ * identities (DAG payloads) are intentionally denied, not silently duplicated;
+ * WACRM providers must return JSON-tree-shaped objects without shared refs.
  */
 function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0}){
   if(++budget.nodes>1024||depth>(allowAnalytics?12:7))throw new Error('depth');
@@ -261,7 +276,7 @@ export function createLaneAProviderMcp({
       }catch(_){return error('forbidden');}
       // No untrusted input inspection occurs before identity proof. The immutable
       // snapshot precedes policy authorization, routing and provider execution.
-      try { args=inputSnapshot(args??{}); }
+      try { args=inputSnapshot(args??{},name); }
       catch(_) { return error('invalid_input'); }
       let policy;
       try {policy=await readPolicy(verifiedPrincipal,tenantId,name,args);}
