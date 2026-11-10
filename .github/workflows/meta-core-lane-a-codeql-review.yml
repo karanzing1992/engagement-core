@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - fix/meta-core-lane-a-release-review-20261110
+      - fix/meta-core-lane-a-report-remediation-20261111
+      - audit/meta-core-lane-a-resubmit-20261111
   workflow_dispatch:
 permissions:
   contents: read
@@ -35,12 +37,15 @@ jobs:
         uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066
         with:
           category: /meta-core-lane-a-source-security
+          # Official pinned CodeQL analyze input: output (not sarif-results).
+          # All files stay inside GITHUB_WORKSPACE; fail if output is absent.
+          output: ${{ github.workspace }}/security-evidence
       - name: Assess and print scoped CodeQL findings from SARIF (fail-closed)
         shell: bash
         run: |
           node <<'NODE'
           const fs=require('node:fs');
-          const source='../results/javascript.sarif';
+          const source='security-evidence/javascript.sarif';
           const sarif=JSON.parse(fs.readFileSync(source,'utf8'));
           const runs=sarif.runs||[];
           let count=0;
@@ -61,14 +66,6 @@ jobs:
             'CODEQL_FINDING_COUNT='+count+'\\n');
           if(count>0)process.exitCode=1;
           NODE
-      - name: Stage only sanitized SARIF evidence in workspace
-        if: always()
-        shell: bash
-        run: |
-          if [ -s ../results/javascript.sarif ]; then
-            mkdir -p security-evidence
-            cp ../results/javascript.sarif security-evidence/javascript.sarif
-          fi
       - name: Preserve short-lived SARIF for independent auditor
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
