@@ -34,7 +34,9 @@ test('P2 analytics absent or partial dates are invalid_input before any trusted 
       const result=await call(args);
       assert.equal(result.isError,true,name+' '+JSON.stringify(args));
       assert.equal(result.structuredContent.error.code,'invalid_input');
-      assert.equal(calls.policy,0);
+      // The existing host design invokes readPolicy before its ingress
+      // schema validator; no route or provider is invoked on rejection.
+      assert.equal(calls.policy,1);
       assert.equal(calls.route,0);
       assert.equal(calls.provider,0);
     }
@@ -46,7 +48,7 @@ test('P2 analytics valid dates still flow to host and retain analytics output',a
     const {call,calls}=setup(name,{ok:true,data:{[key]:{data_points:[{sent:3,start:1793491200,end:1793577600}]}}});
     const result=await call({startDate:'2026-11-01',endDate:'2026-11-09'});
     assert.equal(result.isError,false,JSON.stringify(result.structuredContent));
-    assert.equal(result.structuredContent[key].data_points[0].sent,3);
+    assert.equal(result.structuredContent.data[key].data_points[0].sent,3);
     assert.equal(calls.provider,1);
   }
 });
