@@ -35,6 +35,40 @@ jobs:
         uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066
         with:
           category: /meta-core-lane-a-source-security
+      - name: Assess and print scoped CodeQL findings from SARIF (fail-closed)
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          const source='../results/javascript.sarif';
+          const sarif=JSON.parse(fs.readFileSync(source,'utf8'));
+          const runs=sarif.runs||[];
+          let count=0;
+          for(const run of runs){
+            const rules=new Map((run.tool?.driver?.rules||[]).map(r=>[r.id,r]));
+            for(const finding of run.results||[]){
+              count++;
+              const rule=rules.get(finding.ruleId);
+              const severity=rule?.properties?.['security-severity']??rule?.properties?.['problem.severity']??'unclassified';
+              console.log('CODEQL_FINDING '+JSON.stringify({
+                ruleId:finding.ruleId,severity,
+                path:finding.locations?.[0]?.physicalLocation?.artifactLocation?.uri||'unknown'
+              }));
+            }
+          }
+          console.log('CODEQL_FINDING_COUNT='+count);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            'CODEQL_FINDING_COUNT='+count+'\\n');
+          if(count>0)process.exitCode=1;
+          NODE
+      - name: Preserve short-lived SARIF for independent auditor
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: meta-core-lane-a-codeql-sarif
+          path: ../results/javascript.sarif
+          if-no-files-found: warn
+          retention-days: 3
       - name: Record scope and follow-up limitation
         run: |
           echo "SOURCE_ONLY=true" >> "$GITHUB_STEP_SUMMARY"
