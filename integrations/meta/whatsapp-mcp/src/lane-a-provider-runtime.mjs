@@ -40,6 +40,50 @@ function plain(value){
   try{return value!==null&&typeof value==='object'&&!Array.isArray(value)&&
     Object.getPrototypeOf(value)===Object.prototype;}catch(_){return false;}
 }
+
+/**
+ * Snapshot MCP arguments synchronously before any async host callback.
+ * The caller retains ownership of its object; downstream policy/route callbacks
+ * must never observe later mutations or invoke getters from untrusted inputs.
+ */
+function inputSnapshot(value,depth=0,seen=new WeakSet(),budget={nodes:0}){
+  if(++budget.nodes>1024||depth>12)throw new Error('input_size');
+  if(value===null||typeof value==='boolean')return value;
+  if(typeof value==='number'&&Number.isFinite(value))return value;
+  if(typeof value==='string'&&Buffer.byteLength(value,'utf8')<=32768&&
+      !value.includes('\u0000'))return value;
+  if(typeof value!=='object'||seen.has(value))throw new Error('input_shape');
+  seen.add(value);
+  if(Array.isArray(value)){
+    const descriptors=Object.getOwnPropertyDescriptors(value);
+    const keys=Reflect.ownKeys(descriptors);
+    if(value.length>100||keys.length!==value.length+1||
+      keys.some(k=>k!=='length'&&(typeof k!=='string'||!/^(?:0|[1-9][0-9]*)$/.test(k)||
+        Number(k)>=value.length||!Object.hasOwn(descriptors[k],'value'))))
+      throw new Error('input_array');
+    return Object.freeze(Array.from({length:value.length},(_,i)=>{
+      if(!Object.hasOwn(descriptors,String(i)))throw new Error('input_sparse');
+      return inputSnapshot(descriptors[i].value,depth+1,seen,budget);
+    }));
+  }
+  if(!plain(value))throw new Error('input_object');
+  const descriptors=Object.getOwnPropertyDescriptors(value);
+  const keys=Reflect.ownKeys(descriptors);
+  if(keys.length>64)throw new Error('input_object_size');
+  const copy={};
+  for(const key of keys){
+    if(typeof key!=='string'||key.length>128||
+      ['__proto__','constructor','prototype'].includes(key)||
+      deniedKey.test(key)||!Object.hasOwn(descriptors[key],'value'))
+      throw new Error('input_key');
+    Object.defineProperty(copy,key,{
+      enumerable:true,configurable:false,writable:false,
+      value:inputSnapshot(descriptors[key].value,depth+1,seen,budget)
+    });
+  }
+  return Object.freeze(copy);
+}
+
 function safeRead(value,depth=0){
   if(depth>7)throw new Error('depth');
   if(value===null||typeof value==='boolean')return value;
@@ -68,14 +112,22 @@ function safeRead(value,depth=0){
   return out;
 }
 function sanitize(result,def){
-  if(!plain(result)||result.ok===false||result.isError===true)
+  if(!plain(result))throw new Error('provider');
+  // Never invoke untrusted getters while selecting or sizing provider output.
+  const descriptors=Object.getOwnPropertyDescriptors(result);
+  for(const key of ['ok','isError','structuredContent','data']){
+    if(Object.hasOwn(descriptors,key)&&!Object.hasOwn(descriptors[key],'value'))
+      throw new Error('provider_accessor');
+  }
+  if(descriptors.ok?.value===false||descriptors.isError?.value===true)
     throw new Error('provider');
-  // A separate, owning provider is allowed to return a formal MCP result.
-  const value=Object.hasOwn(result,'structuredContent')
-    ?result.structuredContent:Object.hasOwn(result,'data')?result.data:result;
-  if(!plain(value)||Buffer.byteLength(JSON.stringify(value),'utf8')>65536)
-    throw new Error('provider');
+  const value=Object.hasOwn(descriptors,'structuredContent')
+    ?descriptors.structuredContent.value:Object.hasOwn(descriptors,'data')
+      ?descriptors.data.value:result;
+  if(!plain(value))throw new Error('provider');
   const data=safeRead(value);
+  if(Buffer.byteLength(JSON.stringify(data),'utf8')>65536)
+    throw new Error('provider');
   if(def.kind==='read'&&!Object.keys(data).length)throw new Error('empty_read');
   if(def.kind!=='read'&&!Object.hasOwn(data,'accepted')&&
       !Object.hasOwn(data,'success')&&!Object.hasOwn(data,'messageId')&&
@@ -140,6 +192,10 @@ export function createLaneAProviderMcp({
       if(!def)return error('unknown_tool');
       if(!granted.has(name)||def.kind!=='read'&&!enableWriteCandidates)return error('not_enabled');
       if(!exposed().some(t=>t.name===name))return error('provider_unavailable');
+      // Snapshot *before* readPolicy, any await, or route/ownership resolution.
+      // The entire decision and provider call must use the same immutable input.
+      try { args=inputSnapshot(args??{}); }
+      catch(_) { return error('invalid_input'); }
       const {verifiedPrincipal,tenantId,requestId}=context;
       if(!validateActor(verifiedPrincipal,tenantId))return error('forbidden');
       // A signed, issuer/client/audience/role-proven principal is mandatory.
@@ -179,10 +235,9 @@ export function createLaneAProviderMcp({
       };
       let response;
       try {
-        // Reconstruct validated, getter-free arguments for provider calls:
-        // JSON clone rejects cycles/accessors; the preflight already rejects
-        // unknown keys, prototypes, dangerous tokens and size violations.
-        envelope.args=JSON.parse(JSON.stringify(args??{}));
+        // Strict immutable argument snapshot was captured before authorization.
+        // Never revisit caller-owned mutable inputs after async policy checks.
+        envelope.args=args;
         if(def.adapter==='host'){
           const plan=buildWacrmGraphV26Plan({
             name,args:envelope.args,route,ownership:proof
