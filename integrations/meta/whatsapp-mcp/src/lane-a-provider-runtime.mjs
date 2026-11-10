@@ -169,7 +169,7 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
     if(permittedProfile){
       const v=descriptors[key].value;
       if(key==='email'&&(typeof v!=='string'||v.length>256||
-          !/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(v)))throw new Error('profile_email');
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)))throw new Error('profile_email');
       if(key==='profile_picture_url'&&(typeof v!=='string'||
           v.length>2048||!/^https:\/\/[^\s]+$/.test(v)))throw new Error('profile_url');
       if(key==='websites'&&(!Array.isArray(v)||nodeTypes.isProxy(v)))
