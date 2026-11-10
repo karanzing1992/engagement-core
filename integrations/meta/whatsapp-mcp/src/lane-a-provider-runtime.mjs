@@ -11,6 +11,7 @@
 import { WHATSAPP_LANE_A_CATALOG } from './lane-a-capability-catalog.mjs';
 import { createWhatsAppLaneAMcpHarness } from './lane-a-mcp-harness.mjs';
 import { buildWacrmGraphV26Plan } from './lane-a-graph-v26-plans.mjs';
+import { types as nodeTypes } from 'node:util';
 
 const all=new Map(WHATSAPP_LANE_A_CATALOG.map(x=>[x.name,x]));
 const opaque=/^(?:wamid\.[A-Za-z0-9._:-]{4,256}|[0-9]{6,64}|meta-core-[A-Za-z0-9_-]{8,96})$/;
@@ -20,12 +21,13 @@ const copyKeys=new Set([
   'type','quality_rating','messaging_limit_tier','throughput','display_phone_number',
   'verified_name','code_verification_status','description','about','address',
   'vertical','is_cart_enabled','is_catalog_visible','success','accepted',
-  'flowId','resourceId','messageId','mimeType','sha256','fileSize','bytes',
+  'flowId','resourceId','messageId','mediaId','mimeType','sha256','fileSize','bytes',
   'start','end','sent','delivered','read','failed','statusTimestamp','timestamp',
   'requestCount','errorCount','errorRate','durationMs','active','health_status',
   'validation_errors','json_version','data_api_version','categories',
   'granularity','data_points','metrics','result'
 ]);
+const analyticsCopyKeys=new Set(['analytics','template_analytics','template_id','clicked','cost','currency','value']);
 const tenantPattern=/^wacrm_[a-f0-9]{40}$/;
 const idPattern=/^[0-9]{6,64}$/;
 const actorIdPattern=/^[A-Za-z0-9_.:-]{1,128}$/;
@@ -37,11 +39,83 @@ function error(code){
     content:[{type:'text',text:JSON.stringify(structuredContent)}]};
 }
 function plain(value){
-  try{return value!==null&&typeof value==='object'&&!Array.isArray(value)&&
+  try{return value!==null&&typeof value==='object'&&!nodeTypes.isProxy(value)&&
+    !Array.isArray(value)&&
     Object.getPrototypeOf(value)===Object.prototype;}catch(_){return false;}
 }
-function safeRead(value,depth=0){
-  if(depth>7)throw new Error('depth');
+
+/**
+ * Snapshot MCP arguments synchronously before any async host callback.
+ * The caller retains ownership of its object; downstream policy/route callbacks
+ * must never observe later mutations or invoke getters from untrusted inputs.
+ *
+ * Require JSON-tree-shaped inputs (no cycles or repeated object references),
+ * preventing alias-based expansion. The trusted catalog schema ONLY permits
+ * "phone" only at contacts[].phones[].phone (pinned Dojo 0.5.0).
+ * A cumulative UTF-8 value budget prevents multi-node preflight exhaustion.
+ */
+function inputSnapshot(value,toolName,depth=0,seen=new WeakSet(),budget={nodes:0,bytes:0},path=''){
+  if(++budget.nodes>1024||depth>12)throw new Error('input_size');
+  if(value===null||typeof value==='boolean')return value;
+  if(typeof value==='number'&&Number.isFinite(value))return value;
+  if(typeof value==='string'){
+    const bytes=Buffer.byteLength(value,'utf8');
+    if(bytes>32768||(budget.bytes+=bytes)>65536||value.includes('\u0000'))
+      throw new Error('input_size');
+    return value;
+  }
+  if(typeof value!=='object'||nodeTypes.isProxy(value)||seen.has(value))
+    throw new Error('input_shape');
+  seen.add(value);
+  if(Array.isArray(value)){
+    const descriptors=Object.getOwnPropertyDescriptors(value);
+    const keys=Reflect.ownKeys(descriptors);
+    if(value.length>100||keys.length!==value.length+1||
+      keys.some(k=>k!=='length'&&(typeof k!=='string'||!/^(?:0|[1-9][0-9]*)$/.test(k)||
+        Number(k)>=value.length||!Object.hasOwn(descriptors[k],'value'))))
+      throw new Error('input_array');
+    return Object.freeze(Array.from({length:value.length},(_,i)=>{
+      if(!Object.hasOwn(descriptors,String(i)))throw new Error('input_sparse');
+      return inputSnapshot(descriptors[i].value,
+        toolName,depth+1,seen,budget,path+'[]');
+    }));
+  }
+  if(!plain(value))throw new Error('input_object');
+  const descriptors=Object.getOwnPropertyDescriptors(value);
+  const keys=Reflect.ownKeys(descriptors);
+  if(keys.length>64)throw new Error('input_object_size');
+  const copy={};
+  for(const key of keys){
+    if(typeof key!=='string'||key.length>128||
+      ['__proto__','constructor','prototype'].includes(key)||
+      // Pinned Dojo contacts use contacts[].phones[].phone. No other
+      // operation or nesting level can receive this credential-like key.
+      (deniedKey.test(key)&&!(key==='phone'&&
+        toolName==='whatsapp_send_contacts'&&path==='contacts[].phones[]'))||
+      !Object.hasOwn(descriptors[key],'value'))
+      throw new Error('input_key');
+    Object.defineProperty(copy,key,{
+      enumerable:true,configurable:false,writable:false,
+      value:inputSnapshot(descriptors[key].value,
+        toolName,depth+1,seen,budget,path?path+'.'+key:key)
+    });
+  }
+  return Object.freeze(copy);
+}
+
+/**
+ * Sanitize provider results without calling methods, indexed getters, or
+ * iterators owned by the provider. In particular, Array#map can be replaced
+ * on an untrusted response and is NEVER called here.
+ *
+ * Every output value is recreated from own *data* descriptors. Bounded
+ * depth/node counts support Meta's nested analytics clicked/cost arrays but
+ * prevent recursive payload exhaustion and alias-based cycles. Reused object
+ * identities (DAG payloads) are intentionally denied, not silently duplicated;
+ * WACRM providers must return JSON-tree-shaped objects without shared refs.
+ */
+function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0}){
+  if(++budget.nodes>1024||depth>(allowAnalytics?12:7))throw new Error('depth');
   if(value===null||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
   if(typeof value==='string'){
@@ -49,9 +123,27 @@ function safeRead(value,depth=0){
       throw new Error('content');
     return value;
   }
+  if(typeof value!=='object'||nodeTypes.isProxy(value)||seen.has(value))
+    throw new Error('shape');
+  seen.add(value);
   if(Array.isArray(value)){
-    if(value.length>100)throw new Error('size');
-    return value.map(x=>safeRead(x,depth+1));
+    if(Object.getPrototypeOf(value)!==Array.prototype)throw new Error('array_prototype');
+    const descriptors=Object.getOwnPropertyDescriptors(value);
+    const size=descriptors.length?.value;
+    if(!Number.isSafeInteger(size)||size>100||size<0)throw new Error('size');
+    const keys=Reflect.ownKeys(descriptors);
+    if(keys.length!==size+1||keys.some(key=>
+      typeof key!=='string'||(key!=='length'&&
+      (!/^(?:0|[1-9][0-9]*)$/.test(key)||Number(key)>=size||
+        !Object.hasOwn(descriptors[key],'value')||descriptors[key].enumerable!==true))))
+      throw new Error('array_keys');
+    const out=[];
+    for(let i=0;i<size;i++){
+      const descriptor=descriptors[String(i)];
+      if(!descriptor||!Object.hasOwn(descriptor,'value'))throw new Error('array_accessor');
+      out[i]=safeRead(descriptor.value,depth+1,allowAnalytics,seen,budget);
+    }
+    return out;
   }
   if(!plain(value))throw new Error('shape');
   const descriptors=Object.getOwnPropertyDescriptors(value);
@@ -60,26 +152,42 @@ function safeRead(value,depth=0){
   const out={};
   for(const key of keys){
     if(typeof key!=='string'||deniedKey.test(key)||
-       !Object.hasOwn(descriptors[key],'value'))throw new Error('sensitive');
-    // Drop non-allowlisted public Graph fields, never echo credentials,
-    // signed CDN URLs, customer message text or raw webhook payloads.
-    if(copyKeys.has(key))out[key]=safeRead(descriptors[key].value,depth+1);
+      !Object.hasOwn(descriptors[key],'value'))throw new Error('sensitive');
+    // Only allow analytics-specific fields inside the two analytics operations.
+    if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key)))
+      out[key]=safeRead(descriptors[key].value,depth+1,allowAnalytics,seen,budget);
   }
   return out;
 }
 function sanitize(result,def){
-  if(!plain(result)||result.ok===false||result.isError===true)
+  if(!plain(result))throw new Error('provider');
+  // Never invoke untrusted getters while selecting or sizing provider output.
+  const descriptors=Object.getOwnPropertyDescriptors(result);
+  for(const key of ['ok','isError','structuredContent','data']){
+    if(Object.hasOwn(descriptors,key)&&!Object.hasOwn(descriptors[key],'value'))
+      throw new Error('provider_accessor');
+  }
+  if(descriptors.ok?.value===false||descriptors.isError?.value===true)
     throw new Error('provider');
-  // A separate, owning provider is allowed to return a formal MCP result.
-  const value=Object.hasOwn(result,'structuredContent')
-    ?result.structuredContent:Object.hasOwn(result,'data')?result.data:result;
-  if(!plain(value)||Buffer.byteLength(JSON.stringify(value),'utf8')>65536)
+  const value=Object.hasOwn(descriptors,'structuredContent')
+    ?descriptors.structuredContent.value:Object.hasOwn(descriptors,'data')
+      ?descriptors.data.value:result;
+  if(!plain(value))throw new Error('provider');
+  const analyticsKey=def.name==='whatsapp_get_business_analytics'?'analytics':
+    def.name==='whatsapp_get_template_analytics'?'template_analytics':null;
+  const data=safeRead(value,0,analyticsKey!==null);
+  if(analyticsKey&&!Object.hasOwn(data,analyticsKey))throw new Error('missing_analytics');
+  if(Buffer.byteLength(JSON.stringify(data),'utf8')>65536)
     throw new Error('provider');
-  const data=safeRead(value);
   if(def.kind==='read'&&!Object.keys(data).length)throw new Error('empty_read');
+  const mediaUpload=def.name==='whatsapp_upload_media_from_url';
+  if(mediaUpload&&(typeof data.mediaId!=='string'||
+      !/^(?:[0-9]{6,64}|media\.mock-[1-9][0-9]*)$/.test(data.mediaId)))
+    throw new Error('bad_media_id');
   if(def.kind!=='read'&&!Object.hasOwn(data,'accepted')&&
       !Object.hasOwn(data,'success')&&!Object.hasOwn(data,'messageId')&&
-      !Object.hasOwn(data,'resourceId'))throw new Error('missing_receipt');
+      !Object.hasOwn(data,'resourceId')&&!(mediaUpload&&Object.hasOwn(data,'mediaId')))
+    throw new Error('missing_receipt');
   if(data.messageId!==undefined&&
       (typeof data.messageId!=='string'||!opaque.test(data.messageId)))
     throw new Error('bad_id');
@@ -135,12 +243,30 @@ export function createLaneAProviderMcp({
   });
   return Object.freeze({
     listTools:exposed,
-    async callTool({name,arguments:args}={}, context={}){
+    async callTool(request={}, context={}){
+      // Reject Proxy-backed MCP envelopes and contexts before property access,
+      // object reflection or any host call. Proxies can run arbitrary traps.
+      if(!plain(request))return error('invalid_input');
+      if(!plain(context))return error('forbidden');
+      const requestFields=Object.getOwnPropertyDescriptors(request);
+      const contextFields=Object.getOwnPropertyDescriptors(context);
+      if(!Object.hasOwn(requestFields,'name')||
+          !Object.hasOwn(requestFields.name,'value')||
+          (requestFields.arguments&&!Object.hasOwn(requestFields.arguments,'value')))
+        return error('invalid_input');
+      for(const key of ['verifiedPrincipal','tenantId','requestId']){
+        if(contextFields[key]&&!Object.hasOwn(contextFields[key],'value'))
+          return error('forbidden');
+      }
+      const name=requestFields.name.value;
+      let args=requestFields.arguments?.value;
+      const verifiedPrincipal=contextFields.verifiedPrincipal?.value;
+      const tenantId=contextFields.tenantId?.value;
+      const requestId=contextFields.requestId?.value;
       const def=all.get(name);
       if(!def)return error('unknown_tool');
       if(!granted.has(name)||def.kind!=='read'&&!enableWriteCandidates)return error('not_enabled');
       if(!exposed().some(t=>t.name===name))return error('provider_unavailable');
-      const {verifiedPrincipal,tenantId,requestId}=context;
       if(!validateActor(verifiedPrincipal,tenantId))return error('forbidden');
       // A signed, issuer/client/audience/role-proven principal is mandatory.
       // No route, policy or provider action until identity verification passes.
@@ -148,6 +274,10 @@ export function createLaneAProviderMcp({
         if(await verifyIdentity(verifiedPrincipal,tenantId,name)!==true)
           return error('forbidden');
       }catch(_){return error('forbidden');}
+      // No untrusted input inspection occurs before identity proof. The immutable
+      // snapshot precedes policy authorization, routing and provider execution.
+      try { args=inputSnapshot(args??{},name); }
+      catch(_) { return error('invalid_input'); }
       let policy;
       try {policy=await readPolicy(verifiedPrincipal,tenantId,name,args);}
       catch(_){return error('policy_denied');}
@@ -179,10 +309,9 @@ export function createLaneAProviderMcp({
       };
       let response;
       try {
-        // Reconstruct validated, getter-free arguments for provider calls:
-        // JSON clone rejects cycles/accessors; the preflight already rejects
-        // unknown keys, prototypes, dangerous tokens and size violations.
-        envelope.args=JSON.parse(JSON.stringify(args??{}));
+        // Strict immutable argument snapshot was captured before authorization.
+        // Never revisit caller-owned mutable inputs after async policy checks.
+        envelope.args=args;
         if(def.adapter==='host'){
           const plan=buildWacrmGraphV26Plan({
             name,args:envelope.args,route,ownership:proof
