@@ -136,7 +136,7 @@ def main():
             response = api("/models/" + candidate + ":generateContent", key,
                            {"contents": [{"parts": parts}],
                             "generationConfig": {"temperature": 0, "responseMimeType": "application/json",
-                                                 "maxOutputTokens": 700}})
+                                                 "maxOutputTokens": 2400}})
             model = candidate
             break
         except RuntimeError as exc:
@@ -146,9 +146,20 @@ def main():
             raise
     if response is None:
         raise RuntimeError("ALL_APPROVED_FLASH_CANDIDATES_UNAVAILABLE")
+    candidates = response.get("candidates") or [{}]
+    first = candidates[0]
     raw = "".join(part.get("text", "") for part in
-                  response.get("candidates", [{}])[0].get("content", {}).get("parts", []))
-    result = validate(json.loads(raw))
+                  first.get("content", {}).get("parts", []) if isinstance(part, dict))
+    finish = str(first.get("finishReason", "UNKNOWN"))[:35]
+    print("GEMINI_RESPONSE_DIAGNOSTIC finish=" + finish
+          + " output_characters=" + str(len(raw))
+          + " output_tokens=" + str((response.get("usageMetadata") or {}).get("candidatesTokenCount", "unknown")), flush=True)
+    if not raw.strip():
+        raise RuntimeError("GEMINI_EMPTY_MODEL_TEXT_" + finish)
+    try:
+        result = validate(json.loads(raw))
+    except (ValueError, RuntimeError, TypeError):
+        raise RuntimeError("GEMINI_UNUSABLE_JSON_" + finish) from None
     evidence = {"schema": "andaz-gemini-vision-isolated-v1",
                 "source": URL, "model": model, "real_api_called": True,
                 "viewports": [{"name": s["label"], "dimensions": s["viewport"],
