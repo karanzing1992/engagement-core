@@ -1,0 +1,42 @@
+name: META CORE Lane A independent security-review gate
+on:
+  push:
+    branches:
+      - fix/meta-core-lane-a-release-review-20261110
+  pull_request:
+    paths:
+      - 'integrations/meta/whatsapp-mcp/**'
+      - '.github/workflows/meta-core-lane-a-security-review.yml'
+permissions:
+  contents: read
+jobs:
+  release-security-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - name: Checkout no persistent Git credential
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Node 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: integrations/meta/whatsapp-mcp/package-lock.json
+      - name: Install pinned deps without scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Independent security regression first
+        run: node --test test/lane-a-release-review-regressions.test.mjs
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Full META CORE tests
+        run: npm test
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Dependency audit
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Explicit no live provider
+        run: |
+          echo "SOURCE_ONLY_SECURITY_REVIEW=true" >> "$GITHUB_STEP_SUMMARY"
+          echo "NO_META_API_REQUESTS=true" >> "$GITHUB_STEP_SUMMARY"
