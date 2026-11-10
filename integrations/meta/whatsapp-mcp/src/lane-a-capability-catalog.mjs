@@ -14,7 +14,9 @@ const component=o({type:e('HEADER','BODY','FOOTER','BUTTONS'),text:s(1024),forma
 const fields={
   to,body:s(4096),previewUrl:{type:'boolean'},replyTo:wamid,link:url,id,caption:s(1024),
   filename:s(255),latitude:{type:'number',minimum:-90,maximum:90},longitude:{type:'number',minimum:-180,maximum:180},
-  name:s(512),address:s(1024),contacts:a(o({name:s(256),phone:to}),10),
+  name:s(512),address:s(1024),
+  // Match the pinned Dojo contacts shape; phone belongs only in phones[].
+  contacts:a(o({name:o({formatted_name:s(256)}),phones:a(o({phone:to}),10)}),10),
   buttons:a(o({id:s(200),title:s(20)}),3),button:s(20),
   sections:a(o({title:s(128),rows:a(o({id:s(200),title:s(24)}),10)}),10),
   header:s(128),footer:s(60),language:lang,components:a(component,15),
