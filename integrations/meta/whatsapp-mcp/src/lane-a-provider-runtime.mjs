@@ -136,8 +136,7 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
     if(Object.getPrototypeOf(value)!==Array.prototype)throw new Error('array_prototype');
     const descriptors=Object.getOwnPropertyDescriptors(value);
     const size=descriptors.length?.value;
-    if(!Number.isSafeInteger(size)||size>100||size<0||
-       (allowProfile&&path.join('/')==='data//websites'&&size>10))throw new Error('size');
+    if(!Number.isSafeInteger(size)||size>100||size<0)throw new Error('size');
     const keys=Reflect.ownKeys(descriptors);
     if(keys.length!==size+1||keys.some(key=>
       typeof key!=='string'||(key!=='length'&&
@@ -170,9 +169,9 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
     if(permittedProfile){
       const v=descriptors[key].value;
       if(key==='email'&&(typeof v!=='string'||v.length>256||
-          !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(v)))throw new Error('profile_email');
+          !/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(v)))throw new Error('profile_email');
       if(key==='profile_picture_url'&&(typeof v!=='string'||
-          v.length>2048||!/^https:\/\/[^\\s]+$/.test(v)))throw new Error('profile_url');
+          v.length>2048||!/^https:\/\/[^\s]+$/.test(v)))throw new Error('profile_url');
       if(key==='websites'&&(!Array.isArray(v)||nodeTypes.isProxy(v)))
         throw new Error('profile_websites');
     }
@@ -181,7 +180,7 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
         allowProfile,[...path,key]);
       if(permittedProfile&&key==='websites'&&
         (!Array.isArray(v)||v.length>10||v.some(u=>
-          typeof u!=='string'||u.length>2048||!/^https:\/\/[^\\s]+$/.test(u))))
+          typeof u!=='string'||u.length>2048||!/^https:\/\/[^\s]+$/.test(u))))
         throw new Error('profile_websites');
       out[key]=v;
     }
