@@ -74,7 +74,9 @@ function inputSnapshot(value,depth=0,seen=new WeakSet(),budget={nodes:0}){
   for(const key of keys){
     if(typeof key!=='string'||key.length>128||
       ['__proto__','constructor','prototype'].includes(key)||
-      deniedKey.test(key)||!Object.hasOwn(descriptors[key],'value'))
+      // Contacts legitimately contain phone; ingress Zod validates its shape.
+      // Do not confuse contact fields with bearer/tenant/Graph credentials.
+      (deniedKey.test(key)&&key!=='phone')||!Object.hasOwn(descriptors[key],'value'))
       throw new Error('input_key');
     Object.defineProperty(copy,key,{
       enumerable:true,configurable:false,writable:false,
