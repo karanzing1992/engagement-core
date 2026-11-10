@@ -86,8 +86,39 @@ def main():
     except RuntimeError as e:
         diag["image"]={"status":"BLOCKED","reason":str(e)}
         print("IMAGE_PROBE_BLOCKED_"+str(e),flush=True)
+    # Actual live website screenshot: one compressed public-frame test, no JSON mode.
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser=p.chromium.launch(headless=True)
+            try:
+                page=browser.new_page(viewport={"width":390,"height":844},service_workers="block")
+                response=page.goto("https://andazgoa.com/",wait_until="domcontentloaded",timeout=45000)
+                if not response or response.status>=400:
+                    raise RuntimeError("PUBLIC_SITE_UNAVAILABLE")
+                page.wait_for_timeout(1000)
+                raw=page.screenshot(type="png",full_page=False)
+            finally:
+                browser.close()
+        screenshot=Image.open(io.BytesIO(raw)).convert("RGB")
+        screenshot.thumbnail((384,512))
+        f=io.BytesIO()
+        screenshot.save(f,format="JPEG",quality=49,optimize=True)
+        encoded=f.getvalue()
+        if not 1000 < len(encoded) < 200000:
+            raise RuntimeError("IMAGE_SIZE_UNEXPECTED")
+        p={"inline_data":{"mime_type":"image/jpeg","data":base64.b64encode(encoded).decode()}}
+        r=generate(key,model,[{"text":"Describe in one short sentence what this website screenshot shows."},p])
+        status="PASS" if len(r["text"].strip())>=8 else "EMPTY_RESPONSE"
+        diag["actual_site_single_image"]={"status":status,
+               "finish_reason":r["finish_reason"],"output_characters":r["response_length"],
+               "compressed_bytes":len(encoded)}
+        print("ACTUAL_SITE_SINGLE_IMAGE_"+status,flush=True)
+    except Exception as e:
+        diag["actual_site_single_image"]={"status":"BLOCKED","reason":str(e)[:80]}
+        print("ACTUAL_SITE_SINGLE_IMAGE_BLOCKED_"+str(e)[:80],flush=True)
     (OUT/"diagnostic.json").write_text(json.dumps(diag,indent=2)+"\n")
-    if diag["image"]["status"]!="PASS" or diag["text"]["status"]!="PASS":
+    if diag["image"]["status"]!="PASS" or diag["text"]["status"]!="PASS" or diag.get("actual_site_single_image",{}).get("status")!="PASS":
         raise RuntimeError("MODEL_CAPABILITY_NOT_CERTIFIED")
     print("GEMINI_BASIC_MULTIMODAL_VERIFIED; ARTISTIC_CERTIFICATION_NOT_GRANTED")
 
