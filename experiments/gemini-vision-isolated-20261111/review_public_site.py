@@ -79,9 +79,9 @@ def capture_public():
                 if len(raw) < 5000:
                     raise RuntimeError("INVALID_BROWSER_SCREENSHOT")
                 im = Image.open(io.BytesIO(raw)).convert("RGB")
-                im.thumbnail((640, 880))
+                im.thumbnail((384, 512))
                 out = io.BytesIO()
-                im.save(out, format="JPEG", quality=54, optimize=True)
+                im.save(out, format="JPEG", quality=49, optimize=True)
                 encoded = out.getvalue()
                 if len(encoded) > 360000:
                     raise RuntimeError("IMAGE_BODY_LIMIT")
@@ -114,65 +114,41 @@ def main():
     models = api("/models?pageSize=100", key)
     available_models = choose_models(models)
     screenshots = capture_public()
-    prompt = ("You are an independent visual critique assistant. Examine genuine public "
-              "browser screenshots of the Andaz Vibe Stay hospitality website, first mobile "
-              "then desktop. Evaluate visual hierarchy, typography, spacing, contrast, "
-              "distinctive aesthetics, authenticity, CTA clarity, and responsiveness. "
-              "Use only observable evidence. Return strict JSON: "
-              '{"observations":["..."],"deficiencies":[{"category":"typography",'
-              '"visible_evidence":"...","suggested_revision":"...","priority":"P1"}],'
-              '"quality_estimate":0,"verdict":"REVISE"}. '
-              "Quality estimate is a model opinion, NOT a certified artistic score. "
-              "Do not identify people, invent facts, or approve deployment.")
-    parts = [{"text": prompt}]
-    for screen in screenshots:
-        parts.append({"inline_data": {"mime_type": "image/jpeg",
-                                    "data": base64.b64encode(screen["jpeg"]).decode()}})
-    response = None
-    model = None
-    for candidate in available_models[:2]:
-        print("GEMINI_SELECTED_MODEL " + candidate, flush=True)
-        try:
-            response = api("/models/" + candidate + ":generateContent", key,
-                           {"contents": [{"parts": parts}],
-                            "generationConfig": {"temperature": 0, "responseMimeType": "application/json",
-                                                 "maxOutputTokens": 2400}})
-            model = candidate
-            break
-        except RuntimeError as exc:
-            if any(tag in str(exc) for tag in ("HTTP_404_VISION", "HTTP_503_VISION", "READ_TIMEOUT_VISION")):
-                print("GEMINI_MODEL_CANDIDATE_UNAVAILABLE " + candidate, file=sys.stderr)
-                continue
-            raise
-    if response is None:
-        raise RuntimeError("ALL_APPROVED_FLASH_CANDIDATES_UNAVAILABLE")
-    candidates = response.get("candidates") or [{}]
-    first = candidates[0]
-    raw = "".join(part.get("text", "") for part in
-                  first.get("content", {}).get("parts", []) if isinstance(part, dict))
-    finish = str(first.get("finishReason", "UNKNOWN"))[:35]
-    print("GEMINI_RESPONSE_DIAGNOSTIC finish=" + finish
-          + " output_characters=" + str(len(raw))
-          + " output_tokens=" + str((response.get("usageMetadata") or {}).get("candidatesTokenCount", "unknown")), flush=True)
-    if not raw.strip():
-        raise RuntimeError("GEMINI_EMPTY_MODEL_TEXT_" + finish)
-    try:
-        result = validate(json.loads(raw))
-    except (ValueError, RuntimeError, TypeError):
-        raise RuntimeError("GEMINI_UNUSABLE_JSON_" + finish) from None
-    evidence = {"schema": "andaz-gemini-vision-isolated-v1",
-                "source": URL, "model": model, "real_api_called": True,
+    # Provider debug fix: separate image reviews and avoid two-image JSON generation overload.
+    evidence = {"schema": "andaz-gemini-vision-isolated-v2",
+                "source": URL, "model": available_models[0], "real_api_called": True,
                 "viewports": [{"name": s["label"], "dimensions": s["viewport"],
                                "screenshot_sha256": s["sha256"]} for s in screenshots],
-                "model_response_sha256": sha(raw.encode()),
-                "model_observations": result["observations"][:8],
-                "model_deficiencies": result["deficiencies"][:12],
-                "model_quality_estimate_not_attested": result["quality_estimate"],
-                "model_verdict_not_release": result["verdict"],
-                "artistic_score": None, "independently_attested": False,
+                "reviews": [], "artistic_score": None,
+                "independently_attested": False,
                 "artistic_95_certified": False, "release_authorized": False}
+    for screen in screenshots:
+        print("GEMINI_REVIEW_VIEWPORT " + screen["label"], flush=True)
+        prompt = (
+            "Review this actual public Andaz Vibe Stay hospitality website screenshot. "
+            "Give three specific, visually grounded improvements to hierarchy, spacing, "
+            "readability, authenticity or branding, plus one positive. "
+            "Only mention what is clearly visible. No numeric score or deployment approval.")
+        image = {"inline_data": {"mime_type": "image/jpeg",
+                                "data": base64.b64encode(screen["jpeg"]).decode()}}
+        reply = api("/models/" + available_models[0] + ":generateContent", key,
+                    {"contents": [{"parts": [{"text": prompt}, image]}],
+                     "generationConfig": {"temperature": 0, "maxOutputTokens": 650}})
+        candidates = reply.get("candidates") or [{}]
+        first = candidates[0]
+        raw = "".join(p.get("text", "") for p in first.get("content", {}).get("parts", []) if isinstance(p, dict))
+        if len(raw.strip()) < 70:
+            raise RuntimeError("GEMINI_INSUFFICIENT_VISUAL_REVIEW_" + screen["label"])
+        evidence["reviews"].append({
+            "viewport": screen["label"],
+            "model_observations": raw[:4500],
+            "raw_response_sha256": sha(raw.encode()),
+            "finish_reason": str(first.get("finishReason", "UNKNOWN"))[:32],
+            "provider_output_tokens": (reply.get("usageMetadata") or {}).get("candidatesTokenCount"),
+            "certified": False})
+        print("GEMINI_REVIEW_" + screen["label"].upper() + "_PASS chars=" + str(len(raw)), flush=True)
     (ROOT / "receipt.json").write_text(json.dumps(evidence, indent=2) + "\n")
-    print("GEMINI_REAL_SCREENSHOT_REVIEW_PASS model=" + model +
+    print("GEMINI_REAL_SCREENSHOT_REVIEW_PASS model=" + available_models[0] +
           " screenshots=2 artistic_certification=NOT_GRANTED")
 
 if __name__ == "__main__":
