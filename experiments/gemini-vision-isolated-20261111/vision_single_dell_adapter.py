@@ -11,13 +11,26 @@ def canonical(obj): return json.dumps(obj,sort_keys=True,separators=(",",":")).e
 def insist(ok,msg):
     if not ok: raise ValueError(msg)
 def read_json(p): return json.loads(pathlib.Path(p).read_text())
+def site_treehash(root):
+    h=hashlib.sha256()
+    for f in sorted(root.rglob("*")):
+        insist(not f.is_symlink(),"SITE_SYMLINK_FORBIDDEN")
+        if f.is_file() and ".git" not in f.parts:
+            h.update(f.relative_to(root).as_posix().encode()+b"\0")
+            h.update(bytes.fromhex(digest(f.read_bytes())))
+    return h.hexdigest()
 def fixture_inputs(workspace,packet):
-    w=pathlib.Path(workspace).resolve(strict=True)
+    w=pathlib.Path(workspace)
+    insist(w.is_dir() and not w.is_symlink(),"UNSAFE_WORKSPACE")
+    w=w.resolve(strict=True)
     state=read_json(w/"engine-state.json"); qa_path=w/"reports/browser-qa.json"; qa=read_json(qa_path)
     insist(state["project"]=="andaz-vibe-stay" and state["owner_release_authorized"] is False,"UNSAFE_PROJECT_OR_RELEASE_STATE")
     insist(qa["pass"] is True and qa["source_hash"]==state["site_sha256"],"INVALID_BROWSER_QA")
+    insist(site_treehash(w/"site")==state["site_sha256"],"SITE_HASH_DRIFT")
     insist(digest(qa_path.read_bytes())==state["qa_receipt_sha256"],"QA_RECEIPT_DRIFT")
-    p=pathlib.Path(packet).resolve(strict=True); brand=read_json(p)
+    p=pathlib.Path(packet)
+    insist(p.is_file() and not p.is_symlink(),"UNSAFE_RAG_PACKET")
+    p=p.resolve(strict=True); brand=read_json(p)
     insist(brand["project_id"]=="andaz-vibe-stay" and isinstance(brand["design_rules"],list) and brand["design_rules"],"CROSS_PROJECT_RAG")
     entries={(x["page"],x["width"]):x for x in qa["screenshots"] if x["width"] in WIDTHS}
     insist(len(entries)==12 and set(entries)=={(page,v) for page in PAGES for v in WIDTHS},"INCOMPLETE_SCREENSHOT_MATRIX")
@@ -99,7 +112,7 @@ def main():
     except Exception as exc:
         r={"status":"BLOCKED","reason":str(exc)[:120],"scope_complete":False,
            "artistic_score":None,"independently_attested":False,"release_authorized":False}
-    flags=os.O_CREAT|os.O_WRONLY|os.O_TRUNC
+    flags=os.O_CREAT|os.O_WRONLY|os.O_TRUNC|os.O_NOFOLLOW
     fd=os.open(p,flags,0o600)
     with os.fdopen(fd,"w") as f:json.dump(r,f,indent=2);f.write("\n")
     print(json.dumps({k:r[k] for k in ("status","scope_complete","artistic_score","release_authorized")}))
