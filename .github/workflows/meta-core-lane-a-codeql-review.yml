@@ -61,13 +61,21 @@ jobs:
             'CODEQL_FINDING_COUNT='+count+'\\n');
           if(count>0)process.exitCode=1;
           NODE
+      - name: Stage only sanitized SARIF evidence in workspace
+        if: always()
+        shell: bash
+        run: |
+          if [ -s ../results/javascript.sarif ]; then
+            mkdir -p security-evidence
+            cp ../results/javascript.sarif security-evidence/javascript.sarif
+          fi
       - name: Preserve short-lived SARIF for independent auditor
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: meta-core-lane-a-codeql-sarif
-          path: ../results/javascript.sarif
-          if-no-files-found: warn
+          path: security-evidence/javascript.sarif
+          if-no-files-found: error
           retention-days: 3
       - name: Record scope and follow-up limitation
         run: |
