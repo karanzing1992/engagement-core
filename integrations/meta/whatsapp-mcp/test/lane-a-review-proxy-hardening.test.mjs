@@ -89,25 +89,25 @@ test('P2: untrusted authorization context Proxy cannot execute traps',async()=>{
   assert.equal(reads.count,0);
   assert.deepEqual(counters,{identity:0,policy:0,provider:0});
 });
-test('P2: provider root and nested Proxy outputs never execute traps',async()=>{
-  for(const which of ['root','nested']){
-    const reads={count:0};
-    let providerCalls=0;
-    const p=hostile({id:'123456789012'},reads);
-    const mcp=createLaneAProviderMcp({
-      verifyIdentity:async()=>true,authorizeTenant:async()=>true,
-      readPolicy:async()=>({}),resolveRoute:async()=>route(),
-      resolveOwnership:async()=>({wabaIdVerified:true}),
-      providers:{host:{executePlan:async()=>{
-        providerCalls++;
-        return which==='root'?p:{ok:true,data:{id:'123456789012',data:p}};
-      }}},
-      grants:['whatsapp_get_business_account']
-    });
-    const out=await mcp.callTool({name:'whatsapp_get_business_account',arguments:{}},ctx());
-    assert.equal(out.isError,true);
-    assert.equal(out.structuredContent.error.code,'upstream_unavailable');
-    assert.equal(providerCalls,1);
-    assert.equal(reads.count,0);
-  }
+test('P2: nested provider Proxy results cannot execute traps during sanitization',async()=>{
+  // The WACRM provider is trusted to resolve promises safely. JavaScript
+  // necessarily inspects a raw Promise-resolved proxy's .then property
+  // before receiving it; the sanitizer can guard nested provider outputs.
+  const reads={count:0};
+  let providerCalls=0;
+  const p=hostile({id:'123456789012'},reads);
+  const mcp=createLaneAProviderMcp({
+    verifyIdentity:async()=>true,authorizeTenant:async()=>true,
+    readPolicy:async()=>({}),resolveRoute:async()=>route(),
+    resolveOwnership:async()=>({wabaIdVerified:true}),
+    providers:{host:{executePlan:async()=>{
+      providerCalls++;return {ok:true,data:{id:'123456789012',data:p}};
+    }}},
+    grants:['whatsapp_get_business_account']
+  });
+  const out=await mcp.callTool({name:'whatsapp_get_business_account',arguments:{}},ctx());
+  assert.equal(out.isError,true);
+  assert.equal(out.structuredContent.error.code,'upstream_unavailable');
+  assert.equal(providerCalls,1);
+  assert.equal(reads.count,0);
 });
