@@ -16,7 +16,7 @@ from PIL import Image
 ROOT = Path("out/private-gemini-vision-review")
 URL = "https://andazgoa.com/"
 API = "https://generativelanguage.googleapis.com/v1beta"
-ALLOWED = ("gemini-3.6-flash", "gemini-3.8-flash")
+ALLOWED = ("gemini-3.5-flash-lite",)
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
