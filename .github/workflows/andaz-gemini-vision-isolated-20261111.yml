@@ -1,0 +1,43 @@
+name: Isolated Gemini Vision — Andaz public screenshot review (NO RELEASE)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/andaz-gemini-vision-isolated-20261111.yml'
+      - 'experiments/gemini-vision-isolated-20261111/**'
+permissions:
+  contents: read
+jobs:
+  review-public-website-only:
+    if: >-
+      github.repository == 'karanzing1992/engagement-core' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/gemini-vision-art-cert-isolated-20261111' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install review-only OSS browser dependencies
+        run: |
+          python3 -m pip install --disable-pip-version-check playwright==1.56.0 Pillow==11.3.0
+          python3 -m playwright install --with-deps chromium
+      - name: One real Gemini vision call against PUBLIC Andaz screenshots
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 experiments/gemini-vision-isolated-20261111/review_public_site.py
+      - name: Preserve bounded non-image review receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: andaz-gemini-public-vision-${{ github.run_id }}
+          path: out/private-gemini-vision-review/*.json
+          retention-days: 1
+          if-no-files-found: warn
