@@ -18,6 +18,7 @@ OWNER_ID=30191163
 FRAME_TAG="SHAADI_M71_CHUNK_V1 "
 KEY_TAG="SHAADI_M71_PUB_V1 "
 RESULT_TAG="SHAADI_M71_RESULT_V1 "
+PREFLIGHT_TAG="SHAADI_M71_PREFLIGHT_V1 "
 ERROR_TAG="SHAADI_M71_FAIL_V1 "
 BINDINGS={
  "baseline_mobile":"296d2c2fde135fb8a58d742b5a749a9a90bc29527fa4c49e5a627f5210f54d60",
@@ -63,14 +64,14 @@ def verified_event():
  if (os.environ.get("GITHUB_REPOSITORY")!=REPO or
      os.environ.get("GITHUB_ACTOR")!=OWNER or
      issue.get("user",{}).get("id")!=OWNER_ID or
-     not re.fullmatch(r"\[SHAADI-M71-GEMINI\] 20261111-[a-f0-9]{12}",issue.get("title",""))):
+     not re.fullmatch(r"\[SHAADI-M71-GEMINI(?:-PREFLIGHT)?\] 20261111-[a-f0-9]{12}",issue.get("title",""))):
   raise Blocked("OWNER_ONLY_ISSUE_GATE")
  number=issue.get("number")
  run=os.environ.get("GITHUB_RUN_ID","")
  if type(number) is not int or number<1 or not re.fullmatch(r"[0-9]{5,15}",run):raise Blocked("RUN_ID_OR_ISSUE_BAD")
  if (os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")!="true" or
      os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")!="true"):raise Blocked("OWNER_FREE_AI_POLICY_DENIED")
- return number,run
+ return number,run,"-PREFLIGHT]" in issue.get("title","")
 def publish_ephemeral_public_key(issue,run,private):
  pub={"issue":issue,"run":run,"public_key":enc64(rawpub(private)),"expires_after_seconds":600}
  comment(issue,KEY_TAG+json.dumps(pub,separators=(",",":")))
@@ -181,7 +182,7 @@ def validate_review(x):
  if not isinstance(x["unverifiable"],list) or any(not isinstance(v,str) for v in x["unverifiable"]):
   raise Blocked("GEMINI_UNCERTAINTY_INVALID")
  return x
-def real_gemini_review(images):
+def discover_free_gemini_model():
  if os.environ.get("GEMINI_PROJECT_FREE_TIER_VERIFIED")!="true" or os.environ.get("GEMINI_INFERENCE_OWNER_APPROVED")!="true":
   raise Blocked("OWNER_GEMINI_FLAGS_MISSING")
  key=os.environ.get("GEMINI_API_KEY","")
@@ -191,14 +192,24 @@ def real_gemini_review(images):
   raise Blocked("REEL_ENGINE_ADAPTER_PIN_MISMATCH")
  spec=importlib.util.spec_from_file_location("reel_pinned_gemini",source)
  adapter=importlib.util.module_from_spec(spec);spec.loader.exec_module(adapter)
- listed=adapter.make_request(adapter.BASE_URL+"/models?pageSize=100",key,timeout=25)
+ try:listed=adapter.make_request(adapter.BASE_URL+"/models?pageSize=100",key,timeout=25)
+ except adapter.GeminiUnavailable as exc:
+  found=re.search(r"HTTP (\d{3})",str(exc))
+  raise Blocked("GEMINI_MODEL_DISCOVERY_HTTP_"+found.group(1) if found else "GEMINI_MODEL_DISCOVERY_TRANSPORT_BLOCKED") from None
  available={str(m.get("name","")).removeprefix("models/") for m in listed.get("models",[])
             if "generateContent" in m.get("supportedGenerationMethods",[])}
  selected=next((name for name in MODEL_NAMES if name in available),None)
  if not selected:raise Blocked("FREE_FLASH_NOT_AVAILABLE")
+ return adapter,key,selected
+
+def real_gemini_review(images):
+ adapter,key,selected=discover_free_gemini_model()
  data={"contents":[{"role":"user","parts":[{"text":REVIEW_PROMPT},*images]}],
        "generationConfig":{"temperature":0,"responseMimeType":"application/json","maxOutputTokens":2300}}
- output=adapter.make_request(adapter.BASE_URL+"/models/"+selected+":generateContent",key,data,timeout=75)
+ try:output=adapter.make_request(adapter.BASE_URL+"/models/"+selected+":generateContent",key,data,timeout=75)
+ except adapter.GeminiUnavailable as exc:
+  found=re.search(r"HTTP (\d{3})",str(exc))
+  raise Blocked("GEMINI_INFERENCE_HTTP_"+found.group(1) if found else "GEMINI_INFERENCE_TRANSPORT_BLOCKED") from None
  validated=validate_review(adapter.extract_json(output))
  return selected,validated
 def send_encrypted_result(issue,run,client_reply_pub,result):
@@ -215,7 +226,12 @@ def send_encrypted_result(issue,run,client_reply_pub,result):
 def main():
  issue=None
  try:
-  issue,run=verified_event()
+  issue,run,preflight=verified_event()
+  if preflight:
+   _,_,selected=discover_free_gemini_model()
+   comment(issue,PREFLIGHT_TAG+json.dumps({"status":"AVAILABLE","model":selected}))
+   print("M71_GEMINI_PROVIDER_PREFLIGHT_PASS",selected,flush=True)
+   return 0
   private=X25519PrivateKey.generate()
   publish_ephemeral_public_key(issue,run,private)
   encrypted=wait_frames(issue,run)
