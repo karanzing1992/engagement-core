@@ -23,6 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: KaranZi/shaadi-aunty-dodge
+          token: ${{ secrets.SHAADI_GAME_READ_TOKEN }}
           ref: 33cfc04278b85c63150e2b80a1c773a03d0a89da
           path: baseline
           persist-credentials: false
@@ -30,6 +31,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: KaranZi/shaadi-aunty-dodge
+          token: ${{ secrets.SHAADI_GAME_READ_TOKEN }}
           ref: feat/m71-pixel-art-candidate-20261111
           path: candidate
           persist-credentials: false
