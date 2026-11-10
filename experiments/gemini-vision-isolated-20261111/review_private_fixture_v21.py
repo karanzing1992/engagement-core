@@ -107,8 +107,10 @@ def main():
  if request["mode"]=="recipient_only":
   print("CAPSULE_PENDING: no private image upload, no model inference")
   return 0
- blob_sha=request.get("blob_sha")
- capsule=fetch_blob(blob_sha)
+ blob_shas=request.get("blob_shas")
+ require(isinstance(blob_shas,list) and 1<=len(blob_shas)<=25 and len(blob_shas)==len(set(blob_shas)),"BLOB_PART_SET_INVALID")
+ capsule=b"".join(fetch_blob(part) for part in blob_shas)
+ require(digest(capsule)==request.get("capsule_sha256"),"ENCRYPTED_CAPSULE_HASH_MISMATCH")
  secret=[REDACTED]
  data=open_capsule(capsule,b64(secret),request["project"],request["site_sha256"],request["qa_receipt_sha256"])
  require(len(data["images"])==12,"TWELVE_IMAGES_REQUIRED")
@@ -117,7 +119,7 @@ def main():
   "scope":"private_six_route_actual_screenshots","project":request["project"],
   "site_sha256":request["site_sha256"],"qa_receipt_sha256":request["qa_receipt_sha256"],
   "model":MODEL,"reviews":[],"artistic_score":None,"independently_attested":False,
-  "release_authorized":False,"source_blob_sha":blob_sha}
+  "release_authorized":False,"encrypted_capsule_sha256":request["capsule_sha256"],"encrypted_blob_count":len(blob_shas)}
  for item in data["images"]:
   route=item["page"];width=item["width"]
   print("REVIEWING_PRIVATE_HASH_BOUND_SCREENSHOT",route,width,flush=True)
