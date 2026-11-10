@@ -26,7 +26,7 @@ const copyKeys=new Set([
   'validation_errors','json_version','data_api_version','categories',
   'granularity','data_points','metrics','result'
 ]);
-const analyticsCopyKeys=new Set(['analytics','template_analytics','template_id','clicked','cost','currency']);
+const analyticsCopyKeys=new Set(['analytics','template_analytics','template_id','clicked','cost','currency','value']);
 const tenantPattern=/^wacrm_[a-f0-9]{40}$/;
 const idPattern=/^[0-9]{6,64}$/;
 const actorIdPattern=/^[A-Za-z0-9_.:-]{1,128}$/;
@@ -87,8 +87,17 @@ function inputSnapshot(value,depth=0,seen=new WeakSet(),budget={nodes:0}){
   return Object.freeze(copy);
 }
 
-function safeRead(value,depth=0,allowAnalytics=false){
-  if(depth>7)throw new Error('depth');
+/**
+ * Sanitize provider results without calling methods, indexed getters, or
+ * iterators owned by the provider. In particular, Array#map can be replaced
+ * on an untrusted response and is NEVER called here.
+ *
+ * Every output value is recreated from own *data* descriptors. Bounded
+ * depth/node counts support Meta's nested analytics clicked/cost arrays but
+ * prevent recursive payload exhaustion and alias-based cycles.
+ */
+function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0}){
+  if(++budget.nodes>1024||depth>12)throw new Error('depth');
   if(value===null||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
   if(typeof value==='string'){
@@ -96,9 +105,26 @@ function safeRead(value,depth=0,allowAnalytics=false){
       throw new Error('content');
     return value;
   }
+  if(typeof value!=='object'||seen.has(value))throw new Error('shape');
+  seen.add(value);
   if(Array.isArray(value)){
-    if(value.length>100)throw new Error('size');
-    return value.map(x=>safeRead(x,depth+1,allowAnalytics));
+    if(Object.getPrototypeOf(value)!==Array.prototype)throw new Error('array_prototype');
+    const descriptors=Object.getOwnPropertyDescriptors(value);
+    const size=descriptors.length?.value;
+    if(!Number.isSafeInteger(size)||size>100||size<0)throw new Error('size');
+    const keys=Reflect.ownKeys(descriptors);
+    if(keys.length!==size+1||keys.some(key=>
+      typeof key!=='string'||(key!=='length'&&
+      (!/^(?:0|[1-9][0-9]*)$/.test(key)||Number(key)>=size||
+        !Object.hasOwn(descriptors[key],'value')||descriptors[key].enumerable!==true))))
+      throw new Error('array_keys');
+    const out=[];
+    for(let i=0;i<size;i++){
+      const descriptor=descriptors[String(i)];
+      if(!descriptor||!Object.hasOwn(descriptor,'value'))throw new Error('array_accessor');
+      out[i]=safeRead(descriptor.value,depth+1,allowAnalytics,seen,budget);
+    }
+    return out;
   }
   if(!plain(value))throw new Error('shape');
   const descriptors=Object.getOwnPropertyDescriptors(value);
@@ -107,11 +133,10 @@ function safeRead(value,depth=0,allowAnalytics=false){
   const out={};
   for(const key of keys){
     if(typeof key!=='string'||deniedKey.test(key)||
-       !Object.hasOwn(descriptors[key],'value'))throw new Error('sensitive');
-    // Drop non-allowlisted public Graph fields, never echo credentials,
-    // signed CDN URLs, customer message text or raw webhook payloads.
+      !Object.hasOwn(descriptors[key],'value'))throw new Error('sensitive');
+    // Only allow analytics-specific fields inside the two analytics operations.
     if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key)))
-      out[key]=safeRead(descriptors[key].value,depth+1,allowAnalytics);
+      out[key]=safeRead(descriptors[key].value,depth+1,allowAnalytics,seen,budget);
   }
   return out;
 }
