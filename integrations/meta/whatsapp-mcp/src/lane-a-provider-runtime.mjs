@@ -11,6 +11,7 @@
 import { WHATSAPP_LANE_A_CATALOG } from './lane-a-capability-catalog.mjs';
 import { createWhatsAppLaneAMcpHarness } from './lane-a-mcp-harness.mjs';
 import { buildWacrmGraphV26Plan } from './lane-a-graph-v26-plans.mjs';
+import { types as nodeTypes } from 'node:util';
 
 const all=new Map(WHATSAPP_LANE_A_CATALOG.map(x=>[x.name,x]));
 const opaque=/^(?:wamid\.[A-Za-z0-9._:-]{4,256}|[0-9]{6,64}|meta-core-[A-Za-z0-9_-]{8,96})$/;
@@ -38,7 +39,8 @@ function error(code){
     content:[{type:'text',text:JSON.stringify(structuredContent)}]};
 }
 function plain(value){
-  try{return value!==null&&typeof value==='object'&&!Array.isArray(value)&&
+  try{return value!==null&&typeof value==='object'&&!nodeTypes.isProxy(value)&&
+    !Array.isArray(value)&&
     Object.getPrototypeOf(value)===Object.prototype;}catch(_){return false;}
 }
 
@@ -53,7 +55,8 @@ function inputSnapshot(value,depth=0,seen=new WeakSet(),budget={nodes:0}){
   if(typeof value==='number'&&Number.isFinite(value))return value;
   if(typeof value==='string'&&Buffer.byteLength(value,'utf8')<=32768&&
       !value.includes('\u0000'))return value;
-  if(typeof value!=='object'||seen.has(value))throw new Error('input_shape');
+  if(typeof value!=='object'||nodeTypes.isProxy(value)||seen.has(value))
+    throw new Error('input_shape');
   seen.add(value);
   if(Array.isArray(value)){
     const descriptors=Object.getOwnPropertyDescriptors(value);
@@ -105,7 +108,8 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
       throw new Error('content');
     return value;
   }
-  if(typeof value!=='object'||seen.has(value))throw new Error('shape');
+  if(typeof value!=='object'||nodeTypes.isProxy(value)||seen.has(value))
+    throw new Error('shape');
   seen.add(value);
   if(Array.isArray(value)){
     if(Object.getPrototypeOf(value)!==Array.prototype)throw new Error('array_prototype');
@@ -224,16 +228,30 @@ export function createLaneAProviderMcp({
   });
   return Object.freeze({
     listTools:exposed,
-    async callTool({name,arguments:args}={}, context={}){
+    async callTool(request={}, context={}){
+      // Reject Proxy-backed MCP envelopes and contexts before property access,
+      // object reflection or any host call. Proxies can run arbitrary traps.
+      if(!plain(request))return error('invalid_input');
+      if(!plain(context))return error('forbidden');
+      const requestFields=Object.getOwnPropertyDescriptors(request);
+      const contextFields=Object.getOwnPropertyDescriptors(context);
+      if(!Object.hasOwn(requestFields,'name')||
+          !Object.hasOwn(requestFields.name,'value')||
+          (requestFields.arguments&&!Object.hasOwn(requestFields.arguments,'value')))
+        return error('invalid_input');
+      for(const key of ['verifiedPrincipal','tenantId','requestId']){
+        if(contextFields[key]&&!Object.hasOwn(contextFields[key],'value'))
+          return error('forbidden');
+      }
+      const name=requestFields.name.value;
+      let args=requestFields.arguments?.value;
+      const verifiedPrincipal=contextFields.verifiedPrincipal?.value;
+      const tenantId=contextFields.tenantId?.value;
+      const requestId=contextFields.requestId?.value;
       const def=all.get(name);
       if(!def)return error('unknown_tool');
       if(!granted.has(name)||def.kind!=='read'&&!enableWriteCandidates)return error('not_enabled');
       if(!exposed().some(t=>t.name===name))return error('provider_unavailable');
-      // Snapshot *before* readPolicy, any await, or route/ownership resolution.
-      // The entire decision and provider call must use the same immutable input.
-      try { args=inputSnapshot(args??{}); }
-      catch(_) { return error('invalid_input'); }
-      const {verifiedPrincipal,tenantId,requestId}=context;
       if(!validateActor(verifiedPrincipal,tenantId))return error('forbidden');
       // A signed, issuer/client/audience/role-proven principal is mandatory.
       // No route, policy or provider action until identity verification passes.
@@ -241,6 +259,10 @@ export function createLaneAProviderMcp({
         if(await verifyIdentity(verifiedPrincipal,tenantId,name)!==true)
           return error('forbidden');
       }catch(_){return error('forbidden');}
+      // No untrusted input inspection occurs before identity proof. The immutable
+      // snapshot precedes policy authorization, routing and provider execution.
+      try { args=inputSnapshot(args??{}); }
+      catch(_) { return error('invalid_input'); }
       let policy;
       try {policy=await readPolicy(verifiedPrincipal,tenantId,name,args);}
       catch(_){return error('policy_denied');}
