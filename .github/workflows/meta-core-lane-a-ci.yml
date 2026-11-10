@@ -1,0 +1,53 @@
+name: META CORE Lane A MCP contract certification
+on:
+  push:
+    branches:
+      - feat/meta-core-lane-a-mcp-capabilities-20261110
+  pull_request:
+    paths:
+      - 'integrations/meta/whatsapp-mcp/**'
+      - 'docs/META_CORE_LANE_A_MCP_SCOPE_20261110.md'
+      - '.github/workflows/meta-core-lane-a-ci.yml'
+permissions:
+  contents: read
+concurrency:
+  group: meta-core-lane-a-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  synthetic-mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Node 24 with exact npm cache path
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: integrations/meta/whatsapp-mcp/package-lock.json
+      - name: Install pinned dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Syntax of new standalone MCP catalog and harness
+        run: |
+          node --check src/lane-a-capability-catalog.mjs
+          node --check src/lane-a-mcp-harness.mjs
+          node --check test/lane-a-mcp-contract.test.mjs
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Exact Lane A synthetic MCP tool contract tests
+        run: node --test test/lane-a-mcp-contract.test.mjs
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Regression all existing and new META CORE tests
+        run: npm test
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: No high or critical vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Explicit no-live-provider certification marker
+        run: |
+          echo "META_CORE_LANE_A_SOURCE_ONLY=true" >> "$GITHUB_STEP_SUMMARY"
+          echo "PROVIDER_CALLS_EXECUTED=false" >> "$GITHUB_STEP_SUMMARY"
+          echo "ACCOUNT_AND_PHONE_LIFECYCLE_UNCHANGED=true" >> "$GITHUB_STEP_SUMMARY"
