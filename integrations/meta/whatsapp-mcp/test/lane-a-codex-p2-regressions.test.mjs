@@ -67,6 +67,21 @@ test('P2 public Graph profile fields survive sanitizer only on business-profile 
   assert.equal(unrelated.isError,false);
   assert.deepEqual(unrelated.structuredContent.data[0],{about:'synthetic business',id:'123456789012'});
 });
+test('P2 profile individual public fields survive full provider roundtrip',async()=>{
+  const fields=[
+    {about:'synthetic business'},
+    {email:'test@example.org'},
+    {profile_picture_url:'https://cdn.example.org/image.png'},
+    {websites:['https://example.org']},
+    {about:'synthetic business',email:'test@example.org'},
+  ];
+  for(const field of fields){
+    const {call}=setup('whatsapp_get_business_profile',{ok:true,data:{data:[field]}});
+    const result=await call({});
+    assert.equal(result.isError,false,
+      JSON.stringify({field,result:result.structuredContent}));
+  }
+});
 test('P2 profile sanitized results reject unsafe website and email values',async()=>{
   for(const profile of [
     {email:'wrong email',about:'safe'},
