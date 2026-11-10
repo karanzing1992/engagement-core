@@ -27,12 +27,12 @@ jobs:
         run: |
           python3 -m pip install --disable-pip-version-check playwright==1.56.0 Pillow==11.3.0
           python3 -m playwright install --with-deps chromium
-      - name: Diagnose live Gemini text and synthetic image ability; no release
+      - name: Perform real Andaz browser screenshot review using verified Flash-Lite; no release
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -euo pipefail
-          python3 experiments/gemini-vision-isolated-20261111/diagnose_gemini.py
+          python3 experiments/gemini-vision-isolated-20261111/review_public_site.py
       - name: Preserve bounded non-image review receipt
         if: always()
         uses: actions/upload-artifact@v4
