@@ -1,0 +1,113 @@
+name: Shaadi M7.1 | Trusted Reel Gemini Art Review
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: shaadi-m71-gemini-owner-review
+  cancel-in-progress: false
+jobs:
+  capture-no-secrets:
+    if: github.repository == 'karanzing1992/engagement-core' && github.ref == 'refs/heads/main' && github.actor == 'karanzing1992'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout fixed game baseline, without credentials
+        uses: actions/checkout@v4
+        with:
+          repository: KaranZi/shaadi-aunty-dodge
+          ref: 33cfc04278b85c63150e2b80a1c773a03d0a89da
+          path: baseline
+          persist-credentials: false
+      - name: Checkout M7.1 candidate, without credentials
+        uses: actions/checkout@v4
+        with:
+          repository: KaranZi/shaadi-aunty-dodge
+          ref: feat/m71-pixel-art-candidate-20261111
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify exact candidate source before running untrusted game
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '405943843229013097280b1f4a17db89a06e96f5302dd9c509b5ccb5a672b693  candidate/src/page.html' | sha256sum -c -
+          echo 'dcc7fb55ee814624f72658f1f3aa500aadd474dab0871de24a1a8bfcde0cd463  candidate/web/index.html' | sha256sum -c -
+          python3 candidate/tools/build.py --check
+      - name: Install isolated browser dependencies (NO SECRETS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd candidate
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+          cd ../baseline
+          npm ci --ignore-scripts
+      - name: Capture actual baseline and candidate gameplay screenshots (NO SECRETS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/baseline evidence/candidate
+          (cd baseline && python3 tools/build.py --debug && node tests/m71_hud_art_foundation_e2e.js "$GITHUB_WORKSPACE/evidence/baseline") || {
+            echo 'Baseline HUD test may predate the new M7.1 test; retrying existing baseline gameplay screenshot script is not authorized.'
+            exit 1
+          }
+          (cd candidate && python3 tools/build.py --debug && node tests/m71_hud_art_foundation_e2e.js "$GITHUB_WORKSPACE/evidence/candidate")
+          mkdir -p evidence/candidate/src evidence/candidate/web
+          cp candidate/src/page.html evidence/candidate/src/page.html
+          cp candidate/web/index.html evidence/candidate/web/index.html
+          sha256sum evidence/{baseline,candidate}/m71-mobile-active-play.png evidence/candidate/m71-desktop-active-play.png > evidence/frame-sha256.txt
+      - name: Pass only screenshot evidence to isolated trusted review job
+        uses: actions/upload-artifact@v4
+        with:
+          name: shaadi-m71-private-actual-gameplay
+          path: evidence/
+          retention-days: 1
+          if-no-files-found: error
+  trusted-reel-gemini:
+    needs: capture-no-secrets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    permissions:
+      contents: read
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_PROJECT_FREE_TIER_VERIFIED: 'true'
+      GEMINI_INFERENCE_OWNER_APPROVED: 'true'
+    steps:
+      - name: Checkout trusted Reel Engine main only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download untrusted gameplay images as data only
+        uses: actions/download-artifact@v4
+        with:
+          name: shaadi-m71-private-actual-gameplay
+          path: evidence
+      - name: Validate screenshot manifest, run trusted Reel Gemini critique
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd evidence
+          sha256sum -c frame-sha256.txt
+          cd ..
+          python3 -m pip install --disable-pip-version-check Pillow==11.3.0
+          python3 services/reel-engine/v8-creative/shaadi_game_art_review.py evidence
+      - name: Upload sanitized advisory receipt (no raw screenshot reupload)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shaadi-m71-gemini-advisory
+          path: evidence/trusted-gemini-review.json
+          retention-days: 3
+          if-no-files-found: error
