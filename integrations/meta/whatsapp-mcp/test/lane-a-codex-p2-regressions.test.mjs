@@ -14,7 +14,7 @@ function setup(toolName,response){
       activationId:42,wabaId:'123456789012',phoneNumberId:'223456789012'};},
     resolveOwnership:async()=>({wabaIdVerified:true}),
     providers:{host:{executePlan:async()=>{calls.provider++;return response;}}},
-    grants:[toolName]
+    grants:[toolName],enableWriteCandidates:true
   });
   return {calls,call:args=>mcp.callTool({name:toolName,arguments:args},ctx)};
 }
@@ -102,4 +102,52 @@ test('P2 profile response never grants credential key access',async()=>{
   assert.equal(r.isError,true);
   assert.equal(r.structuredContent.error.code,'upstream_unavailable');
   assert.ok(!JSON.stringify(r).includes('synthetic-not-a-token'));
+});
+
+test('P2 mutation resourceId requires a supported, nonempty identifier',async()=>{
+  const bad=[null,false,true,0,42,'','short','not a valid ID',
+    {},{id:'123456789012'},[],['123456789012'],'a'.repeat(129)];
+  for(const resourceId of bad){
+    for(const receipt of [{resourceId},{accepted:true,resourceId}]){
+      const {call,calls}=setup('whatsapp_update_business_profile',
+        {ok:true,data:receipt});
+      const response=await call({about:'synthetic business'});
+      assert.equal(response.isError,true,JSON.stringify(receipt));
+      assert.equal(response.structuredContent.error.code,'upstream_unavailable');
+      assert.equal(calls.provider,1);
+      assert.ok(!JSON.stringify(response).includes('not a valid ID'));
+    }
+  }
+});
+test('P2 mutation resourceId permits Graph IDs and bounded Meta QR codes',async()=>{
+  for(const resourceId of [
+    '123456789012','meta-core-synthetic-confirmation_12345','AWHPX5O6XYVUM1'
+  ]){
+    const {call}=setup('whatsapp_update_business_profile',
+      {ok:true,data:{resourceId}});
+    const r=await call({about:'synthetic business'});
+    assert.equal(r.isError,false,JSON.stringify({resourceId,result:r.structuredContent}));
+    assert.equal(r.structuredContent.data.resourceId,resourceId);
+  }
+});
+test('P2 malformed provider wrapper status or explicit error fails closed',async()=>{
+  for(const response of [
+    {ok:'false',data:{accepted:true}},
+    {ok:null,data:{accepted:true}},
+    {ok:0,data:{accepted:true}},
+    {isError:'true',data:{accepted:true}},
+    {isError:true,data:{accepted:true}},
+    {ok:true,error:{message:'synthetic failure'},data:{accepted:true}},
+    {ok:true,data:{accepted:true,error:{message:'synthetic failure'}}}
+  ]){
+    const {call}=setup('whatsapp_update_business_profile',response);
+    const r=await call({about:'synthetic business'});
+    assert.equal(r.isError,true,JSON.stringify(response));
+    assert.equal(r.structuredContent.error.code,'upstream_unavailable');
+    assert.ok(!JSON.stringify(r).includes('synthetic failure'));
+  }
+  const {call}=setup('whatsapp_update_business_profile',
+    {ok:true,isError:false,data:{accepted:true}});
+  const good=await call({about:'synthetic business'});
+  assert.equal(good.isError,false,JSON.stringify(good.structuredContent));
 });

@@ -32,6 +32,10 @@ const analyticsCopyKeys=new Set(['analytics','template_analytics','template_id',
 const businessProfileCopyKeys=new Set(['email','websites','profile_picture_url']);
 const tenantPattern=/^wacrm_[a-f0-9]{40}$/;
 const idPattern=/^[0-9]{6,64}$/;
+// Valid WACRM Graph resource IDs, synthetic receipt IDs and Meta QR codes.
+// Arbitrary objects, booleans, empty strings and truncated IDs are never
+// acceptable mutation receipts, even alongside accepted:true.
+const resourceIdPattern=/^(?:[0-9]{6,64}|meta-core-[A-Za-z0-9_-]{8,96}|[A-Z0-9]{8,128})$/;
 const actorIdPattern=/^[A-Za-z0-9_.:-]{1,128}$/;
 const requestIdPattern=/^[A-Za-z0-9_-]{12,128}$/;
 
@@ -208,12 +212,19 @@ function sanitize(result,def){
     if(Object.hasOwn(descriptors,key)&&!Object.hasOwn(descriptors[key],'value'))
       throw new Error('provider_accessor');
   }
-  if(descriptors.ok?.value===false||descriptors.isError?.value===true)
+  // Optional wrapper status fields must be actual booleans. Do not
+  // accidentally convert malformed "false", null or error wrappers to OK.
+  if((Object.hasOwn(descriptors,'ok')&&descriptors.ok.value!==true)||
+     (Object.hasOwn(descriptors,'isError')&&descriptors.isError.value!==false)||
+     Object.hasOwn(descriptors,'error'))
     throw new Error('provider');
   const value=Object.hasOwn(descriptors,'structuredContent')
     ?descriptors.structuredContent.value:Object.hasOwn(descriptors,'data')
       ?descriptors.data.value:result;
   if(!plain(value))throw new Error('provider');
+  // Error objects must not be silently stripped by the generic allowlist.
+  if(Object.hasOwn(Object.getOwnPropertyDescriptors(value),'error'))
+    throw new Error('provider_error');
   const analyticsKey=def.name==='whatsapp_get_business_analytics'?'analytics':
     def.name==='whatsapp_get_template_analytics'?'template_analytics':null;
   const data=safeRead(value,0,analyticsKey!==null,new WeakSet(),{nodes:0},
@@ -252,6 +263,9 @@ function sanitize(result,def){
         throw new Error('negative_receipt');
     }
   }
+  if(def.kind!=='read'&&Object.hasOwn(data,'resourceId')&&
+     (typeof data.resourceId!=='string'||!resourceIdPattern.test(data.resourceId)))
+    throw new Error('bad_resource_id');
   if(def.kind!=='read'&&!Object.hasOwn(data,'accepted')&&
       !Object.hasOwn(data,'success')&&!Object.hasOwn(data,'messageId')&&
       !Object.hasOwn(data,'resourceId')&&!(mediaUpload&&Object.hasOwn(data,'mediaId')))
