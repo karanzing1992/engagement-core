@@ -52,9 +52,11 @@ function plain(value){
  * Require JSON-tree-shaped inputs (no cycles or repeated object references),
  * preventing alias-based expansion. The trusted catalog schema ONLY permits
  * "phone" only at contacts[].phones[].phone (pinned Dojo 0.5.0).
+ * Structural position is tracked as typed path segments and keys are limited
+ * to ASCII alphanumeric/underscores, so crafted keys cannot impersonate it.
  * A cumulative UTF-8 value budget prevents multi-node preflight exhaustion.
  */
-function inputSnapshot(value,toolName,depth=0,seen=new WeakSet(),budget={nodes:0,bytes:0},path=''){
+function inputSnapshot(value,toolName,depth=0,seen=new WeakSet(),budget={nodes:0,bytes:0},path=[]){
   if(++budget.nodes>1024||depth>12)throw new Error('input_size');
   if(value===null||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
@@ -77,7 +79,7 @@ function inputSnapshot(value,toolName,depth=0,seen=new WeakSet(),budget={nodes:0
     return Object.freeze(Array.from({length:value.length},(_,i)=>{
       if(!Object.hasOwn(descriptors,String(i)))throw new Error('input_sparse');
       return inputSnapshot(descriptors[i].value,
-        toolName,depth+1,seen,budget,path+'[]');
+        toolName,depth+1,seen,budget,[...path,null]);
     }));
   }
   if(!plain(value))throw new Error('input_object');
@@ -86,18 +88,20 @@ function inputSnapshot(value,toolName,depth=0,seen=new WeakSet(),budget={nodes:0
   if(keys.length>64)throw new Error('input_object_size');
   const copy={};
   for(const key of keys){
-    if(typeof key!=='string'||key.length>128||
+    if(typeof key!=='string'||!/^[A-Za-z0-9_]{1,128}$/.test(key)||
       ['__proto__','constructor','prototype'].includes(key)||
-      // Pinned Dojo contacts use contacts[].phones[].phone. No other
-      // operation or nesting level can receive this credential-like key.
+      // Use typed structural segments (null=array element), never untrusted
+      // key strings joined with "." or "[]"; no synthetic path collision.
       (deniedKey.test(key)&&!(key==='phone'&&
-        toolName==='whatsapp_send_contacts'&&path==='contacts[].phones[]'))||
+        toolName==='whatsapp_send_contacts'&&path.length===4&&
+        path[0]==='contacts'&&path[1]===null&&
+        path[2]==='phones'&&path[3]===null))||
       !Object.hasOwn(descriptors[key],'value'))
       throw new Error('input_key');
     Object.defineProperty(copy,key,{
       enumerable:true,configurable:false,writable:false,
       value:inputSnapshot(descriptors[key].value,
-        toolName,depth+1,seen,budget,path?path+'.'+key:key)
+        toolName,depth+1,seen,budget,[...path,key])
     });
   }
   return Object.freeze(copy);
