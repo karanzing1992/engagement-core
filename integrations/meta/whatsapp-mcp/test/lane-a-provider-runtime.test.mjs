@@ -65,7 +65,11 @@ function setup(overrides={}){
         count.provider++;plans.push(envelope.plan);
         // Analytics must be realistic metric-bearing synthetic fixtures, not
         // generic {id,name}; an empty report must be rejected by the runtime.
-        const receipt=envelope.plan.toolName==='whatsapp_get_business_analytics'?
+        const receipt=envelope.plan.toolName==='whatsapp_get_flow_metrics'?
+          {ok:true,data:{id:'123456789012',metric:{name:'ENDPOINT_REQUEST_COUNT',
+            granularity:'LIFETIME',data_points:[{data:[{key:'value',value:4}],
+              timestamp:'2026-11-01T08:00:00+0000'}]}}}:
+          envelope.plan.toolName==='whatsapp_get_business_analytics'?
           {ok:true,data:{analytics:{data_points:[{start:1793491200,end:1793577600,
             sent:4,delivered:3}]}}}:
           envelope.plan.toolName==='whatsapp_get_template_analytics'?
