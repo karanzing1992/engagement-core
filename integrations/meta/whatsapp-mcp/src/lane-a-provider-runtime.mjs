@@ -120,7 +120,7 @@ function inputSnapshot(value,toolName,depth=0,seen=new WeakSet(),budget={nodes:0
  * identities (DAG payloads) are intentionally denied, not silently duplicated;
  * WACRM providers must return JSON-tree-shaped objects without shared refs.
  */
-function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0},allowProfile=false,path=[]){
+function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0},allowProfile=false,path=[],allowFlowMetric=false){
   if(++budget.nodes>1024||depth>(allowAnalytics?12:7))throw new Error('depth');
   if(value===null||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
@@ -148,7 +148,7 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
       const descriptor=descriptors[String(i)];
       if(!descriptor||!Object.hasOwn(descriptor,'value'))throw new Error('array_accessor');
       out[i]=safeRead(descriptor.value,depth+1,allowAnalytics,seen,budget,
-        allowProfile,[...path,null]);
+        allowProfile,[...path,null],allowFlowMetric);
     }
     return out;
   }
@@ -166,6 +166,18 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
       (path.length===2&&path[0]==='data'&&path[1]===null)||
       (path.length===1&&path[0]==='data'));
     const permittedProfile=profileObject&&businessProfileCopyKeys.has(key);
+    // Graph Flow metrics: only the root metric and its nested measurement
+    // key/value pairs, never an unrestricted response-wide allowlist.
+    const flowMeasurement=allowFlowMetric&&path.length===5&&
+      path[0]==='metric'&&path[1]==='data_points'&&path[2]===null&&
+      path[3]==='data'&&path[4]===null&&(key==='key'||key==='value');
+    const permittedFlowMetric=allowFlowMetric&&path.length===0&&key==='metric'||
+      flowMeasurement;
+    if(flowMeasurement&&key==='key'&&descriptors[key].value!=='value')
+      throw new Error('metric_key');
+    if(flowMeasurement&&key==='value'&&
+      (!Number.isSafeInteger(descriptors[key].value)||descriptors[key].value<0))
+      throw new Error('metric_value');
     if(permittedProfile){
       const v=descriptors[key].value;
       if(key==='email'&&(typeof v!=='string'||v.length>256||
@@ -175,9 +187,10 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
       if(key==='websites'&&(!Array.isArray(v)||nodeTypes.isProxy(v)))
         throw new Error('profile_websites');
     }
-    if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key))||permittedProfile){
+    if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key))||
+       permittedProfile||permittedFlowMetric){
       const v=safeRead(descriptors[key].value,depth+1,allowAnalytics,seen,budget,
-        allowProfile,[...path,key]);
+        allowProfile,[...path,key],allowFlowMetric);
       if(permittedProfile&&key==='websites'&&
         (!Array.isArray(v)||v.length>10||v.some(u=>
           typeof u!=='string'||u.length>2048||!/^https:\/\/[^\s]+$/.test(u))))
@@ -204,8 +217,26 @@ function sanitize(result,def){
   const analyticsKey=def.name==='whatsapp_get_business_analytics'?'analytics':
     def.name==='whatsapp_get_template_analytics'?'template_analytics':null;
   const data=safeRead(value,0,analyticsKey!==null,new WeakSet(),{nodes:0},
-    def.name==='whatsapp_get_business_profile');
+    def.name==='whatsapp_get_business_profile',[],
+    def.name==='whatsapp_get_flow_metrics');
   if(analyticsKey&&!Object.hasOwn(data,analyticsKey))throw new Error('missing_analytics');
+  if(def.name==='whatsapp_get_flow_metrics'){
+    const metric=data.metric;
+    if(!plain(metric)||metric.name!=='ENDPOINT_REQUEST_COUNT'||
+       metric.granularity!=='LIFETIME'||!Array.isArray(metric.data_points))
+      throw new Error('missing_flow_metric');
+    // An explicit empty data_points array means no observations. A missing
+    // metric or malformed datapoint must not become a successful ID-only read.
+    for(const point of metric.data_points){
+      if(!plain(point)||!Array.isArray(point.data)||point.data.length===0)
+        throw new Error('flow_metric_shape');
+      for(const measurement of point.data){
+        if(!plain(measurement)||measurement.key!=='value'||
+           !Number.isSafeInteger(measurement.value)||measurement.value<0)
+          throw new Error('flow_metric_measure');
+      }
+    }
+  }
   if(Buffer.byteLength(JSON.stringify(data),'utf8')>65536)
     throw new Error('provider');
   if(def.kind==='read'&&!Object.keys(data).length)throw new Error('empty_read');
