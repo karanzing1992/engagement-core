@@ -5,6 +5,7 @@
  */
 import { createHash } from 'node:crypto';
 import { WHATSAPP_LANE_A_CATALOG } from './lane-a-capability-catalog.mjs';
+import { validatePinnedDojoArgs, getPinnedDojoInputJsonSchema } from './lane-a-upstream-dojo-schemas.mjs';
 
 const catalog=new Map(WHATSAPP_LANE_A_CATALOG.map(def=>[def.name,def]));
 const tenantPattern=/^wacrm_[a-f0-9]{40}$/;
@@ -75,7 +76,10 @@ function publicHttps(input) {
   }catch(_){return false;}
 }
 function checkedArguments(def,args) {
-  const safe=cloneChecked(args??{},def.inputSchema);
+  const safe=def.adapter==='dojo'
+    ? validatePinnedDojoArgs(def.name,args??{})
+    : cloneChecked(args??{},def.inputSchema);
+  if(safe===null)throw new Error('invalid_input');
   for(const key of ['link','sourceUrl','website','endpointUri']){
     if(Object.hasOwn(safe,key)&&!publicHttps(safe[key]))throw new Error('invalid_input');
   }
@@ -118,7 +122,8 @@ export function createWhatsAppLaneAMcpHarness({authorizeTenant,capabilityGrants=
     listTools(){
       return WHATSAPP_LANE_A_CATALOG.filter(d=>grants.has(d.name)&&
         (d.kind==='read'||allowSyntheticWrites)).map(d=>({
-        name:d.name,description:d.description,inputSchema:d.inputSchema,
+        name:d.name,description:d.description,
+        inputSchema:d.adapter==='dojo'?getPinnedDojoInputJsonSchema(d.name):d.inputSchema,
         annotations:d.annotations
       }));
     },
