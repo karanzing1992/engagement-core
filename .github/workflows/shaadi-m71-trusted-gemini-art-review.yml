@@ -1,6 +1,11 @@
 name: Shaadi M7.1 | Trusted Reel Gemini Art Review
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/shaadi-m71-trusted-gemini-art-review.yml'
+      - 'services/reel-engine/v8-creative/shaadi_game_art_review.py'
 permissions:
   contents: read
 concurrency:
