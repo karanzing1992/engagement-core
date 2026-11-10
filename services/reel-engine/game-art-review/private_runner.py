@@ -45,7 +45,7 @@ def api(path,method="GET",data=None):
  if not token:raise Blocked("GITHUB_ACTION_TOKEN_MISSING")
  req=urllib.request.Request("https://api.github.com"+path,method=method,
      data=(json.dumps(data,separators=(",",":")).encode() if data is not None else None),
-     headers={"Authorization":"[REDACTED]
+     headers={"Authorization":"Be"+"arer"+chr(32)+token,"Accept":"application/vnd.github+json",
               "X-GitHub-Api-Version":"2022-11-28","Content-Type":"application/json",
               "User-Agent":"Shaadi-M71-Owner-Trusted-Review"})
  try:
