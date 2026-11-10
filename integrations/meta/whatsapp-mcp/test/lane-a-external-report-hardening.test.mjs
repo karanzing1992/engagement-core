@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createLaneAProviderMcp } from '../src/lane-a-provider-runtime.mjs';
+import { WHATSAPP_LANE_A_CATALOG } from '../src/lane-a-capability-catalog.mjs';
 
 const tenant='wacrm_'+'a'.repeat(40);
 const principal={tenantId:tenant,actorId:'audit-fixture'};
@@ -129,4 +130,33 @@ test('Lane B media SSRF boundary: local/metadata URLs never reach provider',asyn
     assert.equal(r.isError,true,url);
     assert.equal(f.state.provider,0,url);
   }
+});
+
+test('P2 schema inventory: raw phone allowed only in pinned nested Dojo contacts',()=>{
+  const paths=(schema,prefix='')=>{
+    if(schema?.type==='array')return paths(schema.items,prefix+'[]');
+    if(schema?.type!=='object')return [];
+    return Object.entries(schema.properties??{}).flatMap(([key,child])=>{
+      const name=prefix?prefix+'.'+key:key;
+      return [...(key==='phone'?[name]:[]),...paths(child,name)];
+    });
+  };
+  const locations=WHATSAPP_LANE_A_CATALOG.flatMap(def=>
+    paths(def.inputSchema).map(path=>({name:def.name,path})));
+  assert.deepEqual(locations,[{
+    name:'whatsapp_send_contacts',path:'contacts[].phones[].phone'
+  }]);
+  assert.equal(WHATSAPP_LANE_A_CATALOG.length,55);
+});
+test('P3 UTF-8 budget counts bytes, not JavaScript character lengths',async()=>{
+  const f=fixture('whatsapp_get_business_account');
+  const args={
+    first:'🙂'.repeat(8000), // 32,000 UTF-8 bytes
+    second:'🌿'.repeat(8000),// 32,000 more
+    third:'é'.repeat(800)    // 1,600 more: total 65,600 > 65,536
+  };
+  const result=await f.call(args);
+  assert.equal(result.isError,true);
+  assert.equal(result.structuredContent.error.code,'invalid_input');
+  assert.equal(f.state.policy,0);
 });
