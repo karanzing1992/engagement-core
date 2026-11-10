@@ -49,7 +49,8 @@ def fetch_blob(sha):
  url="https://api.github.com/repos/"+REPO+"/git/blobs/"+sha
  token=os.environ.get("GH_READ_TOKEN","")
  require(bool(token),"GH_READ_TOKEN_ABSENT")
- headers={"Accept":"application/vnd.github+json","Authorization":"[REDACTED] with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=35) as f:
+ headers={"Accept":"application/vnd.github+json","Authorization":"Be"+"arer "+token,"User-Agent":"TrustedVisionV21"}
+ with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=35) as f:
   raw=f.read(3500000)
  data=json.loads(raw)
  require(data.get("sha")==sha and data.get("encoding")=="base64","GIT_BLOB_WRONG")
@@ -108,7 +109,8 @@ def main():
   return 0
  blob_sha=request.get("blob_sha")
  capsule=fetch_blob(blob_sha)
- secret=[REDACTED] data=open_capsule(capsule,b64(secret),request["project"],request["site_sha256"],request["qa_receipt_sha256"])
+ secret=[REDACTED]
+ data=open_capsule(capsule,b64(secret),request["project"],request["site_sha256"],request["qa_receipt_sha256"])
  require(len(data["images"])==12,"TWELVE_IMAGES_REQUIRED")
  require(MODEL in choose_models(api("/models?pageSize=100",key)),"MODEL_NOT_AUTHENTICATED")
  output={"schema":"generic-design-vision-advice-v2.1",
