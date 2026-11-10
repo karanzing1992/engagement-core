@@ -46,6 +46,17 @@ class SingleTests(unittest.TestCase):
  def test_no_key_deny_without_network(self):
   with patch.dict("os.environ",{"GEMINI_API_KEY":""}):
    with self.assertRaisesRegex(ValueError,"GEMINI_KEY_NOT_IN_DELL_BOUNDARY"):v.run(ROOT,PACKET)
+ def test_site_treehash_matches_engine_state(self):
+  state=json.loads((ROOT/"engine-state.json").read_text())
+  self.assertEqual(v.site_treehash(ROOT/"site"),state["site_sha256"])
+ def test_site_symlink_deny(self):
+  with tempfile.TemporaryDirectory() as t:
+   p=pathlib.Path(t);(p/"sensitive").symlink_to("/etc/hosts")
+   with self.assertRaisesRegex(ValueError,"SITE_SYMLINK_FORBIDDEN"):v.site_treehash(p)
+ def test_symlink_rag_packet_deny(self):
+  with tempfile.TemporaryDirectory() as t:
+   link=pathlib.Path(t)/"packet.json";link.symlink_to(PACKET)
+   with self.assertRaisesRegex(ValueError,"UNSAFE_RAG_PACKET"):v.fixture_inputs(ROOT,link)
  def test_bad_endpoint_deny(self):
   with self.assertRaisesRegex(ValueError,"UNAPPROVED_ENDPOINT"):v.request("/models/other:generateContent","x",transport=lambda a,b:{})
  def test_malformed_image_deny(self):
