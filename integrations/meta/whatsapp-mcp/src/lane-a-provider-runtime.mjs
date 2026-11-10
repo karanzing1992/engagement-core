@@ -196,8 +196,10 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
     const atReadRecord=path.length===0||
       (path.length===2&&path[0]==='data'&&path[1]===null);
     const scopedHost=atReadRecord&&hostReadCopyKeys.get(toolName)?.has(key);
-    const scopedMetric=toolName==='whatsapp_get_flow_metrics'&&key==='values'&&
-      path.length===1&&path[0]==='metric';
+    const scopedMetric=toolName==='whatsapp_get_flow_metrics'&&(
+      (key==='values'&&path.length===1&&path[0]==='metric')||
+      (key==='value'&&path.length===3&&path[0]==='metric'&&
+       path[1]==='values'&&path[2]===null));
     if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key))||
         scopedProfile||scopedHost||scopedMetric){
       const clean=safeRead(descriptors[key].value,depth+1,allowAnalytics,seen,budget,
