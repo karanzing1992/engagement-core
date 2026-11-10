@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 import urllib.error
 import urllib.request
 from PIL import Image
@@ -27,14 +28,21 @@ def api(path, key, body=None):
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(API + path, data=data, headers=headers,
                                  method="GET" if data is None else "POST")
-    try:
-        with urllib.request.urlopen(req, timeout=50) as response:
-            raw = response.read(1000000)
-    except urllib.error.HTTPError as exc:
-        raise RuntimeError("GEMINI_HTTP_" + str(exc.code)) from None
-    except urllib.error.URLError:
-        raise RuntimeError("GEMINI_NETWORK_UNAVAILABLE") from None
-    return json.loads(raw)
+    phase = "MODEL_LIST" if data is None else "VISION_INFERENCE"
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=50) as response:
+                raw = response.read(1000000)
+            return json.loads(raw)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 503 and attempt == 0:
+                print("GEMINI_TRANSIENT_503_" + phase + " retry=1", file=sys.stderr)
+                time.sleep(3)
+                continue
+            raise RuntimeError("GEMINI_HTTP_" + str(exc.code) + "_" + phase) from None
+        except urllib.error.URLError:
+            raise RuntimeError("GEMINI_NETWORK_UNAVAILABLE_" + phase) from None
+    raise RuntimeError("GEMINI_RETRIES_EXHAUSTED_" + phase)
 
 def choose_model(metadata):
     models = metadata.get("models", [])
