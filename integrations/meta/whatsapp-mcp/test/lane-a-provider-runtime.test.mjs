@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { dojoFixture } from './fixtures/lane-a-dojo-fixtures.mjs';
 import { WHATSAPP_LANE_A_CATALOG } from '../src/lane-a-capability-catalog.mjs';
 import {
   buildWacrmGraphV26Plan,LANE_A_GRAPH_HOST_TOOLS
@@ -34,6 +35,8 @@ function sample(schema){
   return 'synthetic';
 }
 function inputFor(d){
+  if(d.adapter==='dojo')return dojoFixture(d.name);
+
   const args=sample(d.inputSchema);
   if(/^whatsapp_send_(?:image|video|audio|voice|document|sticker)$/.test(d.name))
     args.id='123456789012';
