@@ -91,4 +91,19 @@ class TestOwnerReview(unittest.TestCase):
                     "GITHUB_ACTOR":m.OWNER,"GITHUB_RUN_ID":RUN,
                     "GEMINI_PROJECT_FREE_TIER_VERIFIED":"true","GEMINI_INFERENCE_OWNER_APPROVED":"true"}):
     with self.assertRaisesRegex(m.Blocked,"OWNER_ONLY_ISSUE_GATE"):m.verified_event()
+class TestFreeProviderPreflight(unittest.TestCase):
+ def test_owner_preflight_posts_model_only(self):
+  sent=[]
+  with patch.object(m,"verified_event",return_value=(123,"678901234",True)),patch.object(m,"discover_free_gemini_model",return_value=(object(),"PRIVATE_SYNTHETIC_KEY","gemini-2.5-flash")),patch.object(m,"comment",side_effect=lambda issue,body:sent.append((issue,body))):
+   self.assertEqual(m.main(),0)
+  self.assertEqual(len(sent),1)
+  self.assertTrue(sent[0][1].startswith(m.PREFLIGHT_TAG))
+  self.assertNotIn("PRIVATE_SYNTHETIC_KEY",sent[0][1])
+ def test_denied_provider_model_does_not_claim_pass(self):
+  sent=[]
+  with patch.object(m,"verified_event",return_value=(123,"678901234",True)),patch.object(m,"discover_free_gemini_model",side_effect=m.Blocked("GEMINI_MODEL_DISCOVERY_HTTP_403")),patch.object(m,"comment",side_effect=lambda issue,body:sent.append((issue,body))):
+   self.assertEqual(m.main(),2)
+  self.assertEqual(len(sent),1)
+  self.assertIn("GEMINI_MODEL_DISCOVERY_HTTP_403",sent[0][1])
+
 if __name__=="__main__":unittest.main()
