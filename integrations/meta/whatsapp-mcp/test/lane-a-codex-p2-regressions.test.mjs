@@ -27,7 +27,7 @@ test('P2 analytics schemas advertise both dates as required for both tools',()=>
     assert.ok(d.inputSchema.properties.endDate);
   }
 });
-test('P2 analytics absent or partial dates are invalid_input before any trusted host callbacks',async()=>{
+test('P2 analytics absent or partial dates reject before route or provider dispatch',async()=>{
   for(const name of ['whatsapp_get_template_analytics','whatsapp_get_business_analytics']){
     for(const args of [{},{startDate:'2026-11-01'},{endDate:'2026-11-09'}]){
       const {calls,call}=setup(name,{ok:true,data:{analytics:{data_points:[]}}});
