@@ -10,6 +10,7 @@ on:
       - integration/meta-core-lane-a-source-20261111
       - fix/meta-core-lane-a-consolidated-p3-20261111
       - fix/meta-core-lane-a-profile-analytics-p2-20261111
+      - fix/meta-core-lane-a-host-reads-dojo-p2-20261111
   workflow_dispatch:
 permissions:
   contents: read

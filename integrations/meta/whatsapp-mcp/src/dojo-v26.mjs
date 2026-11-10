@@ -20,54 +20,68 @@ const numberIdPattern = /^\d{6,64}$/;
 
 function denied(code, message) { return { ok: false, error: { code, message } }; }
 
-// Bounded structural ingress before auth and SDK/Zod parsing; no JSON stringify
-// of untrusted, potentially huge or cyclic structures.
+// Snapshot nested arguments through own data descriptors BEFORE host callbacks.
+// This avoids running an inherited Array#toJSON/getter (or a mutable getter)
+// during JSON.stringify(args). The old scanner checked descriptors but later
+// serialized the original caller-owned graph, allowing inherited hooks to run.
 function boundedArgs(root) {
-  const stack = [{ value: root, depth: 0 }];
   const seen = new WeakSet();
-  let visited = 0;
-  try {
-    while (stack.length > 0) {
-      const { value, depth } = stack.pop();
-      if (++visited > 256 || depth > 8) return false;
-      if (value === null || typeof value === 'boolean') continue;
-      if (typeof value === 'string') {
-        if (value.length > 8192) return false;
-        continue;
-      }
-      if (typeof value === 'number') {
-        if (!Number.isFinite(value)) return false;
-        continue;
-      }
-      if (typeof value !== 'object' || nodeTypes.isProxy(value) || seen.has(value)) return false;
-      seen.add(value);
-      if (Array.isArray(value)) {
-        const descriptors = Object.getOwnPropertyDescriptors(value);
-        const size = descriptors.length?.value;
-        if (!Number.isSafeInteger(size) || size > 128 ||
-            Reflect.ownKeys(descriptors).length !== size + 1) return false;
-        for (let i = 0; i < size; i++) {
-          const d = descriptors[String(i)];
-          if (!d || !Object.hasOwn(d, 'value')) return false;
-          stack.push({ value: d.value, depth: depth + 1 });
-        }
-        continue;
-      }
-      const proto = Object.getPrototypeOf(value);
-      if (proto !== Object.prototype && proto !== null) return false;
-      const descriptors = Object.getOwnPropertyDescriptors(value);
-      const keys = Reflect.ownKeys(descriptors);
-      if (keys.length > 32) return false;
-      for (const key of keys) {
-        if (typeof key !== 'string' || key.length > 64 ||
-            key === '__proto__' || key === 'constructor' || key === 'prototype') return false;
-        const d = descriptors[key];
-        if (!Object.hasOwn(d, 'value')) return false;
-        stack.push({ value: d.value, depth: depth + 1 });
-      }
+  let visited = 0, bytes = 0;
+  function clone(value, depth) {
+    if (++visited > 256 || depth > 8) throw new Error('input_size');
+    if (value === null || typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const n = Buffer.byteLength(value, 'utf8');
+      if (value.length > 8192 || n > 8192 || (bytes += n) > 65536)
+        throw new Error('input_size');
+      return value;
     }
-  } catch (_) { return false; }
-  return true;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value !== 'object' || nodeTypes.isProxy(value) || seen.has(value))
+      throw new Error('input_shape');
+    seen.add(value);
+    if (Array.isArray(value)) {
+      // Do not allow custom Array prototypes with inherited toJSON hooks.
+      if (Object.getPrototypeOf(value) !== Array.prototype)
+        throw new Error('input_array_prototype');
+      const ds = Object.getOwnPropertyDescriptors(value);
+      const size = ds.length?.value;
+      if (!Number.isSafeInteger(size) || size > 128 ||
+          Reflect.ownKeys(ds).length !== size + 1)
+        throw new Error('input_array');
+      const out = [];
+      for (let i = 0; i < size; i++) {
+        const d = ds[String(i)];
+        if (!d || !Object.hasOwn(d, 'value') || d.enumerable !== true)
+          throw new Error('input_array_accessor');
+        out.push(clone(d.value, depth + 1));
+      }
+      return out;
+    }
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null)
+      throw new Error('input_prototype');
+    const ds = Object.getOwnPropertyDescriptors(value);
+    const keys = Reflect.ownKeys(ds);
+    if (keys.length > 32) throw new Error('input_keys');
+    const out = {};
+    for (const key of keys) {
+      if (typeof key !== 'string' || key.length > 64 ||
+          key === '__proto__' || key === 'constructor' || key === 'prototype' ||
+          !Object.hasOwn(ds[key], 'value'))
+        throw new Error('input_key');
+      Object.defineProperty(out, key, {
+        enumerable: true, writable: true, configurable: true,
+        value: clone(ds[key].value, depth + 1)
+      });
+    }
+    return out;
+  }
+  try {
+    if (!root || typeof root !== 'object' || nodeTypes.isProxy(root) ||
+        Array.isArray(root)) return null;
+    return clone(root, 0);
+  } catch (_) { return null; }
 }
 
 function configFor(connection) {
@@ -124,11 +138,11 @@ export function createMetaCoreDojoReadAdapter({ authorizeTenant, resolveConnecti
         return denied('forbidden', 'Tenant authorization failed');
       if (!allowed.has(toolName)) return denied('tool_not_allowed', 'This META CORE tool is not enabled');
       if (typeof tenantId !== 'string' || !tenantPattern.test(tenantId)) return denied('forbidden', 'Tenant authorization failed');
-      if (!args || typeof args !== 'object' || Array.isArray(args) || !boundedArgs(args)) return denied('invalid_input', 'Tool arguments exceed safe bounds');
-      // Clone only structurally screened plain data before any host await.
-      let safeArgs;
-      try { safeArgs = JSON.parse(JSON.stringify(args)); }
-      catch (_) { return denied('invalid_input', 'Tool arguments exceed safe bounds'); }
+      // A validated descriptor-only deep copy; never serialize caller-owned
+      // objects or invoke their inherited toJSON hooks.
+      const safeArgs = boundedArgs(args);
+      if (safeArgs === null)
+        return denied('invalid_input', 'Tool arguments exceed safe bounds');
       try {
         if (await authorizeTenant(principal, tenantId, toolName) !== true) {
           return denied('forbidden', 'Tenant authorization failed');
