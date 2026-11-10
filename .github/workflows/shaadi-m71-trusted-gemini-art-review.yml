@@ -60,7 +60,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           s=Path('candidate/tests/m71_hud_art_foundation_e2e.js').read_text()
-          s='\\n'.join(line for line in s.splitlines() if not line.lstrip().startswith('assert('))+'\\n'
+          s='\n'.join(line for line in s.splitlines() if not line.lstrip().startswith('assert('))+'\n'
           Path('baseline/tests/m71_hud_art_foundation_e2e.js').write_text(s)
           PY
           (cd baseline && python3 tools/build.py --debug && node tests/m71_hud_art_foundation_e2e.js "$GITHUB_WORKSPACE/evidence/baseline")
