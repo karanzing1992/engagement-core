@@ -30,6 +30,15 @@ const copyKeys=new Set([
 const analyticsCopyKeys=new Set(['analytics','template_analytics','template_id','clicked','cost','currency','value']);
 // Public Graph business-profile fields are NOT general-purpose output keys.
 const businessProfileCopyKeys=new Set(['email','websites','profile_picture_url']);
+// Explicit Graph read fields are scoped to their own top-level output or
+// data[] records; never widened in the shared global response allowlist.
+const hostReadCopyKeys=new Map([
+  ['whatsapp_get_business_account',new Set(['timezone_id','message_template_namespace'])],
+  ['whatsapp_list_qr_codes',new Set(['code','prefilled_message','deep_link','qr_image_url'])],
+  ['whatsapp_get_flow',new Set(['preview','data_channel_uri','whatsapp_business_account'])],
+  ['whatsapp_get_flow_assets',new Set(['asset_type','download_url'])],
+  ['whatsapp_get_subscription_status',new Set(['subscribed_fields','override_callback_uri'])]
+]);
 const tenantPattern=/^wacrm_[a-f0-9]{40}$/;
 const idPattern=/^[0-9]{6,64}$/;
 // Valid WACRM Graph resource IDs, synthetic receipt IDs and Meta QR codes.
@@ -124,7 +133,7 @@ function inputSnapshot(value,toolName,depth=0,seen=new WeakSet(),budget={nodes:0
  * identities (DAG payloads) are intentionally denied, not silently duplicated;
  * WACRM providers must return JSON-tree-shaped objects without shared refs.
  */
-function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0},allowProfile=false,path=[],allowFlowMetric=false){
+function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0},allowProfile=false,path=[],allowFlowMetric=false,toolName=''){
   if(++budget.nodes>1024||depth>(allowAnalytics?12:7))throw new Error('depth');
   if(value===null||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
@@ -152,7 +161,7 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
       const descriptor=descriptors[String(i)];
       if(!descriptor||!Object.hasOwn(descriptor,'value'))throw new Error('array_accessor');
       out[i]=safeRead(descriptor.value,depth+1,allowAnalytics,seen,budget,
-        allowProfile,[...path,null],allowFlowMetric);
+        allowProfile,[...path,null],allowFlowMetric,toolName);
     }
     return out;
   }
@@ -173,6 +182,10 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
       (path.length===2&&path[0]==='data'&&path[1]===null)||
       (path.length===1&&path[0]==='data'));
     const permittedProfile=profileObject&&businessProfileCopyKeys.has(key);
+    const atHostReadRecord=path.length===0||
+      (path.length===2&&path[0]==='data'&&path[1]===null);
+    const permittedHostField=atHostReadRecord&&
+      hostReadCopyKeys.get(toolName)?.has(key);
     // Graph Flow metrics: only the root metric and its nested measurement
     // key/value pairs, never an unrestricted response-wide allowlist.
     const flowMeasurement=allowFlowMetric&&path.length===5&&
@@ -195,9 +208,9 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
         throw new Error('profile_websites');
     }
     if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key))||
-       permittedProfile||permittedFlowMetric){
+       permittedProfile||permittedFlowMetric||permittedHostField){
       const v=safeRead(descriptors[key].value,depth+1,allowAnalytics,seen,budget,
-        allowProfile,[...path,key],allowFlowMetric);
+        allowProfile,[...path,key],allowFlowMetric,toolName);
       if(permittedProfile&&key==='websites'&&
         (!Array.isArray(v)||v.length>10||v.some(u=>
           typeof u!=='string'||u.length>2048||!/^https:\/\/[^\s]+$/.test(u))))
@@ -232,8 +245,16 @@ function sanitize(result,def){
     def.name==='whatsapp_get_template_analytics'?'template_analytics':null;
   const data=safeRead(value,0,analyticsKey!==null,new WeakSet(),{nodes:0},
     def.name==='whatsapp_get_business_profile',[],
-    def.name==='whatsapp_get_flow_metrics');
+    def.name==='whatsapp_get_flow_metrics',def.name);
   if(analyticsKey&&!Object.hasOwn(data,analyticsKey))throw new Error('missing_analytics');
+  if(def.name==='whatsapp_get_business_profile'&&Array.isArray(data.data)&&
+      (data.data.length===0||data.data.some(item=>!plain(item)||!Object.keys(item).length)))
+    throw new Error('empty_profile');
+  // A syntactically nonempty QR response with blank records is a contract
+  // failure, not a successful listing.
+  if(def.name==='whatsapp_list_qr_codes'&&Array.isArray(data.data)&&
+      data.data.some(item=>!plain(item)||!Object.keys(item).length))
+    throw new Error('empty_qr_record');
   if(def.name==='whatsapp_get_flow_metrics'){
     const metric=data.metric;
     if(!plain(metric)||metric.name!=='ENDPOINT_REQUEST_COUNT'||

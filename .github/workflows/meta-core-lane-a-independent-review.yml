@@ -46,7 +46,7 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Independent security regressions
         working-directory: integrations/meta/whatsapp-mcp
-        run: node --test test/lane-a-release-review-regressions.test.mjs test/lane-a-review-array-hardening.test.mjs test/lane-a-review-proxy-hardening.test.mjs test/lane-a-external-report-hardening.test.mjs test/lane-a-consolidated-p3-negative.test.mjs test/lane-a-codex-p2-regressions.test.mjs
+        run: node --test test/lane-a-release-review-regressions.test.mjs test/lane-a-review-array-hardening.test.mjs test/lane-a-review-proxy-hardening.test.mjs test/lane-a-external-report-hardening.test.mjs test/lane-a-consolidated-p3-negative.test.mjs test/lane-a-codex-p2-regressions.test.mjs test/lane-a-host-reads-dojo-snapshot-p2.test.mjs
       - name: Full Node contract and negative tests
         working-directory: integrations/meta/whatsapp-mcp
         run: npm test
