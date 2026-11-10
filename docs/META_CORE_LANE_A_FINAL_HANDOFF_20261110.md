@@ -35,7 +35,7 @@ Ashwakaal — Support Channels is separate. Neither its accounts, identity, perm
 | `test/lane-a-upstream-dojo-parity.test.mjs` | Actual installed Dojo 19-tool name parity, text/template dispatch through fake client |
 | `.github/workflows/meta-core-lane-a-final-ci.yml` | Independent Node 24 test/audit and no-live-provider release marker |
 
-**Important:** 55 registered capabilities does not imply all provider handlers are active. The 33 host operations produce *blueprints*, not Graph HTTP calls. Dojo fake-client dispatch is not a real WACRM outbox. The remote MCP OAuth resource is not built or registered here. The catalog schemas for some advanced inputs are conservative projections; production requires exact per-operation vendor contract review and upstream Dojo input schema parity at the WACRM provider boundary.
+**Important:** 55 registered capabilities does not imply all provider handlers are active. The 33 host operations produce *blueprints*, not Graph HTTP calls. Dojo fake-client dispatch is not a real WACRM outbox. The remote MCP OAuth resource is not built or registered here. The 17 Dojo-owned tool schemas are now derived directly from the installed pinned MCP/Zod definitions and checked by strict safe input validation; the two WACRM-owned template reads retain their deliberately narrower broker schemas. Advanced Graph host operations still require production vendor-version and WACRM transport parity review.
 
 ## D. Integration interface for Lane B
 
@@ -82,3 +82,24 @@ Inputs to `callTool` must contain a **host-proven** `verifiedPrincipal.actorId`,
 Lane A source handover is accepted only after exact-head Node 24/npm CI runs all old and new tests (including all 55 mock-provider operations and 19 Dojo MCP registry parity), zero high/critical dependency vulnerabilities, verified additive-only diff, and an independent review of the Graph v26 path mapping. **Until that run and review, report source implemented but certification pending.**
 
 For defects, disable all grants and use the **existing** WACRM old read-only path. Rolling back this unmerged branch is non-destructive: close draft PR, no runtime state/migration/keys/customers/phone registration changed. Do **not** post `VERIFIED_LIVE` to the Master Supabase inbox for these source-only changes. Report verified new platform integrations only after Lane B can provide evidence in the authorized event inbox.
+
+## G. Final Lane A engineering and CI checkpoint — 10 November 2026
+
+**Exact source checkpoint before this handoff update:** `a843fd476c27621900662d9f1c870ca26ca4b7c4`.  
+**Independent CI:** [GitHub Actions #42852021177](https://github.com/karanzing1992/engagement-core/actions/runs/42852021177), **87/87 Node tests passing, 0 failures, npm audit 0 vulnerabilities** (Node 24, installed pinned dependencies).
+
+- [x] 55 distinct MCP tool contracts and 12 explicit privileged exclusions.
+- [x] Full 55-operation fake provider dispatch, including 33 fixed Graph v26 host plans, 17 Dojo-owned tools, two WACRM template broker reads and three WACRM inbox/status reads.
+- [x] All 19 real Dojo MCP handlers exercised against the installed SDK's own in-memory `MockWhatsAppClient`; one synthetic media fetch was stubbed explicitly, **zero Meta API calls**.
+- [x] For the 17 Dojo-owned tools, JSON input schemas are generated from the installed upstream Zod input definitions, with strict preflight validation and nested SSRF/sensitive-field checks. The other two (template list/get) are intentionally WACRM-bound.
+- [x] Genuine `@modelcontextprotocol/sdk` in-memory client/server exchange for `tools/list` and `tools/call`; unauthenticated call denial tested. No public listener or OAuth registration.
+- [x] Versioned, machine-readable [55-tool Lane A adoption manifest](../integrations/meta/whatsapp-mcp/manifest/lane-a-whatsapp-mcp-v1.json), default grants empty, production disabled. CI asserts manifest consistency with catalog.
+- [x] Fail-closed identity, actor/tenant grants, resource ownership, operation cost/window/approval gates, request-ID requirements and output redaction negative tests.
+- [x] Separate approved provider ownership preserved; no second credential vault, WACRM event system or CRM source of truth.
+- [x] Explicit rollback: do not merge draft PR until review, close candidate to revert source only; live customer data and WhatsApp registrations remain untouched.
+
+**Lane A classification:** `SOURCE_ENGINEERING_COMPLETE / INDEPENDENT_SYNTHETIC_CI_PASS / READY_FOR_LANE_B_ADOPTION_REVIEW`.
+
+**Not certified:** live WACRM providers, real Graph v26 account/scope responses, exact host-provider payload parity for each conditional Meta operation, Central OAuth resource grants, HTTPS ingress/egress, customer-facing sending policy, durable outbox implementation, paid sends, owner-controlled WACRM staging and live production approval. These are cross-lane / release gates, not claims of Lane A runtime deployment.
+
+**No VERIFIED_LIVE Master event is appropriate for this source-only work.** The separate Ashwakaal — Support Channels workstream remains isolated.
