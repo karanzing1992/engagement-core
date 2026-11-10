@@ -34,6 +34,7 @@ function sample(schema){
   if(schema.pattern?.includes('[a-z]{2,3}'))return 'en_US';
   if(schema.pattern?.includes('^[0-9]{6,64}'))return '123456789012';
   if(schema.pattern?.includes('[1-9][0-9]'))return '+919999999999';
+  if(schema.pattern?.includes('{6,128}'))return 'SYNTHETIC_QR_123';
   if(schema.pattern?.includes('A-Za-z0-9_-'))return 'NEXT';
   return 'synthetic';
 }
