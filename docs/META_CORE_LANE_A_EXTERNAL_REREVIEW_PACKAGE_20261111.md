@@ -21,7 +21,7 @@ This review branch was copied from the tested remediation source commit. The ext
 | P3: missing aggregate UTF-8 budget | Aggregate 65,536-byte input value cap, alongside per-string 32,768-byte/node/depth bounds, plus UTF-8 and many-small-string tests. | Test exact boundary and pathological payload rejection before policy or host provider. |
 | P3: CodeQL `../results` path dependency | Both CI workflows use pinned CodeQL Action's documented `output` input, SARIF inside `github.workspace`; zero-finding gate and 3-day artifact confirmed. | Validate workflow YAML and exact run artifact; ensure future runner portability. |
 
-See [full change rationale and required provider trust/egress contract](../META_CORE_LANE_A_EXTERNAL_SECURITY_REMEDIATION_20261111.md).
+See [full change rationale and required provider trust/egress contract](META_CORE_LANE_A_EXTERNAL_SECURITY_REMEDIATION_20261111.md).
 
 ## Verified source CI evidence, before adding this review-only documentation
 
