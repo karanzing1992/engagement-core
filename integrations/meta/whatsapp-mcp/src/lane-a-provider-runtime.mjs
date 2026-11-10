@@ -162,6 +162,9 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
   if(keys.length>48)throw new Error('keys');
   const out={};
   for(const key of keys){
+    // Never silently strip error indicators from nested Graph/MCP payloads.
+    // A partial batch failure should not become a success-shaped response.
+    if(key==='error'||key==='errors')throw new Error('provider_error');
     if(typeof key!=='string'||deniedKey.test(key)||
       !Object.hasOwn(descriptors[key],'value'))throw new Error('sensitive');
     // Special-purpose fields must stay confined to the matching tool and
@@ -255,13 +258,11 @@ function sanitize(result,def){
   if(mediaUpload&&(typeof data.mediaId!=='string'||
       !/^(?:[0-9]{6,64}|media\.mock-[1-9][0-9]*)$/.test(data.mediaId)))
     throw new Error('bad_media_id');
-  // Do not convert an explicit provider refusal into a successful MCP
-  // mutation, even if another affirmative receipt field is present.
-  if(def.kind!=='read'){
-    for(const flag of ['accepted','success']){
-      if(Object.hasOwn(data,flag)&&data[flag]!==true)
-        throw new Error('negative_receipt');
-    }
+  // A negative or malformed operation indicator is a provider failure even
+  // on a read response; mutation paths additionally require a receipt.
+  for(const flag of ['accepted','success']){
+    if(Object.hasOwn(data,flag)&&data[flag]!==true)
+      throw new Error('negative_receipt');
   }
   if(def.kind!=='read'&&Object.hasOwn(data,'resourceId')&&
      (typeof data.resourceId!=='string'||!resourceIdPattern.test(data.resourceId)))

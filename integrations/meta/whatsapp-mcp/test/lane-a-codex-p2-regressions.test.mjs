@@ -151,3 +151,29 @@ test('P2 malformed provider wrapper status or explicit error fails closed',async
   const good=await call({about:'synthetic business'});
   assert.equal(good.isError,false,JSON.stringify(good.structuredContent));
 });
+
+test('P2 explicit negative read status cannot masquerade as a successful read',async()=>{
+  for(const flag of [{success:false},{accepted:false},{success:'false'},
+    {accepted:0},{success:null}]){
+    const {call}=setup('whatsapp_get_business_account',
+      {ok:true,data:{id:'123456789012',...flag}});
+    const result=await call({});
+    assert.equal(result.isError,true,JSON.stringify(flag));
+    assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+  }
+  const positive=await setup('whatsapp_get_business_account',
+    {ok:true,data:{id:'123456789012',success:true}}).call({});
+  assert.equal(positive.isError,false,JSON.stringify(positive.structuredContent));
+});
+test('P2 nested provider error fields cannot be sanitized into successful reads',async()=>{
+  for(const field of ['error','errors']){
+    const payload={id:'123456789012',data:[{
+      id:'223456789012',[field]:{message:'synthetic negative result'}
+    }]};
+    const {call}=setup('whatsapp_get_business_account',{ok:true,data:payload});
+    const result=await call({});
+    assert.equal(result.isError,true,field);
+    assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+    assert.ok(!JSON.stringify(result).includes('synthetic negative result'));
+  }
+});
