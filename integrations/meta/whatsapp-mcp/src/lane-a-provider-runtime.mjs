@@ -28,6 +28,8 @@ const copyKeys=new Set([
   'granularity','data_points','metrics','result'
 ]);
 const analyticsCopyKeys=new Set(['analytics','template_analytics','template_id','clicked','cost','currency','value']);
+// Public Graph business-profile fields are NOT general-purpose output keys.
+const businessProfileCopyKeys=new Set(['email','websites','profile_picture_url']);
 const tenantPattern=/^wacrm_[a-f0-9]{40}$/;
 const idPattern=/^[0-9]{6,64}$/;
 const actorIdPattern=/^[A-Za-z0-9_.:-]{1,128}$/;
@@ -118,7 +120,7 @@ function inputSnapshot(value,toolName,depth=0,seen=new WeakSet(),budget={nodes:0
  * identities (DAG payloads) are intentionally denied, not silently duplicated;
  * WACRM providers must return JSON-tree-shaped objects without shared refs.
  */
-function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0}){
+function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0},allowProfile=false,path=[]){
   if(++budget.nodes>1024||depth>(allowAnalytics?12:7))throw new Error('depth');
   if(value===null||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
@@ -134,7 +136,8 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
     if(Object.getPrototypeOf(value)!==Array.prototype)throw new Error('array_prototype');
     const descriptors=Object.getOwnPropertyDescriptors(value);
     const size=descriptors.length?.value;
-    if(!Number.isSafeInteger(size)||size>100||size<0)throw new Error('size');
+    if(!Number.isSafeInteger(size)||size>100||size<0||
+       (allowProfile&&path.join('/')==='data//websites'&&size>10))throw new Error('size');
     const keys=Reflect.ownKeys(descriptors);
     if(keys.length!==size+1||keys.some(key=>
       typeof key!=='string'||(key!=='length'&&
@@ -145,7 +148,8 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
     for(let i=0;i<size;i++){
       const descriptor=descriptors[String(i)];
       if(!descriptor||!Object.hasOwn(descriptor,'value'))throw new Error('array_accessor');
-      out[i]=safeRead(descriptor.value,depth+1,allowAnalytics,seen,budget);
+      out[i]=safeRead(descriptor.value,depth+1,allowAnalytics,seen,budget,
+        allowProfile,[...path,null]);
     }
     return out;
   }
@@ -157,9 +161,30 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
   for(const key of keys){
     if(typeof key!=='string'||deniedKey.test(key)||
       !Object.hasOwn(descriptors[key],'value'))throw new Error('sensitive');
-    // Only allow analytics-specific fields inside the two analytics operations.
-    if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key)))
-      out[key]=safeRead(descriptors[key].value,depth+1,allowAnalytics,seen,budget);
+    // Special-purpose fields must stay confined to the matching tool and
+    // the actual Graph business-profile object, never to unrelated payloads.
+    const profileObject=allowProfile&&(path.length===0||
+      (path.length===2&&path[0]==='data'&&path[1]===null)||
+      (path.length===1&&path[0]==='data'));
+    const permittedProfile=profileObject&&businessProfileCopyKeys.has(key);
+    if(permittedProfile){
+      const v=descriptors[key].value;
+      if(key==='email'&&(typeof v!=='string'||v.length>256||
+          !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(v)))throw new Error('profile_email');
+      if(key==='profile_picture_url'&&(typeof v!=='string'||
+          v.length>2048||!/^https:\/\/[^\\s]+$/.test(v)))throw new Error('profile_url');
+      if(key==='websites'&&(!Array.isArray(v)||nodeTypes.isProxy(v)))
+        throw new Error('profile_websites');
+    }
+    if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key))||permittedProfile){
+      const v=safeRead(descriptors[key].value,depth+1,allowAnalytics,seen,budget,
+        allowProfile,[...path,key]);
+      if(permittedProfile&&key==='websites'&&
+        (!Array.isArray(v)||v.length>10||v.some(u=>
+          typeof u!=='string'||u.length>2048||!/^https:\/\/[^\\s]+$/.test(u))))
+        throw new Error('profile_websites');
+      out[key]=v;
+    }
   }
   return out;
 }
@@ -179,7 +204,8 @@ function sanitize(result,def){
   if(!plain(value))throw new Error('provider');
   const analyticsKey=def.name==='whatsapp_get_business_analytics'?'analytics':
     def.name==='whatsapp_get_template_analytics'?'template_analytics':null;
-  const data=safeRead(value,0,analyticsKey!==null);
+  const data=safeRead(value,0,analyticsKey!==null,new WeakSet(),{nodes:0},
+    def.name==='whatsapp_get_business_profile');
   if(analyticsKey&&!Object.hasOwn(data,analyticsKey))throw new Error('missing_analytics');
   if(Buffer.byteLength(JSON.stringify(data),'utf8')>65536)
     throw new Error('provider');
