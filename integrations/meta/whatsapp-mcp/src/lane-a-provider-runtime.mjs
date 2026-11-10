@@ -251,6 +251,13 @@ function sanitize(result,def){
     if(Object.hasOwn(descriptors,key)&&!Object.hasOwn(descriptors[key],'value'))
       throw new Error('provider_accessor');
   }
+  // Envelope-level mutation receipts are just as authoritative as nested
+  // data receipts. Never discard an explicit rejection while unwrapping.
+  for(const key of ['accepted','success']){
+    if(Object.hasOwn(descriptors,key)&&
+       (!Object.hasOwn(descriptors[key],'value')||descriptors[key].value!==true))
+      throw new Error('negative_envelope_receipt');
+  }
   // Optional wrapper status fields must be actual booleans. Do not
   // accidentally convert malformed "false", null or error wrappers to OK.
   if((Object.hasOwn(descriptors,'ok')&&descriptors.ok.value!==true)||

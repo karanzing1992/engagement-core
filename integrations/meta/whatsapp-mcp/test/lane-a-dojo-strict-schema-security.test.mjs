@@ -81,3 +81,26 @@ test('Dojo broker-managed template reads cannot bypass WACRM Central',()=>{
   assert.equal(getPinnedDojoInputJsonSchema('whatsapp_get_template'),null);
   assert.equal(validatePinnedDojoArgs('whatsapp_list_templates',{}),null);
 });
+
+test('P2 standalone harness rejects inherited Array toJSON hook without invoking it',async()=>{
+  const {createWhatsAppLaneAMcpHarness}=await import('../src/lane-a-mcp-harness.mjs');
+  let hits=0,auth=0;
+  const proto=Object.create(Array.prototype);
+  Object.defineProperty(proto,'toJSON',{get(){hits++;throw Error('should not execute');}});
+  const contacts=[];
+  Object.setPrototypeOf(contacts,proto);
+  const h=createWhatsAppLaneAMcpHarness({
+    authorizeTenant:async()=>{auth++;return false;},
+    capabilityGrants:['whatsapp_send_contacts'],allowSyntheticWrites:true
+  });
+  const tenant='wacrm_'+'a'.repeat(40);
+  const result=await h.callTool({
+    name:'whatsapp_send_contacts',
+    arguments:{to:'+919999999999',contacts}
+  },{tenantId:tenant,verifiedPrincipal:{tenantId:tenant},
+    trustedPolicy:{optInVerified:true,customerWindowOpen:true,billableSendApproved:true}});
+  assert.equal(result.isError,true);
+  assert.equal(result.structuredContent.error.code,'invalid_input');
+  assert.equal(hits,0);
+  assert.equal(auth,0);
+});

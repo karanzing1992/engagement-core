@@ -177,3 +177,23 @@ test('P2 nested provider error fields cannot be sanitized into successful reads'
     assert.ok(!JSON.stringify(result).includes('synthetic negative result'));
   }
 });
+
+test('P2 envelope negative mutation receipts cannot be lost during unwrapping',async()=>{
+  for(const envelope of [
+    {ok:true,accepted:false,data:{resourceId:'123456789012'}},
+    {ok:true,success:false,data:{accepted:true}},
+    {ok:true,accepted:'false',data:{success:true}},
+    {ok:true,accepted:null,data:{accepted:true}},
+    {ok:true,accepted:true,success:false,
+      structuredContent:{resourceId:'123456789012'}}
+  ]){
+    const {call}=setup('whatsapp_update_business_profile',envelope);
+    const result=await call({about:'synthetic'});
+    assert.equal(result.isError,true,JSON.stringify(envelope));
+    assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+  }
+  const {call}=setup('whatsapp_update_business_profile',
+    {ok:true,accepted:true,data:{resourceId:'123456789012'}});
+  const good=await call({about:'synthetic'});
+  assert.equal(good.isError,false,JSON.stringify(good.structuredContent));
+});

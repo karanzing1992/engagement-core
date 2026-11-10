@@ -16,44 +16,55 @@ const readNames=new Set(['whatsapp_list_templates','whatsapp_get_template']);
 const safeSpecs=new Map();
 const sensitive=/^(?:access[_-]?token|refresh[_-]?token|token|app[_-]?secret|secret|api[_-]?key|credential|authorization|bearer|private[_-]?key|password|wabaId|phoneNumberId|tenantId|clientId)$/i;
 
-function structure(value){
-  const stack=[{value,depth:0}],seen=new WeakSet();
-  let nodes=0;
-  try{
-    while(stack.length){
-      const {value:v,depth}=stack.pop();
-      if(++nodes>1024||depth>12)return false;
-      if(v===null||typeof v==='boolean')continue;
-      if(typeof v==='string'){
-        if(Buffer.byteLength(v,'utf8')>16384||v.includes('\u0000'))return false;
-        continue;
-      }
-      if(typeof v==='number'&&Number.isFinite(v))continue;
-      if(typeof v!=='object'||nodeTypes.isProxy(v)||seen.has(v))return false;
-      seen.add(v);
-      if(Array.isArray(v)){
-        const descriptors=Object.getOwnPropertyDescriptors(v),size=descriptors.length?.value;
-        if(!Number.isSafeInteger(size)||size>50||
-           Reflect.ownKeys(descriptors).length!==size+1)return false;
-        for(let i=0;i<size;i++){
-          const entry=descriptors[String(i)];
-          if(!entry||!Object.hasOwn(entry,'value'))return false;
-          stack.push({value:entry.value,depth:depth+1});
-        }
-        continue;
-      }
-      if(Object.getPrototypeOf(v)!==Object.prototype)return false;
-      const descriptors=Object.getOwnPropertyDescriptors(v);
-      const keys=Reflect.ownKeys(descriptors);
-      if(keys.length>64)return false;
-      for(const key of keys){
-        if(typeof key!=='string'||key.length>128||sensitive.test(key)||
-          !Object.hasOwn(descriptors[key],'value'))return false;
-        stack.push({value:descriptors[key].value,depth:depth+1});
-      }
+function snapshotDojoArgs(root){
+  const seen=new WeakSet();
+  const budget={nodes:0,bytes:0};
+  function clone(value,depth){
+    if(++budget.nodes>1024||depth>12)throw new Error('size');
+    if(value===null||typeof value==='boolean')return value;
+    if(typeof value==='string'){
+      const n=Buffer.byteLength(value,'utf8');
+      if(n>16384||(budget.bytes+=n)>32768||value.includes('\\u0000'))
+        throw new Error('size');
+      return value;
     }
-    return true;
-  }catch(_){return false;}
+    if(typeof value==='number'&&Number.isFinite(value))return value;
+    if(typeof value!=='object'||nodeTypes.isProxy(value)||seen.has(value))
+      throw new Error('shape');
+    seen.add(value);
+    if(Array.isArray(value)){
+      if(Object.getPrototypeOf(value)!==Array.prototype)
+        throw new Error('array_prototype');
+      const ds=Object.getOwnPropertyDescriptors(value),size=ds.length?.value;
+      if(!Number.isSafeInteger(size)||size>50||
+         Reflect.ownKeys(ds).length!==size+1)throw new Error('array');
+      const out=[];
+      for(let i=0;i<size;i++){
+        const item=ds[String(i)];
+        if(!item||!Object.hasOwn(item,'value')||item.enumerable!==true)
+          throw new Error('array_item');
+        out.push(clone(item.value,depth+1));
+      }
+      return out;
+    }
+    if(Object.getPrototypeOf(value)!==Object.prototype)
+      throw new Error('prototype');
+    const ds=Object.getOwnPropertyDescriptors(value),keys=Reflect.ownKeys(ds);
+    if(keys.length>64)throw new Error('keys');
+    // Null-prototype snapshot cannot inherit toJSON or custom host methods.
+    const out=Object.create(null);
+    for(const key of keys){
+      if(typeof key!=='string'||key.length>128||sensitive.test(key)||
+         ['__proto__','constructor','prototype','toJSON'].includes(key)||
+         !Object.hasOwn(ds[key],'value'))throw new Error('key');
+      const n=Buffer.byteLength(key,'utf8');
+      if((budget.bytes+=n)>32768)throw new Error('size');
+      Object.defineProperty(out,key,{value:clone(ds[key].value,depth+1),
+        enumerable:true,configurable:true,writable:true});
+    }
+    return out;
+  }
+  try{return clone(root,0);}catch(_){return null;}
 }
 function publicUrl(input){
   let u;
@@ -105,11 +116,13 @@ export function getPinnedDojoInputJsonSchema(name){
 }
 /** Returns a cloned strict Zod result, or null. Never reveals validation errors. */
 export function validatePinnedDojoArgs(name,args){
-  if(!PINNED_DOJO_OWNED_NAMES.includes(name)||!structure(args))return null;
-  const jsonSize=Buffer.byteLength(JSON.stringify(args),'utf8');
+  if(!PINNED_DOJO_OWNED_NAMES.includes(name))return null;
+  const safe=snapshotDojoArgs(args);
+  if(safe===null)return null;
+  const jsonSize=Buffer.byteLength(JSON.stringify(safe),'utf8');
   if(jsonSize>32768)return null;
   const parser=getPinnedDojoInputJsonSchema(name)&&safeSpecs.get(name).parser;
-  const parsed=parser.safeParse(args);
+  const parsed=parser.safeParse(safe);
   if(!parsed.success||!urlsSafe(parsed.data))return null;
   // The upstream SDK accepts any non-empty recipient; enforce the narrower
   // verified E.164 cohort until separately certified BSUID support is added.
