@@ -1,0 +1,51 @@
+name: META CORE Lane A final mock-provider certification
+on:
+  push:
+    branches:
+      - feat/meta-core-lane-a-final-provider-20261110
+  pull_request:
+    paths:
+      - 'integrations/meta/whatsapp-mcp/**'
+      - 'docs/META_CORE_LANE_A_FINAL_HANDOFF_20261110.md'
+      - '.github/workflows/meta-core-lane-a-final-ci.yml'
+permissions:
+  contents: read
+concurrency:
+  group: meta-core-lane-a-final-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  offline-provider-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact source without stored credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Node 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: integrations/meta/whatsapp-mcp/package-lock.json
+      - name: Pinned package install without lifecycle scripts
+        run: npm ci --ignore-scripts --no-fund --no-audit
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Static syntax verification for all new modules
+        run: |
+          node --check src/lane-a-graph-v26-plans.mjs
+          node --check src/lane-a-provider-runtime.mjs
+          node --check test/lane-a-provider-runtime.test.mjs
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: Run full independent Node SDK plus provider mock E2E
+        run: npm test
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: No high or critical vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: integrations/meta/whatsapp-mcp
+      - name: No deployment or Meta credentials in this CI
+        run: |
+          echo "META_CORE_LANE_A_SOURCE_ONLY=true" >> "$GITHUB_STEP_SUMMARY"
+          echo "LIVE_META_GRAPH_REQUESTS=false" >> "$GITHUB_STEP_SUMMARY"
+          echo "WACRM_STAGING_BINDING_NOT_PERFORMED=true" >> "$GITHUB_STEP_SUMMARY"
+          echo "PRODUCTION_SENDING_NOT_ENABLED=true" >> "$GITHUB_STEP_SUMMARY"
