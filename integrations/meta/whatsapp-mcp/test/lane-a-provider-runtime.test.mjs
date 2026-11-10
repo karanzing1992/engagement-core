@@ -63,7 +63,15 @@ function setup(overrides={}){
     host:{
       async executePlan(envelope){
         count.provider++;plans.push(envelope.plan);
-        const receipt=envelope.plan.operationKind==='read'?
+        // Analytics must be realistic metric-bearing synthetic fixtures, not
+        // generic {id,name}; an empty report must be rejected by the runtime.
+        const receipt=envelope.plan.toolName==='whatsapp_get_business_analytics'?
+          {ok:true,data:{analytics:{data_points:[{start:1793491200,end:1793577600,
+            sent:4,delivered:3}]}}}:
+          envelope.plan.toolName==='whatsapp_get_template_analytics'?
+          {ok:true,data:{template_analytics:{data:[{template_id:'123456789012',
+            data_points:[{start:1793491200,end:1793577600,sent:5,read:2,clicked:1}]}]}}}:
+          envelope.plan.operationKind==='read'?
           {ok:true,data:{id:'123456789012',name:'synthetic'}}:
           {ok:true,data:{accepted:true,resourceId:'123456789012'}};
         receipts.push(receipt);return receipt;
@@ -72,7 +80,9 @@ function setup(overrides={}){
     dojo:{
       async invoke(envelope){
         count.provider++;
-        return envelope.toolName==='whatsapp_get_media_info'?
+        return envelope.toolName==='whatsapp_upload_media_from_url'?
+          {ok:true,data:{mediaId:'media.mock-1',mimeType:'image/jpeg',bytes:4}}:
+          envelope.toolName==='whatsapp_get_media_info'?
           {ok:true,data:{id:'123456789012',mimeType:'image/jpeg',fileSize:30,
             sha256:'a'.repeat(64)}}:
           {ok:true,data:{accepted:true,messageId:'wamid.synthetic_12345678'}};
