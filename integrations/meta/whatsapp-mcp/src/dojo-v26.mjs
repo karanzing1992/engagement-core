@@ -6,6 +6,8 @@
  * No outbound MCP tools, phone lifecycle mutations or webhook changes.
  * Do not use this module from the WordPress Consumer or a browser.
  */
+import { types as nodeTypes } from 'node:util';
+
 export const DOJO_V26_READ_TOOLS = Object.freeze([
   'whatsapp_list_templates',
   'whatsapp_get_template',
@@ -37,21 +39,30 @@ function boundedArgs(root) {
         if (!Number.isFinite(value)) return false;
         continue;
       }
-      if (typeof value !== 'object' || seen.has(value)) return false;
+      if (typeof value !== 'object' || nodeTypes.isProxy(value) || seen.has(value)) return false;
       seen.add(value);
       if (Array.isArray(value)) {
-        if (value.length > 128) return false;
-        for (const item of value) stack.push({ value: item, depth: depth + 1 });
+        const descriptors = Object.getOwnPropertyDescriptors(value);
+        const size = descriptors.length?.value;
+        if (!Number.isSafeInteger(size) || size > 128 ||
+            Reflect.ownKeys(descriptors).length !== size + 1) return false;
+        for (let i = 0; i < size; i++) {
+          const d = descriptors[String(i)];
+          if (!d || !Object.hasOwn(d, 'value')) return false;
+          stack.push({ value: d.value, depth: depth + 1 });
+        }
         continue;
       }
       const proto = Object.getPrototypeOf(value);
       if (proto !== Object.prototype && proto !== null) return false;
-      const keys = Object.keys(value);
+      const descriptors = Object.getOwnPropertyDescriptors(value);
+      const keys = Reflect.ownKeys(descriptors);
       if (keys.length > 32) return false;
       for (const key of keys) {
-        if (key.length > 64 || key === '__proto__' || key === 'constructor' || key === 'prototype') return false;
-        const d = Object.getOwnPropertyDescriptor(value, key);
-        if (!d || !Object.hasOwn(d, 'value')) return false;
+        if (typeof key !== 'string' || key.length > 64 ||
+            key === '__proto__' || key === 'constructor' || key === 'prototype') return false;
+        const d = descriptors[key];
+        if (!Object.hasOwn(d, 'value')) return false;
         stack.push({ value: d.value, depth: depth + 1 });
       }
     }
@@ -60,7 +71,7 @@ function boundedArgs(root) {
 }
 
 function configFor(connection) {
-  if (!connection || typeof connection !== 'object' || Array.isArray(connection)) {
+  if (!connection || typeof connection !== 'object' || nodeTypes.isProxy(connection) || Array.isArray(connection)) {
     throw new Error('No configured tenant connection');
   }
   if (connection.graphApiVersion !== 'v26.0') {
@@ -97,10 +108,27 @@ export function createMetaCoreDojoReadAdapter({ authorizeTenant, resolveConnecti
   }
   return Object.freeze({
     listTools: () => DOJO_V26_READ_TOOLS.map(name => ({ name, permission: 'read' })),
-    async invoke({ principal, tenantId, toolName, args = {} } = {}) {
+    async invoke(request = {}) {
+      if (!request || typeof request !== 'object' || nodeTypes.isProxy(request) ||
+          Array.isArray(request) || Object.getPrototypeOf(request) !== Object.prototype)
+        return denied('invalid_input', 'Invalid request envelope');
+      const fields = Object.getOwnPropertyDescriptors(request);
+      if (['principal','tenantId','toolName','args'].some(key =>
+          fields[key] && !Object.hasOwn(fields[key], 'value')))
+        return denied('invalid_input', 'Invalid request envelope');
+      const principal = fields.principal?.value;
+      const tenantId = fields.tenantId?.value;
+      const toolName = fields.toolName?.value;
+      const args = fields.args?.value ?? {};
+      if (nodeTypes.isProxy(principal))
+        return denied('forbidden', 'Tenant authorization failed');
       if (!allowed.has(toolName)) return denied('tool_not_allowed', 'This META CORE tool is not enabled');
       if (typeof tenantId !== 'string' || !tenantPattern.test(tenantId)) return denied('forbidden', 'Tenant authorization failed');
       if (!args || typeof args !== 'object' || Array.isArray(args) || !boundedArgs(args)) return denied('invalid_input', 'Tool arguments exceed safe bounds');
+      // Clone only structurally screened plain data before any host await.
+      let safeArgs;
+      try { safeArgs = JSON.parse(JSON.stringify(args)); }
+      catch (_) { return denied('invalid_input', 'Tool arguments exceed safe bounds'); }
       try {
         if (await authorizeTenant(principal, tenantId, toolName) !== true) {
           return denied('forbidden', 'Tenant authorization failed');
@@ -123,7 +151,7 @@ export function createMetaCoreDojoReadAdapter({ authorizeTenant, resolveConnecti
         });
         const toolset = await build(config);
         if (!toolset || typeof toolset.dispatch !== 'function') return denied('upstream_unavailable', 'MCP SDK toolset unavailable');
-        const result = await toolset.dispatch(toolName, { ...args });
+        const result = await toolset.dispatch(toolName, safeArgs);
         if (!result || result.isError) return denied('upstream_error', 'WhatsApp read operation failed');
         return { ok: true, data: result.structuredContent ?? {} };
       } catch (_) { return denied('upstream_unavailable', 'WhatsApp SDK operation failed'); }

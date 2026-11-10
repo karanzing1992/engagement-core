@@ -5,6 +5,8 @@
  * No token, contact, message, or tenant data is stored by this module.
  */
 
+import { types as nodeTypes } from 'node:util';
+
 export const READ_TOOLS = Object.freeze([
   'whatsapp_health_check',
   'whatsapp_get_business_account',
@@ -41,7 +43,7 @@ function rejected(code, message) {
 }
 
 function connectionConfig(connection, previewMode = false) {
-  if (!connection || typeof connection !== 'object' || Array.isArray(connection)) {
+  if (!connection || typeof connection !== 'object' || nodeTypes.isProxy(connection) || Array.isArray(connection)) {
     throw new Error('Missing approved tenant connection');
   }
   const { accessToken, phoneNumberId, businessAccountId, graphApiVersion, appSecret } = connection;
@@ -93,14 +95,31 @@ export function createEngagementWhatsAppAdapter({ resolveConnection, authorizeTe
       ...READ_TOOLS.map(name => ({ name, permission: 'read' })),
       ...PREVIEW_TOOLS.map(name => ({ name, permission: 'preview_only' })),
     ],
-    async invoke({ tenantId, toolName, args = {}, principal } = {}) {
+    async invoke(request = {}) {
+      // Reject Proxy-backed envelopes before destructuring/property reflection.
+      if (!request || typeof request !== 'object' || nodeTypes.isProxy(request) ||
+          Array.isArray(request) || Object.getPrototypeOf(request) !== Object.prototype)
+        return rejected('invalid_input', 'Invalid MCP request envelope');
+      const requestFields = Object.getOwnPropertyDescriptors(request);
+      if (['tenantId','toolName','args','principal'].some(key =>
+        requestFields[key] && !Object.hasOwn(requestFields[key], 'value')))
+        return rejected('invalid_input', 'Invalid MCP request envelope');
+      const tenantId = requestFields.tenantId?.value;
+      const toolName = requestFields.toolName?.value;
+      const principal = requestFields.principal?.value;
+      const args = requestFields.args?.value ?? {};
+      if (nodeTypes.isProxy(principal)) return rejected('forbidden', 'Invalid principal');
       if (!readSet.has(toolName) && !previewSet.has(toolName)) {
         return rejected('tool_not_allowed', 'Tool not available in Phase 1');
       }
-      if (!args || typeof args !== 'object' || Array.isArray(args)) {
+      if (!args || typeof args !== 'object' || nodeTypes.isProxy(args) ||
+          Array.isArray(args) || Object.getPrototypeOf(args) !== Object.prototype)
         return rejected('invalid_input', 'Tool arguments must be an object');
-      }
-      if (previewSet.has(toolName) && args.dryRun !== true) {
+      const argFields = Object.getOwnPropertyDescriptors(args);
+      if (Reflect.ownKeys(argFields).some(key =>
+        typeof key !== 'string' || !Object.hasOwn(argFields[key], 'value')))
+        return rejected('invalid_input', 'Tool argument accessors are forbidden');
+      if (previewSet.has(toolName) && argFields.dryRun?.value !== true) {
         return rejected('outbound_disabled', 'Only dry-run previews are supported');
       }
       try {
@@ -125,7 +144,8 @@ export function createEngagementWhatsAppAdapter({ resolveConnection, authorizeTe
       // previews, and its message tool checks dryRun before Meta transport.
       // No live send, account mutation, phone migration or subscriber change
       // is possible through this allowlisted adapter.
-      const safeArgs = { ...args };
+      // Snapshot data descriptors before async auth/connection lookup.
+      const safeArgs = Object.fromEntries(Object.entries(argFields).map(([key, d]) => [key, d.value]));
       delete safeArgs.confirm;
       if (previewSet.has(toolName)) {
         safeArgs.dryRun = true;

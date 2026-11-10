@@ -5,6 +5,7 @@
  * an encrypted token held exclusively in Central.
  */
 import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { types as nodeTypes } from 'node:util';
 
 export const CENTRAL_BROKER_READ_TOOLS = Object.freeze([
   'whatsapp_list_templates',
@@ -22,8 +23,8 @@ function reject(code) {
 }
 function cleanArgs(name, args) {
   try {
-    if (!args || typeof args !== 'object' || Array.isArray(args) ||
-        Object.getPrototypeOf(args) !== Object.prototype) return null;
+    if (!args || typeof args !== 'object' || nodeTypes.isProxy(args) ||
+        Array.isArray(args) || Object.getPrototypeOf(args) !== Object.prototype) return null;
     const d = Object.getOwnPropertyDescriptors(args);
     const keys = Object.keys(d);
     if (name === 'whatsapp_list_templates') {
@@ -91,7 +92,19 @@ export function createWacrmCentralBrokerReadAdapter({
   }
   return Object.freeze({
     listTools: () => CENTRAL_BROKER_READ_TOOLS.map(name => ({ name, permission: 'read' })),
-    async invoke({ principal, tenantId, toolName, args = {} } = {}) {
+    async invoke(request = {}) {
+      if (!request || typeof request !== 'object' || nodeTypes.isProxy(request) ||
+          Array.isArray(request) || Object.getPrototypeOf(request) !== Object.prototype)
+        return reject('invalid_input');
+      const fields = Object.getOwnPropertyDescriptors(request);
+      if (['principal','tenantId','toolName','args'].some(key =>
+          fields[key] && !Object.hasOwn(fields[key], 'value')))
+        return reject('invalid_input');
+      const principal = fields.principal?.value;
+      const tenantId = fields.tenantId?.value;
+      const toolName = fields.toolName?.value;
+      const args = fields.args?.value ?? {};
+      if (nodeTypes.isProxy(principal)) return reject('forbidden');
       if (!allowed.has(toolName)) return reject('tool_not_allowed');
       const safeArgs = cleanArgs(toolName, args);
       if (typeof tenantId !== 'string' || !tenantPattern.test(tenantId) ||
