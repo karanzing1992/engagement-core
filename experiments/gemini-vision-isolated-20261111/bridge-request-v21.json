@@ -1,0 +1,8 @@
+{
+  "schema": "trusted-dell-vision-request-v2.1",
+  "mode": "recipient_only",
+  "project": "andaz-vibe-stay",
+  "site_sha256": "0f3d5997889a3a6fff0d93cc8ed19adc8633a53bd89b608a285a213ed4e013b1",
+  "qa_receipt_sha256": "fa5ec131ede2773b5736f36973ef9ef745f165944693582597d246a4188d4109",
+  "blob_sha": null
+}
