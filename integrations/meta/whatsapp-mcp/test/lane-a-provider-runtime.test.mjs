@@ -80,7 +80,9 @@ function setup(overrides={}){
     dojo:{
       async invoke(envelope){
         count.provider++;
-        return envelope.toolName==='whatsapp_get_media_info'?
+        return envelope.toolName==='whatsapp_upload_media_from_url'?
+          {ok:true,data:{mediaId:'media.mock-1',mimeType:'image/jpeg',bytes:4}}:
+          envelope.toolName==='whatsapp_get_media_info'?
           {ok:true,data:{id:'123456789012',mimeType:'image/jpeg',fileSize:30,
             sha256:'a'.repeat(64)}}:
           {ok:true,data:{accepted:true,messageId:'wamid.synthetic_12345678'}};
