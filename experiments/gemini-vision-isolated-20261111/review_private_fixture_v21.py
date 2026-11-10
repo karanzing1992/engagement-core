@@ -117,8 +117,8 @@ def main():
  require(isinstance(blob_shas,list) and 1<=len(blob_shas)<=25 and len(blob_shas)==len(set(blob_shas)),"BLOB_PART_SET_INVALID")
  capsule=b"".join(fetch_blob(part) for part in blob_shas)
  require(digest(capsule)==request.get("capsule_sha256"),"ENCRYPTED_CAPSULE_HASH_MISMATCH")
- secret=[REDACTED]
- data=open_capsule(capsule,b64(secret),request["project"],request["site_sha256"],request["qa_receipt_sha256"])
+ material=private.private_bytes(serialization.Encoding.Raw,serialization.PrivateFormat.Raw,serialization.NoEncryption())
+ data=open_capsule(capsule,b64(material),request["project"],request["site_sha256"],request["qa_receipt_sha256"])
  require(len(data["images"])==12,"TWELVE_IMAGES_REQUIRED")
  require(MODEL in choose_models(api("/models?pageSize=100",key)),"MODEL_NOT_AUTHENTICATED")
  output={"schema":"generic-design-vision-advice-v2.1",
