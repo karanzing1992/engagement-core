@@ -1,0 +1,42 @@
+# SOURCE_ONLY: independent first-party CodeQL security scan for META CORE Lane A.
+# Does not access Meta, WACRM credentials, hosted MCP, customers, or paid sends.
+name: META CORE Lane A CodeQL independent security acceptance
+on:
+  push:
+    branches:
+      - fix/meta-core-lane-a-release-review-20261110
+  workflow_dispatch:
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+concurrency:
+  group: meta-core-lane-a-codeql-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  codeql-lane-a:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout no persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL JavaScript security extended
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+          config: |
+            name: META CORE Lane A scoped JavaScript
+            paths:
+              - integrations/meta/whatsapp-mcp
+      - name: Analyze source and upload to GitHub Code Scanning
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066
+        with:
+          category: /meta-core-lane-a-source-security
+      - name: Record scope and follow-up limitation
+        run: |
+          echo "SOURCE_ONLY=true" >> "$GITHUB_STEP_SUMMARY"
+          echo "CODEQL_SCOPED_PATH=integrations/meta/whatsapp-mcp" >> "$GITHUB_STEP_SUMMARY"
+          echo "CODEQL_IS_NOT_INDEPENDENT_REVIEWER_APPROVAL=true" >> "$GITHUB_STEP_SUMMARY"
