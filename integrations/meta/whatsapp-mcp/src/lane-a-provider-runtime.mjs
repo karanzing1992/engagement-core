@@ -51,10 +51,10 @@ function plain(value){
  *
  * Require JSON-tree-shaped inputs (no cycles or repeated object references),
  * preventing alias-based expansion. The trusted catalog schema ONLY permits
- * "phone" at contacts[] element objects; this is not a global key exemption.
+ * "phone" only at contacts[].phones[].phone (pinned Dojo 0.5.0).
  * A cumulative UTF-8 value budget prevents multi-node preflight exhaustion.
  */
-function inputSnapshot(value,schema,depth=0,seen=new WeakSet(),budget={nodes:0,bytes:0}){
+function inputSnapshot(value,toolName,depth=0,seen=new WeakSet(),budget={nodes:0,bytes:0},path=''){
   if(++budget.nodes>1024||depth>12)throw new Error('input_size');
   if(value===null||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
@@ -77,7 +77,7 @@ function inputSnapshot(value,schema,depth=0,seen=new WeakSet(),budget={nodes:0,b
     return Object.freeze(Array.from({length:value.length},(_,i)=>{
       if(!Object.hasOwn(descriptors,String(i)))throw new Error('input_sparse');
       return inputSnapshot(descriptors[i].value,
-        schema?.type==='array'?schema.items:undefined,depth+1,seen,budget);
+        toolName,depth+1,seen,budget,path+'[]');
     }));
   }
   if(!plain(value))throw new Error('input_object');
@@ -88,16 +88,16 @@ function inputSnapshot(value,schema,depth=0,seen=new WeakSet(),budget={nodes:0,b
   for(const key of keys){
     if(typeof key!=='string'||key.length>128||
       ['__proto__','constructor','prototype'].includes(key)||
-      // Never globally exempt "phone": only the static catalog's schema
-      // for a contact object may authorize this exact property.
-      (deniedKey.test(key)&&!(key==='phone'&&schema?.type==='object'&&
-        Object.hasOwn(schema.properties,'phone')))||!Object.hasOwn(descriptors[key],'value'))
+      // Pinned Dojo contacts use contacts[].phones[].phone. No other
+      // operation or nesting level can receive this credential-like key.
+      (deniedKey.test(key)&&!(key==='phone'&&
+        toolName==='whatsapp_send_contacts'&&path==='contacts[].phones[]'))||
+      !Object.hasOwn(descriptors[key],'value'))
       throw new Error('input_key');
     Object.defineProperty(copy,key,{
       enumerable:true,configurable:false,writable:false,
       value:inputSnapshot(descriptors[key].value,
-        schema?.type==='object'?schema.properties?.[key]:undefined,
-        depth+1,seen,budget)
+        toolName,depth+1,seen,budget,path?path+'.'+key:key)
     });
   }
   return Object.freeze(copy);
@@ -276,7 +276,7 @@ export function createLaneAProviderMcp({
       }catch(_){return error('forbidden');}
       // No untrusted input inspection occurs before identity proof. The immutable
       // snapshot precedes policy authorization, routing and provider execution.
-      try { args=inputSnapshot(args??{},def.inputSchema); }
+      try { args=inputSnapshot(args??{},name); }
       catch(_) { return error('invalid_input'); }
       let policy;
       try {policy=await readPolicy(verifiedPrincipal,tenantId,name,args);}
