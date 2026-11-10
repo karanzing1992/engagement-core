@@ -181,7 +181,7 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
       if(scopedProfile){
         if(key==='email'&&
             (typeof clean!=='string'||Buffer.byteLength(clean,'utf8')>320||
-             !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(clean)))
+             !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)))
           throw new Error('invalid_profile_email');
         if(key==='profile_picture_url'&&!safeProfileUrl(clean))
           throw new Error('invalid_profile_url');
