@@ -25,7 +25,7 @@ const fields={
   flowId:id,flowToken:s(256),flowCta:s(30),
   categories:a(e('SIGN_UP','SIGN_IN','APPOINTMENT_BOOKING','LEAD_GENERATION','CONTACT_US','CUSTOMER_SUPPORT','SURVEY','OTHER'),8),
   flowJson:s(16384),endpointUri:url,catalogId:id,productRetailerId:s(100),
-  productRetailerIds:a(s(100),30),qrId:id,prefilledMessage:s(256),
+  productRetailerIds:a(s(100),30),qrId:{type:'string',pattern:'^[A-Za-z0-9_-]{6,128}$',maxLength:128},prefilledMessage:s(256),
   startDate:s(20),endDate:s(20),description:s(1024),website:url,email:s(256),
   about:s(139),vertical:s(100),commerceEnabled:{type:'boolean'}
 };

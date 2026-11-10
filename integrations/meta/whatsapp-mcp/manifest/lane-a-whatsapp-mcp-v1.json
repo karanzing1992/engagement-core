@@ -1,0 +1,483 @@
+{
+  "schemaVersion": "1.0.0-rc1",
+  "id": "meta-core.whatsapp.lane-a",
+  "graphApiVersion": "v26.0",
+  "defaultGrants": [],
+  "writeEnabled": false,
+  "liveProviderBound": false,
+  "productionEnabled": false,
+  "owner": "engagement-core",
+  "providerOwners": {
+    "dojo": "WACRM central SDK and durable outbox",
+    "broker": "WACRM central HMAC template read broker",
+    "host": "WACRM central fixed Graph v26 host",
+    "wacrm": "WACRM consumer tenant inbox/status"
+  },
+  "oauthResourceOwner": "Lane B / DeluluTech Central Auth",
+  "credentialOwner": "WACRM Central encrypted per-activation vault",
+  "importantNotes": [
+    "SDK 0.10.0 + MCP 0.5.0 MIT; 19 upstream tools, two template reads remain WACRM-broker-owned",
+    "Provider callbacks must be authenticated and tenant bound; no bearer, WABA, phone or grants from model inputs",
+    "All operations are source-only until Lane B issuer, client audience and dedicated WACRM staging certify",
+    "Provider-specific Graph host blueprints require upstream Meta app scope and WABA resource ownership",
+    "WACRM owns customer consent, 24-hour window, per-recipient policy, real retry/dedupe/outbox and webhook events",
+    "No phone registration, migration, deregistration or app subscription automation in this manifest",
+    "Advanced Graph request forms may require vendor-version review before production runtime binding"
+  ],
+  "excluded": [
+    "phone_register",
+    "phone_deregister",
+    "phone_migrate",
+    "phone_coexistence_reconfigure",
+    "waba_subscribe_app",
+    "waba_unsubscribe_app",
+    "credit_line_share",
+    "account_transfer",
+    "business_user_assignment",
+    "regional_payments",
+    "business_calling",
+    "group_management"
+  ],
+  "operations": [
+    {
+      "name": "whatsapp_get_business_account",
+      "group": "account",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_list_phone_numbers",
+      "group": "account",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_phone_number",
+      "group": "account",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_quality_metrics",
+      "group": "account",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_business_profile",
+      "group": "account",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_update_business_profile",
+      "group": "account",
+      "kind": "write",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_commerce_settings",
+      "group": "commerce",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_update_commerce_settings",
+      "group": "commerce",
+      "kind": "write",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_subscription_status",
+      "group": "account",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_text",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_image",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_video",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_audio",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_voice",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_document",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_location",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_contacts",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_interactive_buttons",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_interactive_list",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_template",
+      "group": "messages",
+      "kind": "send_template",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_auth_template",
+      "group": "messages",
+      "kind": "send_template",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_carousel_template",
+      "group": "messages",
+      "kind": "send_template",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_reaction",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_sticker",
+      "group": "messages",
+      "kind": "send_window",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_product",
+      "group": "commerce",
+      "kind": "send_window",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_multi_product",
+      "group": "commerce",
+      "kind": "send_window",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_catalog",
+      "group": "commerce",
+      "kind": "send_window",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_send_flow",
+      "group": "flows",
+      "kind": "send_window",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_mark_as_read",
+      "group": "messages",
+      "kind": "ack",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_list_templates",
+      "group": "templates",
+      "kind": "read",
+      "adapter": "broker",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_template",
+      "group": "templates",
+      "kind": "read",
+      "adapter": "broker",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_create_template",
+      "group": "templates",
+      "kind": "write",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_update_template",
+      "group": "templates",
+      "kind": "write",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_delete_template",
+      "group": "templates",
+      "kind": "irreversible",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_template_analytics",
+      "group": "analytics",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_business_analytics",
+      "group": "analytics",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_upload_media_from_url",
+      "group": "media",
+      "kind": "write",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_media_info",
+      "group": "media",
+      "kind": "read",
+      "adapter": "dojo",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_delete_media",
+      "group": "media",
+      "kind": "irreversible",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_messaging",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_list_flows",
+      "group": "flows",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_flow",
+      "group": "flows",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_flow_assets",
+      "group": "flows",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_flow_metrics",
+      "group": "flows",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_create_flow",
+      "group": "flows",
+      "kind": "write",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_update_flow_metadata",
+      "group": "flows",
+      "kind": "write",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_upload_flow_json",
+      "group": "flows",
+      "kind": "write",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_publish_flow",
+      "group": "flows",
+      "kind": "irreversible",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_deprecate_flow",
+      "group": "flows",
+      "kind": "irreversible",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_delete_flow",
+      "group": "flows",
+      "kind": "irreversible",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_list_qr_codes",
+      "group": "commerce",
+      "kind": "read",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_create_qr_code",
+      "group": "commerce",
+      "kind": "write",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_delete_qr_code",
+      "group": "commerce",
+      "kind": "irreversible",
+      "adapter": "host",
+      "providerPermission": "whatsapp_business_management",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_message_status",
+      "group": "events",
+      "kind": "read",
+      "adapter": "wacrm",
+      "providerPermission": "internal_wacrm_tenant_grant",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_list_inbound_events",
+      "group": "events",
+      "kind": "read",
+      "adapter": "wacrm",
+      "providerPermission": "internal_wacrm_tenant_grant",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    },
+    {
+      "name": "whatsapp_get_delivery_status",
+      "group": "events",
+      "kind": "read",
+      "adapter": "wacrm",
+      "providerPermission": "internal_wacrm_tenant_grant",
+      "state": "SOURCE_ONLY_NO_RUNTIME_GRANT"
+    }
+  ]
+}
