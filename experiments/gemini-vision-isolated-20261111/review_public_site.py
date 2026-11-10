@@ -16,7 +16,7 @@ from PIL import Image
 ROOT = Path("out/private-gemini-vision-review")
 URL = "https://andazgoa.com/"
 API = "https://generativelanguage.googleapis.com/v1beta"
-ALLOWED = ("gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.6-flash")
+ALLOWED = ("gemini-3.6-flash", "gemini-3.8-flash")
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
@@ -48,14 +48,15 @@ def api(path, key, body=None):
             raise RuntimeError("GEMINI_NETWORK_UNAVAILABLE_" + phase) from None
     raise RuntimeError("GEMINI_RETRIES_EXHAUSTED_" + phase)
 
-def choose_model(metadata):
+def choose_models(metadata):
     models = metadata.get("models", [])
     available = {m.get("name", "").removeprefix("models/")
                  for m in models if "generateContent" in m.get("supportedGenerationMethods", [])}
-    for name in ALLOWED:
-        if name in available:
-            return name
-    raise RuntimeError("NO_APPROVED_FLASH_MODEL_IN_AUTHENTICATED_LIST")
+    selected = [name for name in ALLOWED if name in available]
+    print("GEMINI_FREE_REVIEW_ALLOWLIST_AVAILABLE " + ",".join(selected), flush=True)
+    if not selected:
+        raise RuntimeError("NO_APPROVED_FLASH_MODEL_IN_AUTHENTICATED_LIST")
+    return selected
 
 def capture_public():
     from playwright.sync_api import sync_playwright
@@ -111,8 +112,7 @@ def main():
     if not key:
         raise RuntimeError("GITHUB_GEMINI_SECRET_UNAVAILABLE")
     models = api("/models?pageSize=100", key)
-    model = choose_model(models)
-    print("GEMINI_SELECTED_MODEL " + model, flush=True)
+    available_models = choose_models(models)
     screenshots = capture_public()
     prompt = ("You are an independent visual critique assistant. Examine genuine public "
               "browser screenshots of the Andaz Vibe Stay hospitality website, first mobile "
@@ -128,10 +128,24 @@ def main():
     for screen in screenshots:
         parts.append({"inline_data": {"mime_type": "image/jpeg",
                                     "data": base64.b64encode(screen["jpeg"]).decode()}})
-    response = api("/models/" + model + ":generateContent", key,
-                   {"contents": [{"parts": parts}],
-                    "generationConfig": {"temperature": 0, "responseMimeType": "application/json",
-                                         "maxOutputTokens": 700}})
+    response = None
+    model = None
+    for candidate in available_models[:2]:
+        print("GEMINI_SELECTED_MODEL " + candidate, flush=True)
+        try:
+            response = api("/models/" + candidate + ":generateContent", key,
+                           {"contents": [{"parts": parts}],
+                            "generationConfig": {"temperature": 0, "responseMimeType": "application/json",
+                                                 "maxOutputTokens": 700}})
+            model = candidate
+            break
+        except RuntimeError as exc:
+            if any(tag in str(exc) for tag in ("HTTP_404_VISION", "HTTP_503_VISION", "READ_TIMEOUT_VISION")):
+                print("GEMINI_MODEL_CANDIDATE_UNAVAILABLE " + candidate, file=sys.stderr)
+                continue
+            raise
+    if response is None:
+        raise RuntimeError("ALL_APPROVED_FLASH_CANDIDATES_UNAVAILABLE")
     raw = "".join(part.get("text", "") for part in
                   response.get("candidates", [{}])[0].get("content", {}).get("parts", []))
     result = validate(json.loads(raw))
