@@ -160,3 +160,42 @@ test('P2 Dojo snapshots nested argument arrays before asynchronous authorization
   assert.equal(seen.length,1);
   assert.deepEqual(seen[0].clean,{limit:2,extra:{nested:['safe','values']}});
 });
+
+test('P2 nested Flow preview and WABA fields are not silently stripped',async()=>{
+  const payload={
+    id:'123456789012',name:'Synthetic Flow',
+    preview:{
+      preview_url:'https://business.facebook.com/wa/manage/flows/123/preview/?token=synthetic-capability-url',
+      expires_at:'2026-11-30T15:00:00+0000'
+    },
+    whatsapp_business_account:{
+      id:'123456789012',name:'Synthetic WABA',
+      business_type:'ENTERPRISE',timezone_id:'54',
+      message_template_namespace:'synthetic_namespace_123'
+    }
+  };
+  const flow=hostFixture('whatsapp_get_flow',payload);
+  const res=await flow.call({flowId:'123456789012'});
+  assert.equal(res.isError,false,JSON.stringify(res.structuredContent));
+  assert.deepEqual(res.structuredContent.data,payload);
+  const other=hostFixture('whatsapp_get_business_account',payload);
+  const stripped=await other.call({});
+  assert.equal(stripped.isError,false);
+  assert.equal(stripped.structuredContent.data.preview,undefined);
+  assert.equal(stripped.structuredContent.data.whatsapp_business_account,undefined);
+});
+test('P2 nested Flow preview denies unsafe credential URLs and malformed expiries',async()=>{
+  for(const preview of [
+    {preview_url:'http://example.org/private',expires_at:'2026-11-30T15:00:00+0000'},
+    {preview_url:'https://user:secret@example.org/preview',expires_at:'2026-11-30T15:00:00+0000'},
+    {preview_url:'javascript:alert(1)',expires_at:'2026-11-30T15:00:00+0000'},
+    {preview_url:'https://example.org/#token',expires_at:'2026-11-30T15:00:00+0000'},
+    {preview_url:'https://example.org/',expires_at:42}
+  ]){
+    const {call}=hostFixture('whatsapp_get_flow',{id:'123456789012',preview});
+    const res=await call({flowId:'123456789012'});
+    assert.equal(res.isError,true,JSON.stringify(preview));
+    assert.equal(res.structuredContent.error.code,'upstream_unavailable');
+    assert.ok(!JSON.stringify(res).includes('secret'));
+  }
+});

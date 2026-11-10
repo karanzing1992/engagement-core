@@ -39,6 +39,8 @@ const hostReadCopyKeys=new Map([
   ['whatsapp_get_flow_assets',new Set(['asset_type','download_url'])],
   ['whatsapp_get_subscription_status',new Set(['subscribed_fields','override_callback_uri'])]
 ]);
+const flowPreviewFields=new Set(['preview_url','expires_at']);
+const flowBusinessFields=new Set(['business_type','timezone_id','message_template_namespace']);
 const tenantPattern=/^wacrm_[a-f0-9]{40}$/;
 const idPattern=/^[0-9]{6,64}$/;
 // Valid WACRM Graph resource IDs, synthetic receipt IDs and Meta QR codes.
@@ -186,6 +188,16 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
       (path.length===2&&path[0]==='data'&&path[1]===null);
     const permittedHostField=atHostReadRecord&&
       hostReadCopyKeys.get(toolName)?.has(key);
+    // The Flow preview is itself an object. Retain only the two documented
+    // nested fields inside this specific operation, never raw URL fields
+    // elsewhere or unrestricted auth-token-bearing response keys.
+    const flowRecordPath=path.length===1||
+      (path.length===3&&path[0]==='data'&&path[1]===null);
+    const permittedFlowPreview=toolName==='whatsapp_get_flow'&&
+      flowRecordPath&&path[path.length-1]==='preview'&&flowPreviewFields.has(key);
+    const permittedFlowBusiness=toolName==='whatsapp_get_flow'&&
+      flowRecordPath&&path[path.length-1]==='whatsapp_business_account'&&
+      flowBusinessFields.has(key);
     // Graph Flow metrics: only the root metric and its nested measurement
     // key/value pairs, never an unrestricted response-wide allowlist.
     const flowMeasurement=allowFlowMetric&&path.length===5&&
@@ -208,13 +220,24 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
         throw new Error('profile_websites');
     }
     if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key))||
-       permittedProfile||permittedFlowMetric||permittedHostField){
+       permittedProfile||permittedFlowMetric||permittedHostField||
+       permittedFlowPreview||permittedFlowBusiness){
       const v=safeRead(descriptors[key].value,depth+1,allowAnalytics,seen,budget,
         allowProfile,[...path,key],allowFlowMetric,toolName);
       if(permittedProfile&&key==='websites'&&
         (!Array.isArray(v)||v.length>10||v.some(u=>
           typeof u!=='string'||u.length>2048||!/^https:\/\/[^\s]+$/.test(u))))
         throw new Error('profile_websites');
+      if(permittedFlowPreview&&key==='preview_url'){
+        if(typeof v!=='string'||v.length>1024)throw new Error('flow_preview_url');
+        let parsed;
+        try{parsed=new URL(v);}catch(_){throw new Error('flow_preview_url');}
+        if(parsed.protocol!=='https:'||!parsed.hostname||parsed.username||
+           parsed.password||parsed.hash)throw new Error('flow_preview_url');
+      }
+      if(permittedFlowPreview&&key==='expires_at'&&
+         (typeof v!=='string'||v.length<10||v.length>64))
+        throw new Error('flow_preview_expiry');
       out[key]=v;
     }
   }
