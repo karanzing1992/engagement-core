@@ -7,6 +7,7 @@ on:
       - fix/meta-core-lane-a-release-review-20261110
       - fix/meta-core-lane-a-report-remediation-20261111
       - audit/meta-core-lane-a-resubmit-20261111
+      - integration/meta-core-lane-a-source-20261111
   workflow_dispatch:
 permissions:
   contents: read
