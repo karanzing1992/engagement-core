@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { dojoFixture } from './fixtures/lane-a-dojo-fixtures.mjs';
 import {
   WHATSAPP_LANE_A_CATALOG,WHATSAPP_LANE_A_EXCLUDED,
 } from '../src/lane-a-capability-catalog.mjs';
@@ -39,6 +40,8 @@ function sample(schema){
   return 'synthetic';
 }
 function argsFor(def){
+  if(def.adapter==='dojo')return dojoFixture(def.name);
+
   const args=sample(def.inputSchema);
   if(/^whatsapp_send_(?:image|video|audio|voice|document|sticker)$/.test(def.name))args.id='123456789012';
   if(def.name==='whatsapp_upload_flow_json')args.flowJson='{"version":"7.2","screens":[]}';
