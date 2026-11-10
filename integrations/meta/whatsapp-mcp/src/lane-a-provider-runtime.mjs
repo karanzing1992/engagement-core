@@ -325,11 +325,22 @@ function validateActor(p,tenantId){
     typeof p.actorId==='string'&&actorIdPattern.test(p.actorId)&&
     typeof tenantId==='string'&&tenantPattern.test(tenantId);
 }
-function validateRoute(route,tenantId){
-  return plain(route)&&route.tenantId===tenantId&&route.status==='active'&&
-    Number.isSafeInteger(route.activationId)&&route.activationId>0&&
-    typeof route.wabaId==='string'&&idPattern.test(route.wabaId)&&
-    typeof route.phoneNumberId==='string'&&idPattern.test(route.phoneNumberId);
+// Copy the authoritative route before calling an asynchronous ownership
+// resolver; a mutable host row must not change WABA/phone after validation.
+function snapshotRoute(raw,tenantId){
+  if(!plain(raw))throw new Error('route_unavailable');
+  const ds=Object.getOwnPropertyDescriptors(raw),copy={};
+  for(const key of ['tenantId','status','activationId','wabaId','phoneNumberId']){
+    if(!ds[key]||!Object.hasOwn(ds[key],'value'))
+      throw new Error('route_unavailable');
+    copy[key]=ds[key].value;
+  }
+  if(copy.tenantId!==tenantId||copy.status!=='active'||
+     !Number.isSafeInteger(copy.activationId)||copy.activationId<1||
+     typeof copy.wabaId!=='string'||!idPattern.test(copy.wabaId)||
+     typeof copy.phoneNumberId!=='string'||!idPattern.test(copy.phoneNumberId))
+    throw new Error('route_unavailable');
+  return Object.freeze(copy);
 }
 function invokeMethod(provider,method,args){
   if(!provider||typeof provider[method]!=='function')return Promise.reject(new Error('unbound'));
@@ -418,9 +429,8 @@ export function createLaneAProviderMcp({
           (typeof requestId!=='string'||!requestIdPattern.test(requestId)))
         return error('request_id_required');
       let route;
-      try {route=await resolveRoute(tenantId,verifiedPrincipal);}
+      try {route=snapshotRoute(await resolveRoute(tenantId,verifiedPrincipal),tenantId);}
       catch(_){return error('route_unavailable');}
-      if(!validateRoute(route,tenantId))return error('route_unavailable');
       let proof={};
       if(def.adapter==='host'&&
         ['templateId','flowId','mediaId','qrId'].some(k=>Object.hasOwn(args??{},k))){

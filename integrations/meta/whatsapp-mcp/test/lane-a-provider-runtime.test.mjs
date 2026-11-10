@@ -363,3 +363,47 @@ test('P2 affirmative boolean mutation receipts remain successful',async()=>{
     assert.equal(r.isError,false,JSON.stringify({response,result:r.structuredContent}));
   }
 });
+
+test('P2 Graph plan uses immutable trusted route snapshot after ownership await',async()=>{
+  const mutable=routeFor(A);
+  let passedRoute, actualPlan;
+  const t=setup({
+    resolveRoute:async()=>mutable,
+    resolveOwnership:async route=>{
+      passedRoute=route;
+      mutable.tenantId=B;
+      mutable.wabaId='999999999999';
+      mutable.phoneNumberId='888888888888';
+      return {wabaIdVerified:true,templateId:'123456789012'};
+    },
+    providers:{host:{executePlan:async({plan})=>{
+      actualPlan=plan;return {ok:true,data:{accepted:true,resourceId:'123456789012'}};
+    }}}
+  });
+  const result=await call(t.mcp,'whatsapp_update_template',{
+    templateId:'123456789012',components:[{type:'BODY',text:'Synthetic'}]
+  });
+  assert.equal(result.isError,false,JSON.stringify(result.structuredContent));
+  assert.equal(passedRoute.tenantId,A);
+  assert.equal(passedRoute.wabaId,'123456789012');
+  assert.equal(passedRoute.phoneNumberId,'223456789012');
+  assert.equal(Object.isFrozen(passedRoute),true);
+  assert.equal(actualPlan.resourcePath,'/v26.0/123456789012');
+});
+test('P2 Graph route rejects accessor before attempting ownership/provider use',async()=>{
+  let traps=0,owners=0;
+  const raw=routeFor(A);
+  Object.defineProperty(raw,'wabaId',{enumerable:true,
+    get(){traps++;throw Error('route accessor must not run');}
+  });
+  const t=setup({
+    resolveRoute:async()=>raw,
+    resolveOwnership:async()=>{owners++;return {wabaIdVerified:true};}
+  });
+  const r=await call(t.mcp,'whatsapp_get_business_account',{});
+  assert.equal(r.isError,true);
+  assert.equal(r.structuredContent.error.code,'route_unavailable');
+  assert.equal(traps,0);
+  assert.equal(owners,0);
+  assert.equal(t.count.provider,0);
+});
