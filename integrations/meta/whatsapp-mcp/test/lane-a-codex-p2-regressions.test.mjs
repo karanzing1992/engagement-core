@@ -59,13 +59,13 @@ test('P2 public Graph profile fields survive sanitizer only on business-profile 
   const good=setup('whatsapp_get_business_profile',{ok:true,data:{data:[profile]}});
   const result=await good.call({});
   assert.equal(result.isError,false,JSON.stringify(result.structuredContent));
-  assert.deepEqual(result.structuredContent.data[0],profile);
+  assert.deepEqual(result.structuredContent.data.data[0],profile);
   assert.equal(good.calls.provider,1);
 
   const other=setup('whatsapp_get_business_account',{ok:true,data:{data:[{...profile,id:'123456789012'}]}});
   const unrelated=await other.call({});
   assert.equal(unrelated.isError,false);
-  assert.deepEqual(unrelated.structuredContent.data[0],{about:'synthetic business',id:'123456789012'});
+  assert.deepEqual(unrelated.structuredContent.data.data[0],{about:'synthetic business',id:'123456789012'});
 });
 test('P2 profile individual public fields survive full provider roundtrip',async()=>{
   const fields=[
