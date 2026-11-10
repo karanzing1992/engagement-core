@@ -101,6 +101,10 @@ export function validatePinnedDojoArgs(name,args){
   const parser=getPinnedDojoInputJsonSchema(name)&&safeSpecs.get(name).parser;
   const parsed=parser.safeParse(args);
   if(!parsed.success||!urlsSafe(parsed.data))return null;
+  // The upstream SDK accepts any non-empty recipient; enforce the narrower
+  // verified E.164 cohort until separately certified BSUID support is added.
+  if(Object.hasOwn(parsed.data,'to')&&
+      !/^\+[1-9][0-9]{6,14}$/.test(parsed.data.to))return null;
   if(/^whatsapp_send_(?:image|video|audio|voice|document)$/.test(name)){
     if(Number(Object.hasOwn(parsed.data,'id'))+Number(Object.hasOwn(parsed.data,'link'))!==1)
       return null;
