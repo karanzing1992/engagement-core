@@ -329,3 +329,37 @@ test('Nokia/other project and WhatsApp phone registration are not part of Lane A
     assert.equal(out.structuredContent.error.code,'unknown_tool');
   }
 });
+
+test('P2 negative mutation receipts reject false, untyped and conflicting outcomes',async()=>{
+  const denied=[
+    {accepted:false},
+    {success:false},
+    {accepted:'false'},
+    {success:0},
+    {accepted:true,success:false},
+    {accepted:false,success:true},
+    {accepted:null,resourceId:'123456789012'}
+  ];
+  for(const response of denied){
+    let invokes=0;
+    const t=setup({providers:{dojo:{async invoke(){invokes++;return {
+      ok:true,data:response
+    };}}}});
+    const r=await call(t.mcp,'whatsapp_send_text',{
+      to:'+919999999999',body:'synthetic'
+    });
+    assert.equal(invokes,1,JSON.stringify(response));
+    assert.equal(r.isError,true,JSON.stringify({response,result:r.structuredContent}));
+    assert.equal(r.structuredContent.error.code,'upstream_unavailable');
+    assert.ok(!JSON.stringify(r).includes('+919999999999'));
+  }
+});
+test('P2 affirmative boolean mutation receipts remain successful',async()=>{
+  for(const response of [{accepted:true},{success:true},{accepted:true,success:true}]){
+    const t=setup({providers:{dojo:{async invoke(){return {ok:true,data:response};}}}});
+    const r=await call(t.mcp,'whatsapp_send_text',{
+      to:'+919999999999',body:'synthetic'
+    });
+    assert.equal(r.isError,false,JSON.stringify({response,result:r.structuredContent}));
+  }
+});

@@ -244,6 +244,14 @@ function sanitize(result,def){
   if(mediaUpload&&(typeof data.mediaId!=='string'||
       !/^(?:[0-9]{6,64}|media\.mock-[1-9][0-9]*)$/.test(data.mediaId)))
     throw new Error('bad_media_id');
+  // Do not convert an explicit provider refusal into a successful MCP
+  // mutation, even if another affirmative receipt field is present.
+  if(def.kind!=='read'){
+    for(const flag of ['accepted','success']){
+      if(Object.hasOwn(data,flag)&&data[flag]!==true)
+        throw new Error('negative_receipt');
+    }
+  }
   if(def.kind!=='read'&&!Object.hasOwn(data,'accepted')&&
       !Object.hasOwn(data,'success')&&!Object.hasOwn(data,'messageId')&&
       !Object.hasOwn(data,'resourceId')&&!(mediaUpload&&Object.hasOwn(data,'mediaId')))
