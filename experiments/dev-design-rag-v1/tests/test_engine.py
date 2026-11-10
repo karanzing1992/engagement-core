@@ -244,7 +244,8 @@ class ReviewsTests(unittest.TestCase):
 
     def test_password_or_token_dropped(self):
         x=self.review()
-        x["findings"]=["Authorization: [REDACTED]        self.assertRaises(IsolationError,self.ledger.submit,x)
+        x["findings"]=["Authorization: bearer string"]
+        self.assertRaises(IsolationError,self.ledger.submit,x)
 
     def test_event_hook_auto_indexes_and_archives_every_review(self):
         from dev_design_rag.inbox import record_completed_review

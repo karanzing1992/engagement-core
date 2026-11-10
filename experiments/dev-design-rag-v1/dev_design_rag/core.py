@@ -432,7 +432,8 @@ class ReviewLedger:
             raise ValueError("REVIEW_TOO_LARGE")
         # Avoid inserting known PII and secrets into any project graph.
         representation=json.dumps(obj).lower()
-        if any(secret in representation for secret in ("api_key","access_token","authorization:","password=[REDACTED]            raise IsolationError("REVIEW_CONTAINS_SECRET")
+        if any(secret in representation for secret in ("api_key","access_token","authorization:","password=")):
+            raise IsolationError("REVIEW_CONTAINS_SECRET")
         return obj
 
     def submit(self,obj:dict)->dict:
