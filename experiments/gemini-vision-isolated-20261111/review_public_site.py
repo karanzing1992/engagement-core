@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import socket
 from pathlib import Path
 import sys
 import time
@@ -15,7 +16,7 @@ from PIL import Image
 ROOT = Path("out/private-gemini-vision-review")
 URL = "https://andazgoa.com/"
 API = "https://generativelanguage.googleapis.com/v1beta"
-ALLOWED = ("gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash")
+ALLOWED = ("gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.6-flash")
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
@@ -30,8 +31,9 @@ def api(path, key, body=None):
                                  method="GET" if data is None else "POST")
     phase = "MODEL_LIST" if data is None else "VISION_INFERENCE"
     for attempt in range(2):
+        print("GEMINI_STAGE_" + phase + "_ATTEMPT_" + str(attempt + 1), flush=True)
         try:
-            with urllib.request.urlopen(req, timeout=50) as response:
+            with urllib.request.urlopen(req, timeout=38) as response:
                 raw = response.read(1000000)
             return json.loads(raw)
         except urllib.error.HTTPError as exc:
@@ -40,6 +42,8 @@ def api(path, key, body=None):
                 time.sleep(3)
                 continue
             raise RuntimeError("GEMINI_HTTP_" + str(exc.code) + "_" + phase) from None
+        except (TimeoutError, socket.timeout):
+            raise RuntimeError("GEMINI_READ_TIMEOUT_" + phase) from None
         except urllib.error.URLError:
             raise RuntimeError("GEMINI_NETWORK_UNAVAILABLE_" + phase) from None
     raise RuntimeError("GEMINI_RETRIES_EXHAUSTED_" + phase)
@@ -74,9 +78,9 @@ def capture_public():
                 if len(raw) < 5000:
                     raise RuntimeError("INVALID_BROWSER_SCREENSHOT")
                 im = Image.open(io.BytesIO(raw)).convert("RGB")
-                im.thumbnail((1000, 1100))
+                im.thumbnail((640, 880))
                 out = io.BytesIO()
-                im.save(out, format="JPEG", quality=63, optimize=True)
+                im.save(out, format="JPEG", quality=54, optimize=True)
                 encoded = out.getvalue()
                 if len(encoded) > 360000:
                     raise RuntimeError("IMAGE_BODY_LIMIT")
@@ -108,6 +112,7 @@ def main():
         raise RuntimeError("GITHUB_GEMINI_SECRET_UNAVAILABLE")
     models = api("/models?pageSize=100", key)
     model = choose_model(models)
+    print("GEMINI_SELECTED_MODEL " + model, flush=True)
     screenshots = capture_public()
     prompt = ("You are an independent visual critique assistant. Examine genuine public "
               "browser screenshots of the Andaz Vibe Stay hospitality website, first mobile "
@@ -126,7 +131,7 @@ def main():
     response = api("/models/" + model + ":generateContent", key,
                    {"contents": [{"parts": parts}],
                     "generationConfig": {"temperature": 0, "responseMimeType": "application/json",
-                                         "maxOutputTokens": 1400}})
+                                         "maxOutputTokens": 700}})
     raw = "".join(part.get("text", "") for part in
                   response.get("candidates", [{}])[0].get("content", {}).get("parts", []))
     result = validate(json.loads(raw))
