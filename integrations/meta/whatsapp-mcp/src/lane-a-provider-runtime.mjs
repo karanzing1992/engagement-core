@@ -28,6 +28,17 @@ const copyKeys=new Set([
   'granularity','data_points','metrics','result'
 ]);
 const analyticsCopyKeys=new Set(['analytics','template_analytics','template_id','clicked','cost','currency','value']);
+// Public WhatsApp business-profile fields are permitted only for that specific
+// read tool, and only on its returned profile object (not on arbitrary outputs).
+const profileCopyKeys=new Set(['email','websites','profile_picture_url']);
+function safeProfileUrl(value) {
+  if(typeof value!=='string'||Buffer.byteLength(value,'utf8')>1024)return false;
+  try{
+    const u=new URL(value);
+    return (u.protocol==='https:'||u.protocol==='http:')&&!!u.hostname&&
+      !u.username&&!u.password;
+  }catch(_){return false;}
+}
 const tenantPattern=/^wacrm_[a-f0-9]{40}$/;
 const idPattern=/^[0-9]{6,64}$/;
 const actorIdPattern=/^[A-Za-z0-9_.:-]{1,128}$/;
@@ -118,7 +129,8 @@ function inputSnapshot(value,toolName,depth=0,seen=new WeakSet(),budget={nodes:0
  * identities (DAG payloads) are intentionally denied, not silently duplicated;
  * WACRM providers must return JSON-tree-shaped objects without shared refs.
  */
-function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0}){
+function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0},
+  allowProfile=false,path=[]){
   if(++budget.nodes>1024||depth>(allowAnalytics?12:7))throw new Error('depth');
   if(value===null||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
@@ -145,7 +157,8 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
     for(let i=0;i<size;i++){
       const descriptor=descriptors[String(i)];
       if(!descriptor||!Object.hasOwn(descriptor,'value'))throw new Error('array_accessor');
-      out[i]=safeRead(descriptor.value,depth+1,allowAnalytics,seen,budget);
+      out[i]=safeRead(descriptor.value,depth+1,allowAnalytics,seen,budget,
+        allowProfile,[...path,null]);
     }
     return out;
   }
@@ -157,9 +170,28 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
   for(const key of keys){
     if(typeof key!=='string'||deniedKey.test(key)||
       !Object.hasOwn(descriptors[key],'value'))throw new Error('sensitive');
-    // Only allow analytics-specific fields inside the two analytics operations.
-    if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key)))
-      out[key]=safeRead(descriptors[key].value,depth+1,allowAnalytics,seen,budget);
+    // Do not globally admit public profile fields into unrelated responses.
+    // The Graph profile endpoint returns {data:[{email,websites,...}]}.
+    // Also allow a direct profile object, but never a nested unrelated object.
+    const scopedProfile=allowProfile&&profileCopyKeys.has(key)&&
+      (path.length===0||(path.length===2&&path[0]==='data'&&path[1]===null));
+    if(copyKeys.has(key)||(allowAnalytics&&analyticsCopyKeys.has(key))||scopedProfile){
+      const clean=safeRead(descriptors[key].value,depth+1,allowAnalytics,seen,budget,
+        allowProfile,[...path,key]);
+      if(scopedProfile){
+        if(key==='email'&&
+            (typeof clean!=='string'||Buffer.byteLength(clean,'utf8')>320||
+             !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)))
+          throw new Error('invalid_profile_email');
+        if(key==='profile_picture_url'&&!safeProfileUrl(clean))
+          throw new Error('invalid_profile_url');
+        if(key==='websites'&&
+            (!Array.isArray(clean)||clean.length>10||
+             clean.some(item=>!safeProfileUrl(item))))
+          throw new Error('invalid_profile_websites');
+      }
+      out[key]=clean;
+    }
   }
   return out;
 }
@@ -179,8 +211,12 @@ function sanitize(result,def){
   if(!plain(value))throw new Error('provider');
   const analyticsKey=def.name==='whatsapp_get_business_analytics'?'analytics':
     def.name==='whatsapp_get_template_analytics'?'template_analytics':null;
-  const data=safeRead(value,0,analyticsKey!==null);
+  const isProfile=def.name==='whatsapp_get_business_profile';
+  const data=safeRead(value,0,analyticsKey!==null,new WeakSet(),{nodes:0},isProfile);
   if(analyticsKey&&!Object.hasOwn(data,analyticsKey))throw new Error('missing_analytics');
+  if(isProfile&&Array.isArray(data.data)&&
+      (data.data.length===0||data.data.some(item=>!plain(item)||!Object.keys(item).length)))
+    throw new Error('empty_profile');
   if(Buffer.byteLength(JSON.stringify(data),'utf8')>65536)
     throw new Error('provider');
   if(def.kind==='read'&&!Object.keys(data).length)throw new Error('empty_read');
