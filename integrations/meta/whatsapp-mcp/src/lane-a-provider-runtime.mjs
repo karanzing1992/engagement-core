@@ -97,7 +97,7 @@ function inputSnapshot(value,depth=0,seen=new WeakSet(),budget={nodes:0}){
  * prevent recursive payload exhaustion and alias-based cycles.
  */
 function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={nodes:0}){
-  if(++budget.nodes>1024||depth>12)throw new Error('depth');
+  if(++budget.nodes>1024||depth>(allowAnalytics?12:7))throw new Error('depth');
   if(value===null||typeof value==='boolean')return value;
   if(typeof value==='number'&&Number.isFinite(value))return value;
   if(typeof value==='string'){
