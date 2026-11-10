@@ -42,6 +42,53 @@ function rejected(code, message) {
   return { ok: false, error: { code, message } };
 }
 
+/**
+ * Legacy WBMCP adapter must reject nested proxies, accessors, cycles and
+ * custom array methods before awaiting host authorization or resolving tokens.
+ * No SDK receives caller-owned object references.
+ */
+function cloneLegacyArgs(value, depth = 0, seen = new WeakSet(), budget = { nodes: 0, bytes: 0 }) {
+  if (++budget.nodes > 1024 || depth > 12) throw new Error('input_size');
+  if (value === null || typeof value === 'boolean') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const size = Buffer.byteLength(value, 'utf8');
+    if (size > 32768 || (budget.bytes += size) > 65536 || value.includes('\u0000'))
+      throw new Error('input_size');
+    return value;
+  }
+  if (!value || typeof value !== 'object' || nodeTypes.isProxy(value) || seen.has(value))
+    throw new Error('input_shape');
+  seen.add(value);
+  if (Array.isArray(value)) {
+    if (Object.getPrototypeOf(value) !== Array.prototype) throw new Error('input_array');
+    const ds = Object.getOwnPropertyDescriptors(value), len = ds.length?.value;
+    if (!Number.isSafeInteger(len) || len > 100 || Reflect.ownKeys(ds).length !== len + 1)
+      throw new Error('input_array');
+    const out = [];
+    for (let i = 0; i < len; i++) {
+      const d = ds[String(i)];
+      if (!d || !Object.hasOwn(d, 'value')) throw new Error('input_array');
+      out.push(cloneLegacyArgs(d.value, depth + 1, seen, budget));
+    }
+    return out;
+  }
+  if (Object.getPrototypeOf(value) !== Object.prototype) throw new Error('input_object');
+  const ds = Object.getOwnPropertyDescriptors(value), keys = Reflect.ownKeys(ds);
+  if (keys.length > 64) throw new Error('input_keys');
+  const out = {};
+  for (const key of keys) {
+    if (typeof key !== 'string' || !/^[A-Za-z0-9_]{1,128}$/.test(key) ||
+        ['__proto__','constructor','prototype'].includes(key) ||
+        !Object.hasOwn(ds[key], 'value')) throw new Error('input_key');
+    Object.defineProperty(out, key, {
+      enumerable: true, writable: true, configurable: true,
+      value: cloneLegacyArgs(ds[key].value, depth + 1, seen, budget)
+    });
+  }
+  return out;
+}
+
 function connectionConfig(connection, previewMode = false) {
   if (!connection || typeof connection !== 'object' || nodeTypes.isProxy(connection) || Array.isArray(connection)) {
     throw new Error('Missing approved tenant connection');
@@ -115,11 +162,10 @@ export function createEngagementWhatsAppAdapter({ resolveConnection, authorizeTe
       if (!args || typeof args !== 'object' || nodeTypes.isProxy(args) ||
           Array.isArray(args) || Object.getPrototypeOf(args) !== Object.prototype)
         return rejected('invalid_input', 'Tool arguments must be an object');
-      const argFields = Object.getOwnPropertyDescriptors(args);
-      if (Reflect.ownKeys(argFields).some(key =>
-        typeof key !== 'string' || !Object.hasOwn(argFields[key], 'value')))
-        return rejected('invalid_input', 'Tool argument accessors are forbidden');
-      if (previewSet.has(toolName) && argFields.dryRun?.value !== true) {
+      let safeArgs;
+      try { safeArgs = cloneLegacyArgs(args); }
+      catch (_) { return rejected('invalid_input', 'Tool arguments failed preflight'); }
+      if (previewSet.has(toolName) && safeArgs.dryRun !== true) {
         return rejected('outbound_disabled', 'Only dry-run previews are supported');
       }
       try {
@@ -144,8 +190,7 @@ export function createEngagementWhatsAppAdapter({ resolveConnection, authorizeTe
       // previews, and its message tool checks dryRun before Meta transport.
       // No live send, account mutation, phone migration or subscriber change
       // is possible through this allowlisted adapter.
-      // Snapshot data descriptors before async auth/connection lookup.
-      const safeArgs = Object.fromEntries(Object.entries(argFields).map(([key, d]) => [key, d.value]));
+      // Safe immutable-by-ownership deep snapshot was captured before awaits.
       delete safeArgs.confirm;
       if (previewSet.has(toolName)) {
         safeArgs.dryRun = true;
