@@ -24,7 +24,7 @@ jobs:
         with:
           repository: KaranZi/shaadi-aunty-dodge
           token: ${{ secrets.SHAADI_GAME_READ_TOKEN }}
-          ref: 33cfc04278b85c63150e2b80a1c773a03d0a89da
+          ref: feat/m71-artistic-foundation-20261111
           path: baseline
           persist-credentials: false
       - name: Checkout M7.1 candidate, without credentials
@@ -45,6 +45,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo 'bf59852c0616dfa63a1b2197be0b756594a3c0e59d11f8d39d6d8352cb1bc223  baseline/src/page.html' | sha256sum -c -
           echo '405943843229013097280b1f4a17db89a06e96f5302dd9c509b5ccb5a672b693  candidate/src/page.html' | sha256sum -c -
           echo 'dcc7fb55ee814624f72658f1f3aa500aadd474dab0871de24a1a8bfcde0cd463  candidate/web/index.html' | sha256sum -c -
           python3 candidate/tools/build.py --check
