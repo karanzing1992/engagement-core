@@ -36,7 +36,7 @@ test('P2 contract: shared argument references are denied as non-tree JSON withou
   assert.equal(f.state.policy,0);
 });
 test('P2 contract: cyclic references are denied, even when otherwise contact-shaped',async()=>{
-  const x={name:'alice',phone:'+919999999999'}; x.self=x;
+  const x={name:{formatted_name:'alice'},phones:[{phone:'+919999999999'}]}; x.self=x;
   const f=fixture('whatsapp_send_contacts');
   const r=await f.call({contacts:[x],to:'+919999999999'});
   assert.equal(r.isError,true);
@@ -52,16 +52,24 @@ test('P2 contract: shared provider output identities fail closed without leaking
 });
 test('P2 phone: contact phone reaches trusted policy only in declared contacts[] schema',async()=>{
   const f=fixture('whatsapp_send_contacts');
-  await f.call({to:'+919999999999',contacts:[{name:'synthetic contact',phone:'+918888888888'}]});
-  assert.equal(f.state.policy,1,'valid schema contact phone should not be preflight-blocked');
-  assert.equal(f.state.seen.contacts[0].phone,'+918888888888');
-  assert.equal(Object.isFrozen(f.state.seen.contacts[0]),true);
+  const out=await f.call({to:'+919999999999',contacts:[{
+    name:{formatted_name:'synthetic contact'},
+    phones:[{phone:'+918888888888'}]
+  }]});
+  assert.equal(out.isError,false,JSON.stringify(out.structuredContent));
+  assert.equal(f.state.policy,1,'valid Dojo contacts must pass policy and ingress');
+  assert.equal(f.state.provider,1,'valid Dojo contacts must reach only the injected provider');
+  assert.equal(f.state.seen.contacts[0].phones[0].phone,'+918888888888');
+  assert.equal(Object.isFrozen(f.state.seen.contacts[0].phones[0]),true);
 });
 test('P2 phone: non-contact phone property rejected before policy for messaging and reads',async()=>{
   for(const [name,args] of [
     ['whatsapp_send_text',{to:'+919999999999',body:'safe',phone:'+919999999999'}],
     ['whatsapp_get_business_account',{phone:'+919999999999'}],
-    ['whatsapp_send_contacts',{to:'+919999999999',contacts:[{name:'x',phone:'+918888888888',metadata:{phone:'+919999999999'}}]}]
+    ['whatsapp_send_contacts',{to:'+919999999999',contacts:[{
+      name:{formatted_name:'x'},
+      phones:[{phone:'+918888888888',note:{phone:'+919999999999'}}]
+    }]}]
   ]){
     const f=fixture(name),r=await f.call(args);
     assert.equal(r.isError,true,name);
