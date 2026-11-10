@@ -4,6 +4,7 @@
  * An integration-ready contract/negative-test harness, NOT a live sender.
  */
 import { createHash } from 'node:crypto';
+import { types as nodeTypes } from 'node:util';
 import { WHATSAPP_LANE_A_CATALOG } from './lane-a-capability-catalog.mjs';
 import { validatePinnedDojoArgs, getPinnedDojoInputJsonSchema } from './lane-a-upstream-dojo-schemas.mjs';
 
@@ -12,8 +13,8 @@ const tenantPattern=/^wacrm_[a-f0-9]{40}$/;
 const blockedKeys=/^(?:access[_-]?token|auth(?:orization)?|bearer|api[_-]?key|secret|password|credential|private[_-]?key|wabaId|phoneNumberId|tenantId|clientId)$/i;
 
 function plain(value) {
-  return value!==null && typeof value==='object' && !Array.isArray(value) &&
-    Object.getPrototypeOf(value)===Object.prototype;
+  return value!==null && typeof value==='object' && !nodeTypes.isProxy(value) &&
+    !Array.isArray(value) && Object.getPrototypeOf(value)===Object.prototype;
 }
 function cloneChecked(value,schema,depth=0) {
   if(depth>8) throw new Error('invalid_input');
@@ -33,9 +34,18 @@ function cloneChecked(value,schema,depth=0) {
     return safe;
   }
   if(schema.type==='array') {
-    if(!Array.isArray(value)||value.length<(schema.minItems??0)||value.length>(schema.maxItems??100)||
-        Object.keys(value).length!==value.length)throw new Error('invalid_input');
-    return value.map(item=>cloneChecked(item,schema.items,depth+1));
+    if(nodeTypes.isProxy(value)||!Array.isArray(value))throw new Error('invalid_input');
+    const d=Object.getOwnPropertyDescriptors(value),size=d.length?.value;
+    if(!Number.isSafeInteger(size)||size<(schema.minItems??0)||
+       size>(schema.maxItems??100)||Reflect.ownKeys(d).length!==size+1)
+      throw new Error('invalid_input');
+    const out=[];
+    for(let i=0;i<size;i++){
+      const entry=d[String(i)];
+      if(!entry||!Object.hasOwn(entry,'value'))throw new Error('invalid_input');
+      out.push(cloneChecked(entry.value,schema.items,depth+1));
+    }
+    return out;
   }
   if(schema.type==='boolean') {
     if(typeof value!=='boolean')throw new Error('invalid_input');
@@ -62,7 +72,12 @@ function publicHttps(input) {
     const u=new URL(input);
     if(u.protocol!=='https:'||u.username||u.password||u.hash)return false;
     const h=u.hostname.toLowerCase().replace(/^\[|\]$/g,'');
+    // Obvious wildcard-DNS-to-IP providers are denied offline. This is NOT
+    // DNS rebinding or redirect/egress protection; Lane B must resolve and
+    // re-check each address and redirect before any HTTP request.
+    const dynamicDns=['nip.io','sslip.io','localtest.me','lvh.me'];
     if(h==='localhost'||h.endsWith('.localhost')||h.endsWith('.local')||
+        dynamicDns.some(d=>h===d||h.endsWith('.'+d))||
         h.includes(':')||h==='0.0.0.0'||h==='255.255.255.255')return false;
     if(/^\d+(?:\.\d+){3}$/.test(h)){
       const n=h.split('.').map(Number);

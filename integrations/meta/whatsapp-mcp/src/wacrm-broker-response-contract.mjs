@@ -6,6 +6,7 @@
  * fails closed if Central accidentally returns credentials or schema additions.
  */
 import { createWacrmCentralBrokerReadAdapter } from './wacrm-central-read-broker.mjs';
+import { types as nodeTypes } from 'node:util';
 
 const idPattern = /^\d{6,64}$/;
 const cursorPattern = /^[A-Za-z0-9_-]{1,256}$/;
@@ -14,7 +15,8 @@ const pageFields = new Set(['data', 'after']);
 
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' &&
-    !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
+    !nodeTypes.isProxy(value) && !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype;
 }
 
 function safeString(value, maxBytes) {
@@ -25,7 +27,10 @@ function safeString(value, maxBytes) {
 
 function sanitizedTemplate(row) {
   if (!isPlainObject(row)) return null;
-  const keys = Object.keys(row);
+  const descriptors = Object.getOwnPropertyDescriptors(row);
+  const keys = Reflect.ownKeys(descriptors);
+  if (keys.some(key => typeof key !== 'string' ||
+        !Object.hasOwn(descriptors[key], 'value'))) return null;
   if (keys.length < 4 || keys.length > 5 || keys.some(key => !rowFields.has(key)) ||
       !idPattern.test(row.id) ||
       !safeString(row.name, 190) ||
@@ -48,20 +53,31 @@ export function sanitizeWacrmTemplateResult(toolName, data, expectedId) {
       return row && row.id === expectedId ? row : null;
     }
     if (toolName !== 'whatsapp_list_templates' || !isPlainObject(data)) return null;
-    const keys = Object.keys(data);
+    const fields = Object.getOwnPropertyDescriptors(data);
+    const keys = Reflect.ownKeys(fields);
+    if (keys.some(key => typeof key !== 'string' ||
+        !Object.hasOwn(fields[key], 'value'))) return null;
+    const list = fields.data?.value;
     if (!Object.hasOwn(data, 'data') || keys.length > 2 ||
         keys.some(key => !pageFields.has(key)) ||
-        !Array.isArray(data.data) || data.data.length > 100 ||
+        !Array.isArray(list) || nodeTypes.isProxy(list) ||
         (Object.hasOwn(data, 'after') &&
-          (typeof data.after !== 'string' || !cursorPattern.test(data.after)))) return null;
+          (typeof fields.after.value !== 'string' ||
+           !cursorPattern.test(fields.after.value)))) return null;
+    const items = Object.getOwnPropertyDescriptors(list);
+    const size = items.length?.value;
+    if (!Number.isSafeInteger(size) || size > 100 ||
+        Reflect.ownKeys(items).length !== size + 1) return null;
     const rows = [];
-    for (const item of data.data) {
-      const row = sanitizedTemplate(item);
+    for (let i = 0; i < size; i++) {
+      const entry = items[String(i)];
+      if (!entry || !Object.hasOwn(entry, 'value')) return null;
+      const row = sanitizedTemplate(entry.value);
       if (!row) return null;
       rows.push(row);
     }
     const safe = { data: Object.freeze(rows) };
-    if (Object.hasOwn(data, 'after')) safe.after = data.after;
+    if (Object.hasOwn(fields, 'after')) safe.after = fields.after.value;
     return Object.freeze(safe);
   } catch (_) {
     // Includes unexpected proxy traps, accessors and malformed values.
@@ -79,6 +95,10 @@ export function createContractEnforcedWacrmBrokerAdapter(config) {
   return Object.freeze({
     listTools: () => broker.listTools(),
     async invoke(request = {}) {
+      // Reject outer Proxy wrappers before calling standalone broker.
+      if (nodeTypes.isProxy(request)) {
+        return { ok: false, error: { code: 'invalid_input', message: 'META CORE read unavailable' } };
+      }
       const response = await broker.invoke(request);
       if (response?.ok !== true) return response;
       let expectedId;

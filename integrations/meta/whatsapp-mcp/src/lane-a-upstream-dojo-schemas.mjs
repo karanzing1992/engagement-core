@@ -6,6 +6,7 @@
  * Broker template reads remain the narrower WACRM Central schema.
  */
 import { z } from 'zod';
+import { types as nodeTypes } from 'node:util';
 import { createWhatsAppToolset } from '@dojocoding/whatsapp-mcp';
 const toolset=createWhatsAppToolset({
   client:Object.freeze({}),wabaPhoneNumberId:'223456789012'
@@ -28,11 +29,17 @@ function structure(value){
         continue;
       }
       if(typeof v==='number'&&Number.isFinite(v))continue;
-      if(typeof v!=='object'||seen.has(v))return false;
+      if(typeof v!=='object'||nodeTypes.isProxy(v)||seen.has(v))return false;
       seen.add(v);
       if(Array.isArray(v)){
-        if(v.length>50||Object.keys(v).length!==v.length)return false;
-        for(const item of v)stack.push({value:item,depth:depth+1});
+        const descriptors=Object.getOwnPropertyDescriptors(v),size=descriptors.length?.value;
+        if(!Number.isSafeInteger(size)||size>50||
+           Reflect.ownKeys(descriptors).length!==size+1)return false;
+        for(let i=0;i<size;i++){
+          const entry=descriptors[String(i)];
+          if(!entry||!Object.hasOwn(entry,'value'))return false;
+          stack.push({value:entry.value,depth:depth+1});
+        }
         continue;
       }
       if(Object.getPrototypeOf(v)!==Object.prototype)return false;
@@ -53,7 +60,10 @@ function publicUrl(input){
   try{u=new URL(input);}catch(_){return false;}
   if(u.protocol!=='https:'||u.username||u.password||u.hash)return false;
   const h=u.hostname.toLowerCase();
-  if(h==='localhost'||h.endsWith('.localhost')||h.endsWith('.local'))return false;
+  // Defense in depth only: host transport still must validate DNS and egress.
+  const dynamicDns=['nip.io','sslip.io','localtest.me','lvh.me'];
+  if(h==='localhost'||h.endsWith('.localhost')||h.endsWith('.local')||
+     dynamicDns.some(d=>h===d||h.endsWith('.'+d)))return false;
   if(h.includes(':'))return false; // deny all IPv6 literals, including mapped localhost
   if(/^\d+(?:\.\d+){3}$/.test(h)){
     const x=h.split('.').map(Number);
