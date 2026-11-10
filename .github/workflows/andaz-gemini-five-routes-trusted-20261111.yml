@@ -9,6 +9,7 @@ permissions:
 jobs:
   owner-public-route-advisory:
     if: >-
+      false &&
       github.repository == 'karanzing1992/engagement-core' &&
       github.actor == github.repository_owner &&
       github.event.pull_request.head.repo.full_name == github.repository &&

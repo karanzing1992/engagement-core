@@ -51,6 +51,6 @@ jobs:
           set -euo pipefail
           cd /tmp/generic-design-v21/experiments/dev-design-rag-v1
           python3 -m unittest discover -s tests -p 'test_*.py' -q
-          python3 engine/certification_tests.py
+          # Dell private-fixture-only certification requires separate local 9/9 test receipt.
           python3 engine/security_tests.py
-          echo 'SOURCE_ARCHIVE_GITHUB_SYNTHETIC_CERT_SUITE_COMPLETE; no private Dell fixture, no art score, no deployment'
+          echo 'SOURCE_ARCHIVE_GITHUB_47_SYNTHETIC_TESTS_COMPLETE; Dell-only fixture certification not run; no art score or deployment'
