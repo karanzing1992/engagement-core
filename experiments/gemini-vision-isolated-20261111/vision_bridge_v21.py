@@ -83,15 +83,16 @@ def seal(w,recipient_public_key_b64,output):
         "pages":6,"screenshots":12,"transfer":"NOT_CONFIGURED",
         "release_authorized":False,"artistic_score":None}
 
-def open_capsule(blob_bytes,secret_private_b64,expected_project,expected_site,expected_qa):
+def open_capsule(blob_bytes,recipient_material_b64,expected_project,expected_site,expected_qa):
     check(len(blob_bytes)<=28000000,"CAPSULE_SIZE_DENIED")
-    secret=[REDACTED]    check(len(secret)==32,"RECIPIENT_KEY_INVALID")
+    material=dec(recipient_material_b64)
+    check(len(material)==32,"RECIPIENT_KEY_INVALID")
     capsule=json.loads(blob_bytes)
     check(capsule.get("schema")==SCHEMA,"SCHEMA_DENIED")
     ciphertext=dec(capsule["ciphertext"])
     check(digest(ciphertext)==capsule.get("sha256"),"CAPSULE_HASH_MISMATCH")
     key=HKDF(algorithm=hashes.SHA256(),length=32,salt=None,info=CONTEXT).derive(
-        X25519PrivateKey.from_private_bytes(secret).exchange(
+        X25519PrivateKey.from_private_bytes(material).exchange(
             X25519PublicKey.from_public_bytes(dec(capsule["ephemeral_public"]))))
     plaintext=AESGCM(key).decrypt(dec(capsule["nonce"]),ciphertext,CONTEXT)
     document=json.loads(plaintext)
