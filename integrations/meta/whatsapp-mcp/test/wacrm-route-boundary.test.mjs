@@ -69,3 +69,37 @@ test('WACRM-resolved credentials reach existing META CORE read adapter only afte
   assert.equal((await adapter.invoke({principal:'staff_a',tenantId:'brand_a',toolName:'whatsapp_list_templates'})).ok,true);
   assert.equal(calls[0].waba,route.wabaId);
 });
+
+test('P2 WACRM route snapshot stays consistent across credential provider awaits',async()=>{
+  const mutable={...route};
+  let received;
+  const {resolve}=make({
+    readRoute:async()=>mutable,
+    resolveCredential:async expected=>{
+      received=expected;
+      mutable.tenantId='brand_b';
+      mutable.wabaId='999999999999';
+      mutable.phoneNumberId='888888888888';
+      return credential;
+    }
+  });
+  const got=await resolve('brand_a');
+  assert.equal(got.businessAccountId,route.wabaId);
+  assert.equal(got.phoneNumberId,route.phoneNumberId);
+  assert.equal(received.wabaId,route.wabaId);
+  assert.equal(received.tenantId,'brand_a');
+});
+test('P2 WACRM route accessors cannot run prior to credential resolution',async()=>{
+  let reads=0,credentials=0;
+  const raw={...route};
+  Object.defineProperty(raw,'phoneNumberId',{enumerable:true,
+    get(){reads++;throw Error('forbidden inherited getter');}
+  });
+  const {resolve}=make({
+    readRoute:async()=>raw,
+    resolveCredential:async()=>{credentials++;return credential;}
+  });
+  await assert.rejects(resolve('brand_a'),WacrmConnectionUnavailable);
+  assert.equal(reads,0);
+  assert.equal(credentials,0);
+});

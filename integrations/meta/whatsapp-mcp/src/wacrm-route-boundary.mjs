@@ -7,6 +7,7 @@
  * yet implement a durable, tenant-scoped access-token resolver. That provider
  * remains a separate WACRM owner-reviewed implementation gate.
  */
+import { types as nodeTypes } from 'node:util';
 const ID = /^[0-9]{6,64}$/;
 const TENANT = /^[a-z0-9][a-z0-9_-]{1,63}$/;
 
@@ -33,11 +34,23 @@ export function createWacrmCentralConnectionResolver({ readRoute, resolveCredent
       throw new WacrmConnectionUnavailable();
     }
     let route;
-    try { route = await readRoute(tenantId); }
-    catch (_) { throw new WacrmConnectionUnavailable(); }
-    if (!route || route.tenantId !== tenantId || route.status !== 'active' ||
+    try {
+      const raw = await readRoute(tenantId);
+      if (!raw || typeof raw !== 'object' || nodeTypes.isProxy(raw) ||
+          Array.isArray(raw) || Object.getPrototypeOf(raw) !== Object.prototype)
+        throw new WacrmConnectionUnavailable();
+      const ds = Object.getOwnPropertyDescriptors(raw), snapshot = {};
+      for (const key of ['tenantId','status','activationId','wabaId','phoneNumberId']) {
+        if (!ds[key] || !Object.hasOwn(ds[key], 'value'))
+          throw new WacrmConnectionUnavailable();
+        snapshot[key] = ds[key].value;
+      }
+      route = Object.freeze(snapshot);
+    } catch (_) { throw new WacrmConnectionUnavailable(); }
+    if (route.tenantId !== tenantId || route.status !== 'active' ||
         !Number.isSafeInteger(route.activationId) || route.activationId < 1 ||
-        !ID.test(route.wabaId) || !ID.test(route.phoneNumberId)) {
+        typeof route.wabaId !== 'string' || !ID.test(route.wabaId) ||
+        typeof route.phoneNumberId !== 'string' || !ID.test(route.phoneNumberId)) {
       throw new WacrmConnectionUnavailable();
     }
     let credential;

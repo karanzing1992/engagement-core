@@ -65,7 +65,11 @@ function setup(overrides={}){
         count.provider++;plans.push(envelope.plan);
         // Analytics must be realistic metric-bearing synthetic fixtures, not
         // generic {id,name}; an empty report must be rejected by the runtime.
-        const receipt=envelope.plan.toolName==='whatsapp_get_business_analytics'?
+        const receipt=envelope.plan.toolName==='whatsapp_get_flow_metrics'?
+          {ok:true,data:{id:'123456789012',metric:{name:'ENDPOINT_REQUEST_COUNT',
+            granularity:'LIFETIME',data_points:[{data:[{key:'value',value:4}],
+              timestamp:'2026-11-01T08:00:00+0000'}]}}}:
+          envelope.plan.toolName==='whatsapp_get_business_analytics'?
           {ok:true,data:{analytics:{data_points:[{start:1793491200,end:1793577600,
             sent:4,delivered:3}]}}}:
           envelope.plan.toolName==='whatsapp_get_template_analytics'?
@@ -324,4 +328,82 @@ test('Nokia/other project and WhatsApp phone registration are not part of Lane A
     const out=await call(t.mcp,name,{});
     assert.equal(out.structuredContent.error.code,'unknown_tool');
   }
+});
+
+test('P2 negative mutation receipts reject false, untyped and conflicting outcomes',async()=>{
+  const denied=[
+    {accepted:false},
+    {success:false},
+    {accepted:'false'},
+    {success:0},
+    {accepted:true,success:false},
+    {accepted:false,success:true},
+    {accepted:null,resourceId:'123456789012'}
+  ];
+  for(const response of denied){
+    let invokes=0;
+    const t=setup({providers:{dojo:{async invoke(){invokes++;return {
+      ok:true,data:response
+    };}}}});
+    const r=await call(t.mcp,'whatsapp_send_text',{
+      to:'+919999999999',body:'synthetic'
+    });
+    assert.equal(invokes,1,JSON.stringify(response));
+    assert.equal(r.isError,true,JSON.stringify({response,result:r.structuredContent}));
+    assert.equal(r.structuredContent.error.code,'upstream_unavailable');
+    assert.ok(!JSON.stringify(r).includes('+919999999999'));
+  }
+});
+test('P2 affirmative boolean mutation receipts remain successful',async()=>{
+  for(const response of [{accepted:true},{success:true},{accepted:true,success:true}]){
+    const t=setup({providers:{dojo:{async invoke(){return {ok:true,data:response};}}}});
+    const r=await call(t.mcp,'whatsapp_send_text',{
+      to:'+919999999999',body:'synthetic'
+    });
+    assert.equal(r.isError,false,JSON.stringify({response,result:r.structuredContent}));
+  }
+});
+
+test('P2 Graph plan uses immutable trusted route snapshot after ownership await',async()=>{
+  const mutable=routeFor(A);
+  let passedRoute, actualPlan;
+  const t=setup({
+    resolveRoute:async()=>mutable,
+    resolveOwnership:async route=>{
+      passedRoute=route;
+      mutable.tenantId=B;
+      mutable.wabaId='999999999999';
+      mutable.phoneNumberId='888888888888';
+      return {wabaIdVerified:true,templateId:'123456789012'};
+    },
+    providers:{host:{executePlan:async({plan})=>{
+      actualPlan=plan;return {ok:true,data:{accepted:true,resourceId:'123456789012'}};
+    }}}
+  });
+  const result=await call(t.mcp,'whatsapp_update_template',{
+    templateId:'123456789012',components:[{type:'BODY',text:'Synthetic'}]
+  });
+  assert.equal(result.isError,false,JSON.stringify(result.structuredContent));
+  assert.equal(passedRoute.tenantId,A);
+  assert.equal(passedRoute.wabaId,'123456789012');
+  assert.equal(passedRoute.phoneNumberId,'223456789012');
+  assert.equal(Object.isFrozen(passedRoute),true);
+  assert.equal(actualPlan.resourcePath,'/v26.0/123456789012');
+});
+test('P2 Graph route rejects accessor before attempting ownership/provider use',async()=>{
+  let traps=0,owners=0;
+  const raw=routeFor(A);
+  Object.defineProperty(raw,'wabaId',{enumerable:true,
+    get(){traps++;throw Error('route accessor must not run');}
+  });
+  const t=setup({
+    resolveRoute:async()=>raw,
+    resolveOwnership:async()=>{owners++;return {wabaIdVerified:true};}
+  });
+  const r=await call(t.mcp,'whatsapp_get_business_account',{});
+  assert.equal(r.isError,true);
+  assert.equal(r.structuredContent.error.code,'route_unavailable');
+  assert.equal(traps,0);
+  assert.equal(owners,0);
+  assert.equal(t.count.provider,0);
 });

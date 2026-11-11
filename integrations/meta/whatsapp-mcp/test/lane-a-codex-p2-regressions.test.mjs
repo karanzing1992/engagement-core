@@ -14,7 +14,7 @@ function setup(toolName,response){
       activationId:42,wabaId:'123456789012',phoneNumberId:'223456789012'};},
     resolveOwnership:async()=>({wabaIdVerified:true}),
     providers:{host:{executePlan:async()=>{calls.provider++;return response;}}},
-    grants:[toolName]
+    grants:[toolName],enableWriteCandidates:true
   });
   return {calls,call:args=>mcp.callTool({name:toolName,arguments:args},ctx)};
 }
@@ -102,4 +102,198 @@ test('P2 profile response never grants credential key access',async()=>{
   assert.equal(r.isError,true);
   assert.equal(r.structuredContent.error.code,'upstream_unavailable');
   assert.ok(!JSON.stringify(r).includes('synthetic-not-a-token'));
+});
+
+test('P2 mutation resourceId requires a supported, nonempty identifier',async()=>{
+  const bad=[null,false,true,0,42,'','short','not a valid ID',
+    {},{id:'123456789012'},[],['123456789012'],'a'.repeat(129)];
+  for(const resourceId of bad){
+    for(const receipt of [{resourceId},{accepted:true,resourceId}]){
+      const {call,calls}=setup('whatsapp_update_business_profile',
+        {ok:true,data:receipt});
+      const response=await call({about:'synthetic business'});
+      assert.equal(response.isError,true,JSON.stringify(receipt));
+      assert.equal(response.structuredContent.error.code,'upstream_unavailable');
+      assert.equal(calls.provider,1);
+      assert.ok(!JSON.stringify(response).includes('not a valid ID'));
+    }
+  }
+});
+test('P2 mutation resourceId permits Graph IDs and bounded Meta QR codes',async()=>{
+  for(const resourceId of [
+    '123456789012','meta-core-synthetic-confirmation_12345','AWHPX5O6XYVUM1'
+  ]){
+    const {call}=setup('whatsapp_update_business_profile',
+      {ok:true,data:{resourceId}});
+    const r=await call({about:'synthetic business'});
+    assert.equal(r.isError,false,JSON.stringify({resourceId,result:r.structuredContent}));
+    assert.equal(r.structuredContent.data.resourceId,resourceId);
+  }
+});
+test('P2 malformed provider wrapper status or explicit error fails closed',async()=>{
+  for(const response of [
+    {ok:'false',data:{accepted:true}},
+    {ok:null,data:{accepted:true}},
+    {ok:0,data:{accepted:true}},
+    {isError:'true',data:{accepted:true}},
+    {isError:true,data:{accepted:true}},
+    {ok:true,error:{message:'synthetic failure'},data:{accepted:true}},
+    {ok:true,data:{accepted:true,error:{message:'synthetic failure'}}}
+  ]){
+    const {call}=setup('whatsapp_update_business_profile',response);
+    const r=await call({about:'synthetic business'});
+    assert.equal(r.isError,true,JSON.stringify(response));
+    assert.equal(r.structuredContent.error.code,'upstream_unavailable');
+    assert.ok(!JSON.stringify(r).includes('synthetic failure'));
+  }
+  const {call}=setup('whatsapp_update_business_profile',
+    {ok:true,isError:false,data:{accepted:true}});
+  const good=await call({about:'synthetic business'});
+  assert.equal(good.isError,false,JSON.stringify(good.structuredContent));
+});
+
+test('P2 explicit negative read status cannot masquerade as a successful read',async()=>{
+  for(const flag of [{success:false},{accepted:false},{success:'false'},
+    {accepted:0},{success:null}]){
+    const {call}=setup('whatsapp_get_business_account',
+      {ok:true,data:{id:'123456789012',...flag}});
+    const result=await call({});
+    assert.equal(result.isError,true,JSON.stringify(flag));
+    assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+  }
+  const positive=await setup('whatsapp_get_business_account',
+    {ok:true,data:{id:'123456789012',success:true}}).call({});
+  assert.equal(positive.isError,false,JSON.stringify(positive.structuredContent));
+});
+test('P2 nested provider error fields cannot be sanitized into successful reads',async()=>{
+  for(const field of ['error','errors']){
+    const payload={id:'123456789012',data:[{
+      id:'223456789012',[field]:{message:'synthetic negative result'}
+    }]};
+    const {call}=setup('whatsapp_get_business_account',{ok:true,data:payload});
+    const result=await call({});
+    assert.equal(result.isError,true,field);
+    assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+    assert.ok(!JSON.stringify(result).includes('synthetic negative result'));
+  }
+});
+
+test('P2 envelope negative mutation receipts cannot be lost during unwrapping',async()=>{
+  for(const envelope of [
+    {ok:true,accepted:false,data:{resourceId:'123456789012'}},
+    {ok:true,success:false,data:{accepted:true}},
+    {ok:true,accepted:'false',data:{success:true}},
+    {ok:true,accepted:null,data:{accepted:true}},
+    {ok:true,accepted:true,success:false,
+      structuredContent:{resourceId:'123456789012'}}
+  ]){
+    const {call}=setup('whatsapp_update_business_profile',envelope);
+    const result=await call({about:'synthetic'});
+    assert.equal(result.isError,true,JSON.stringify(envelope));
+    assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+  }
+  const {call}=setup('whatsapp_update_business_profile',
+    {ok:true,accepted:true,data:{resourceId:'123456789012'}});
+  const good=await call({about:'synthetic'});
+  assert.equal(good.isError,false,JSON.stringify(good.structuredContent));
+});
+
+test('P2 envelope error array is rejected before selecting successful provider data',async()=>{
+  for(const [name,args] of [
+    ['whatsapp_update_business_profile',{about:'synthetic'}],
+    ['whatsapp_get_business_account',{}]
+  ]){
+    for(const response of [
+      {ok:true,errors:[{message:'synthetic provider rejection'}],
+        data:{resourceId:'123456789012',id:'123456789012',accepted:true}},
+      {ok:true,errors:[],
+        structuredContent:{resourceId:'123456789012',id:'123456789012',accepted:true}},
+      {ok:true,errors:null,
+        data:{resourceId:'123456789012',id:'123456789012',accepted:true}}
+    ]){
+      const {call}=setup(name,response);
+      const result=await call(args);
+      assert.equal(result.isError,true,JSON.stringify({name,response}));
+      assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+      assert.ok(!JSON.stringify(result).includes('synthetic provider rejection'));
+    }
+    const errorGetter={ok:true,data:{resourceId:'123456789012',id:'123456789012',accepted:true}};
+    let getterCalls=0;
+    Object.defineProperty(errorGetter,'errors',{enumerable:true,get(){
+      getterCalls++;throw Error('unexpected getter invocation');
+    }});
+    const rejected=await setup(name,errorGetter).call(args);
+    assert.equal(rejected.isError,true);
+    assert.equal(getterCalls,0);
+  }
+});
+
+test('P2 nested provider status must not be dropped while unwrapping successful envelopes',async()=>{
+  for(const name of ['whatsapp_update_business_profile','whatsapp_get_business_account']){
+    const args=name==='whatsapp_update_business_profile'?{about:'synthetic'}:{};
+    const candidates=[
+      {ok:false,resourceId:'123456789012',id:'123456789012'},
+      {ok:'false',resourceId:'123456789012',id:'123456789012'},
+      {ok:null,resourceId:'123456789012',id:'123456789012'},
+      {isError:true,resourceId:'123456789012',id:'123456789012'},
+      {isError:'false',resourceId:'123456789012',id:'123456789012'},
+      {errors:[],resourceId:'123456789012',id:'123456789012'}
+    ];
+    for(const payload of candidates){
+      const result=await setup(name,{ok:true,data:payload}).call(args);
+      assert.equal(result.isError,true,JSON.stringify({name,payload}));
+      assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+    }
+    const traps={id:'123456789012',resourceId:'123456789012'};
+    let invoked=0;
+    Object.defineProperty(traps,'isError',{enumerable:true,get(){
+      invoked++;throw Error('read of getter is prohibited');
+    }});
+    const result=await setup(name,{ok:true,data:traps}).call(args);
+    assert.equal(result.isError,true);
+    assert.equal(invoked,0);
+  }
+});
+
+test('P2 nested Graph records fail closed on explicit rejection markers',async()=>{
+  const failed=[
+    {ok:false},{ok:'false'},{ok:null},
+    {isError:true},{isError:'true'},
+    {success:false},{accepted:false},
+    {errors:[]},{error:{message:'synthetic denied'}}
+  ];
+  for(const marker of failed){
+    for(const name of ['whatsapp_list_phone_numbers','whatsapp_get_business_account']){
+      const envelope={ok:true,data:{data:[{id:'123456789012',...marker}]}};
+      const result=await setup(name,envelope).call({});
+      assert.equal(result.isError,true,JSON.stringify({name,marker}));
+      assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+      assert.ok(!JSON.stringify(result).includes('synthetic denied'));
+    }
+  }
+});
+test('P2 nested failure checks apply to analytics data points and never invoke getters',async()=>{
+  for(const marker of [{ok:false},{isError:true},{success:false},{accepted:false}]){
+    const payload={analytics:{data_points:[{sent:2,...marker}]}};
+    const response=await setup('whatsapp_get_business_analytics',{ok:true,data:payload})
+      .call({startDate:'2026-11-01',endDate:'2026-11-09'});
+    assert.equal(response.isError,true,JSON.stringify(marker));
+    assert.equal(response.structuredContent.error.code,'upstream_unavailable');
+  }
+  const row={id:'123456789012'};
+  let called=0;
+  Object.defineProperty(row,'ok',{enumerable:true,get(){
+    called++;throw Error('Untrusted getter');
+  }});
+  const result=await setup('whatsapp_list_phone_numbers',
+    {ok:true,data:{data:[row]}}).call({});
+  assert.equal(result.isError,true);
+  assert.equal(called,0);
+});
+test('P2 nested explicitly affirmative flags remain acceptable on reads',async()=>{
+  const receipt={ok:true,data:{data:[{id:'123456789012',
+    ok:true,isError:false,success:true,accepted:true}]}};
+  const result=await setup('whatsapp_list_phone_numbers',receipt).call({});
+  assert.equal(result.isError,false,JSON.stringify(result.structuredContent));
+  assert.equal(result.structuredContent.data.data[0].id,'123456789012');
 });

@@ -95,21 +95,33 @@ export function createContractEnforcedWacrmBrokerAdapter(config) {
   return Object.freeze({
     listTools: () => broker.listTools(),
     async invoke(request = {}) {
-      // Reject outer Proxy wrappers before calling standalone broker.
-      if (nodeTypes.isProxy(request)) {
-        return { ok: false, error: { code: 'invalid_input', message: 'META CORE read unavailable' } };
-      }
+      // Capture immutable validation values before broker.invoke's async
+      // authorization/transport. The broker independently snapshots signed
+      // request args before its own first await. Never reread caller objects.
+      const invalid = () => ({
+        ok: false, error: { code: 'invalid_input', message: 'META CORE read unavailable' }
+      });
+      if (!isPlainObject(request)) return invalid();
+      let toolName, expectedId;
+      try {
+        const fields = Object.getOwnPropertyDescriptors(request);
+        if (!Object.hasOwn(fields.toolName ?? {}, 'value') ||
+            (fields.args && !Object.hasOwn(fields.args, 'value')))
+          return invalid();
+        toolName = fields.toolName.value;
+        if (toolName === 'whatsapp_get_template') {
+          const args = fields.args?.value;
+          if (!isPlainObject(args)) return invalid();
+          const descriptor = Object.getOwnPropertyDescriptor(args, 'templateId');
+          if (!descriptor || !Object.hasOwn(descriptor, 'value') ||
+              typeof descriptor.value !== 'string' ||
+              !idPattern.test(descriptor.value)) return invalid();
+          expectedId = descriptor.value;
+        }
+      } catch (_) { return invalid(); }
       const response = await broker.invoke(request);
       if (response?.ok !== true) return response;
-      let expectedId;
-      try {
-        if (request?.toolName === 'whatsapp_get_template') {
-          const descriptor = Object.getOwnPropertyDescriptor(request.args, 'templateId');
-          expectedId = descriptor && Object.hasOwn(descriptor, 'value')
-            ? descriptor.value : undefined;
-        }
-      } catch (_) { /* fail closed below */ }
-      const safe = sanitizeWacrmTemplateResult(request?.toolName, response.data, expectedId);
+      const safe = sanitizeWacrmTemplateResult(toolName, response.data, expectedId);
       return safe === null
         ? { ok: false, error: { code: 'upstream_unavailable', message: 'META CORE read unavailable' } }
         : { ok: true, data: safe };

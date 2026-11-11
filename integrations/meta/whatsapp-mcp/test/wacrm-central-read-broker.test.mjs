@@ -212,3 +212,32 @@ test('oversized response, redirect, transport throw and invalid JSON fail closed
     assert.ok(!JSON.stringify(out).includes('private-network-details'));
   }
 });
+
+test('Central broker rejects explicit error and negative-status envelopes despite valid HTTP 200 data',async()=>{
+  const payloads=[
+    {errors:[{message:'synthetic rejected'}]},
+    {errors:[]},
+    {error:{message:'synthetic rejected'}},
+    {isError:true},
+    {isError:false},
+    {success:false},
+    {success:'false'},
+    {accepted:false}
+  ];
+  for(const extra of payloads){
+    const t=make({fetchImpl:async (_url,options)=>{
+      const request=JSON.parse(options.body);
+      return new Response(JSON.stringify({
+        ok:true,tenantId:request.tenantId,toolName:request.toolName,
+        graphApiVersion:'v26.0',data:{data:[]},...extra
+      }),{status:200,headers:{'Content-Type':'application/json'}});
+    }});
+    const result=await t.adapter.invoke({
+      principal:{tenantId:tenants.a,scopes:['meta:read']},
+      tenantId:tenants.a,toolName:'whatsapp_list_templates',args:{limit:1}
+    });
+    assert.equal(result.ok,false,JSON.stringify(extra));
+    assert.equal(result.error.code,'upstream_unavailable');
+    assert.ok(!JSON.stringify(result).includes('synthetic rejected'));
+  }
+});

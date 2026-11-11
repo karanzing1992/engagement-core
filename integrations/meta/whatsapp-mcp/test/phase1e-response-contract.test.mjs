@@ -12,16 +12,18 @@ const template = Object.freeze({
   status: 'APPROVED', category: 'UTILITY',
 });
 
-function make(output) {
+function make(output, onAuthorize = null) {
   const calls = [];
   let routeReads = 0;
   const adapter = createContractEnforcedWacrmBrokerAdapter({
     endpoint: 'https://central.synthetic.example/wp-json/wacrm-central/v1/meta-core/read',
     sharedSecret: key,
-    authorizeTenant: async (principal, tenantId, toolName) =>
-      !!principal && principal.tenantId === tenantId &&
+    authorizeTenant: async (principal, tenantId, toolName) => {
+      if(onAuthorize)onAuthorize();
+      return !!principal && principal.tenantId === tenantId &&
       principal.scopes?.includes('meta:read') &&
-      ['whatsapp_list_templates', 'whatsapp_get_template'].includes(toolName),
+      ['whatsapp_list_templates', 'whatsapp_get_template'].includes(toolName);
+    },
     readRoute: async tenantId => {
       routeReads++;
       return { tenantId, activationId: 42, wabaId: '123456789012',
@@ -134,4 +136,38 @@ test('Phase 1-E: Central empty list is a valid read-only response', async () => 
   const t = make({ data: [] });
   const result = await list(t.adapter);
   assert.deepEqual(result, { ok: true, data: { data: [] } });
+});
+
+test('P2 wrapper snapshots toolName and expectedId before asynchronous broker auth',async()=>{
+  const args={templateId:template.id};
+  const request={principal:auth(tenantA),tenantId:tenantA,
+    toolName:'whatsapp_get_template',args};
+  const t=make(template,()=>{
+    // Attempts to rewrite expected result after the signed broker took a
+    // private argument snapshot must not affect post-fetch validation.
+    args.templateId='300000000011';
+    request.toolName='whatsapp_list_templates';
+  });
+  const result=await t.adapter.invoke(request);
+  assert.equal(result.ok,true,JSON.stringify(result));
+  assert.deepEqual(result.data,template);
+  assert.equal(t.calls.length,1);
+  const signed=JSON.parse(t.calls[0].options.body);
+  assert.equal(signed.toolName,'whatsapp_get_template');
+  assert.equal(signed.args.templateId,template.id);
+  assert.equal(args.templateId,'300000000011');
+});
+test('P2 wrapper rejects Proxy args before descriptor traps or host callbacks',async()=>{
+  let traps=0,authCalls=0;
+  const args=new Proxy({templateId:template.id},{
+    getOwnPropertyDescriptor(){traps++;throw Error('forbidden proxy trap');}
+  });
+  const t=make(template,()=>{authCalls++;});
+  const res=await t.adapter.invoke({principal:auth(tenantA),tenantId:tenantA,
+    toolName:'whatsapp_get_template',args});
+  assert.equal(res.ok,false);
+  assert.equal(res.error.code,'invalid_input');
+  assert.equal(traps,0);
+  assert.equal(authCalls,0);
+  assert.equal(t.calls.length,0);
 });
