@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
+  "version": "2.1.1",
   "as_of": "2026-11-10",
   "retrieval_strategy": "version-pinned source-grounded BM25 with per-layer budgets",
   "priority": [

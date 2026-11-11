@@ -115,6 +115,11 @@ def ingest_agent(w,receipt):
  d=state(w);r=json.loads(receipt.read_text())
  require(d['stage_status']['autonomous_concept_and_design']=='PASS','DESIGN_STAGE_REQUIRED')
  require(r.get('agent')=='opencode' and r.get('status')=='PASS' and r.get('tool_file_write_verified') is True,'AGENT_PROVENANCE_REQUIRED')
+ from design_contract import policy_for
+ if policy_for(d['project']) and str(r.get('target','')).endswith('.html'):
+  require(isinstance(r.get('semantic_validation'),dict) and
+          r['semantic_validation'].get('status')=='PASS','SEMANTIC_BRAND_ATTESTATION_REQUIRED')
+
  require(r.get('baseline_sha256')==d['baseline_sha256'],'WRONG_BASELINE')
  require(r.get('output_site_sha256')==treehash(w/'site'),'WRONG_OUTPUT_HASH')
  require(r.get('task_source')=='bounded_v2_rag' and r.get('prompt_token_budget',99999)<=3000,'BAD_AGENT_CONTEXT')
