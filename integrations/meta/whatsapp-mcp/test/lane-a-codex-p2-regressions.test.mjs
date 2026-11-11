@@ -227,3 +227,30 @@ test('P2 envelope error array is rejected before selecting successful provider d
     assert.equal(getterCalls,0);
   }
 });
+
+test('P2 nested provider status must not be dropped while unwrapping successful envelopes',async()=>{
+  for(const name of ['whatsapp_update_business_profile','whatsapp_get_business_account']){
+    const args=name==='whatsapp_update_business_profile'?{about:'synthetic'}:{};
+    const candidates=[
+      {ok:false,resourceId:'123456789012',id:'123456789012'},
+      {ok:'false',resourceId:'123456789012',id:'123456789012'},
+      {ok:null,resourceId:'123456789012',id:'123456789012'},
+      {isError:true,resourceId:'123456789012',id:'123456789012'},
+      {isError:'false',resourceId:'123456789012',id:'123456789012'},
+      {errors:[],resourceId:'123456789012',id:'123456789012'}
+    ];
+    for(const payload of candidates){
+      const result=await setup(name,{ok:true,data:payload}).call(args);
+      assert.equal(result.isError,true,JSON.stringify({name,payload}));
+      assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+    }
+    const traps={id:'123456789012',resourceId:'123456789012'};
+    let invoked=0;
+    Object.defineProperty(traps,'isError',{enumerable:true,get(){
+      invoked++;throw Error('read of getter is prohibited');
+    }});
+    const result=await setup(name,{ok:true,data:traps}).call(args);
+    assert.equal(result.isError,true);
+    assert.equal(invoked,0);
+  }
+});

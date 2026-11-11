@@ -164,7 +164,12 @@ export function createWacrmCentralBrokerReadAdapter({
         }
         // Raw Graph bearer tokens are never returned by the Central broker.
         // Deny suspicious response fields as defense against accidental regressions.
-        if (Object.hasOwn(data, 'accessToken') || Object.hasOwn(data, 'access_token')) {
+        // Central can return HTTP 200 with partial Graph errors. Reject
+        // explicit envelope errors before discarding the envelope.
+        if (Object.hasOwn(data, 'accessToken') || Object.hasOwn(data, 'access_token') ||
+            Object.hasOwn(data, 'error') || Object.hasOwn(data, 'errors') ||
+            Object.hasOwn(data, 'isError') || Object.hasOwn(data, 'success') && data.success !== true ||
+            Object.hasOwn(data, 'accepted') && data.accepted !== true) {
           return reject('upstream_unavailable');
         }
         return { ok: true, data: data.data };

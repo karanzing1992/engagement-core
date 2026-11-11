@@ -269,8 +269,17 @@ function sanitize(result,def){
     ?descriptors.structuredContent.value:Object.hasOwn(descriptors,'data')
       ?descriptors.data.value:result;
   if(!plain(value))throw new Error('provider');
-  // Error objects must not be silently stripped by the generic allowlist.
-  if(Object.hasOwn(Object.getOwnPropertyDescriptors(value),'error'))
+  // Nested result status is authoritative even when a successful outer
+  // envelope exists. Never drop a failed status during output sanitization.
+  const payloadDescriptors=Object.getOwnPropertyDescriptors(value);
+  for(const key of ['ok','isError']){
+    if(Object.hasOwn(payloadDescriptors,key)&&
+      (!Object.hasOwn(payloadDescriptors[key],'value')||
+       payloadDescriptors[key].value!==(key==='ok')))
+      throw new Error('provider_payload_status');
+  }
+  if(Object.hasOwn(payloadDescriptors,'error')||
+     Object.hasOwn(payloadDescriptors,'errors'))
     throw new Error('provider_error');
   const analyticsKey=def.name==='whatsapp_get_business_analytics'?'analytics':
     def.name==='whatsapp_get_template_analytics'?'template_analytics':null;
