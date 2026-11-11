@@ -52,7 +52,7 @@ def run(a):
     require((w/'site'/target).is_file(),'LOST_COMMITTED_OUTPUT')
     event(target,'REUSED');return
    require(not (w/'site'/target).exists(),'EXISTING_OUTPUT_PROTECTED')
-   for attempt in (1,2):
+   for attempt in (1,2,3,4):
     tid='multi-'+hashlib.sha256((state(w)['job_id']+target+task+str(attempt)).encode()).hexdigest()[:22]
     receipt=w/'tasks'/tid/'receipt.json'
     if (w/'tasks'/tid).exists():

@@ -21,17 +21,30 @@ def run():
  t=w/'tasks'/a.task_id;require(not t.exists(),'TASK_ALREADY_EXECUTED');t.mkdir(parents=True)
  ctx=(w/'evidence/rag-packet.txt').read_text()
  require(hashlib.sha256(ctx.encode()).hexdigest()==s['rag_sha256'],'RAG_CONTEXT_DRIFT')
- (t/'knowledge.txt').write_text(writer_context(ctx,s['project']))
+ facts=writer_context(ctx,s['project'])
+ # Keep owner's verified project facts before secondary general knowledge.
+ # Free Groq 120b TPM=8000; bound each model input without diluting policy checks.
+ (t/'knowledge.txt').write_text(facts[:2250])
  extra=''
  if a.site_brief:
   src=w/'evidence/full-site-brief.txt'
   require(src.is_file() and not src.is_symlink() and 100<=src.stat().st_size<=12000,'SITE_BRIEF_MISSING_OR_UNSAFE')
-  (t/'site-brief.txt').write_bytes(src.read_bytes())
-  extra+=' Read site-brief.txt for full sitemap and approved details.'
+  full=src.read_text()
+  intro=full[:1150]
+  anchor='Explore requires' if a.target.startswith('explore') else (
+         'Contact form must' if a.target.startswith('contact') else (
+         'Rooms:' if a.target.startswith('rooms') else (
+         'Experiences:' if a.target.startswith('experiences') else '')))
+  additional=''
+  if anchor and anchor in full:
+   offset=full.index(anchor)
+   additional=full[offset:offset+620]
+  (t/'site-brief.txt').write_text((intro+'\n'+additional)[:1800])
+  extra+=' Read site-brief.txt for approved page facts.'
  if a.style_reference:
   src=w/'site/assets/v9-main.css'
   require(src.is_file() and not src.is_symlink() and src.stat().st_size<=30000,'STYLE_REFERENCE_MISSING')
-  (t/'design.css').write_bytes(src.read_bytes())
+  (t/'design.css').write_text(src.read_text()[:1150])
   extra+=' Read design.css and link assets/v9-main.css; do not invent a different style system.'
 
  if a.reference_page:
