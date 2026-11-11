@@ -197,3 +197,33 @@ test('P2 envelope negative mutation receipts cannot be lost during unwrapping',a
   const good=await call({about:'synthetic'});
   assert.equal(good.isError,false,JSON.stringify(good.structuredContent));
 });
+
+test('P2 envelope error array is rejected before selecting successful provider data',async()=>{
+  for(const [name,args] of [
+    ['whatsapp_update_business_profile',{about:'synthetic'}],
+    ['whatsapp_get_business_account',{}]
+  ]){
+    for(const response of [
+      {ok:true,errors:[{message:'synthetic provider rejection'}],
+        data:{resourceId:'123456789012',id:'123456789012',accepted:true}},
+      {ok:true,errors:[],
+        structuredContent:{resourceId:'123456789012',id:'123456789012',accepted:true}},
+      {ok:true,errors:null,
+        data:{resourceId:'123456789012',id:'123456789012',accepted:true}}
+    ]){
+      const {call}=setup(name,response);
+      const result=await call(args);
+      assert.equal(result.isError,true,JSON.stringify({name,response}));
+      assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+      assert.ok(!JSON.stringify(result).includes('synthetic provider rejection'));
+    }
+    const errorGetter={ok:true,data:{resourceId:'123456789012',id:'123456789012',accepted:true}};
+    let getterCalls=0;
+    Object.defineProperty(errorGetter,'errors',{enumerable:true,get(){
+      getterCalls++;throw Error('unexpected getter invocation');
+    }});
+    const rejected=await setup(name,errorGetter).call(args);
+    assert.equal(rejected.isError,true);
+    assert.equal(getterCalls,0);
+  }
+});

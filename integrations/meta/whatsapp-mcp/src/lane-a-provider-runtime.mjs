@@ -262,7 +262,8 @@ function sanitize(result,def){
   // accidentally convert malformed "false", null or error wrappers to OK.
   if((Object.hasOwn(descriptors,'ok')&&descriptors.ok.value!==true)||
      (Object.hasOwn(descriptors,'isError')&&descriptors.isError.value!==false)||
-     Object.hasOwn(descriptors,'error'))
+     Object.hasOwn(descriptors,'error')||
+     Object.hasOwn(descriptors,'errors'))
     throw new Error('provider');
   const value=Object.hasOwn(descriptors,'structuredContent')
     ?descriptors.structuredContent.value:Object.hasOwn(descriptors,'data')
