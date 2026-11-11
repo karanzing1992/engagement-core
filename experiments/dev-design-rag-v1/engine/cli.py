@@ -17,9 +17,9 @@ def concept(w):
       next(k for k in layers if k.startswith('type/')))
  limits=(590,510,250,160)
  chunks=[k+'\n'+layers[k]['context'][:n] for k,n in zip(cues,limits)]
- prompt=('Propose TWO distinct UI designs based on CURRENT project and brand rules; pick one. '
-  'Give navigation, mobile, interaction, brand and accessible typography recommendations. '
-  'Return under 400 words; this is not screenshot/artistic certification.\n'+'\n'.join(chunks))
+ prompt=('For a fresh multi-page Goa hostel website return SIX lines only, 10 to 18 words each: '
+  'art direction, accessible palette, typography, shared navigation, layout grid, mobile UX. '
+  'Use current facts, no invented facilities. No long explanation or scored review.\n'+'\n'.join(chunks))
  require(len(prompt.encode('utf8'))<=2048,'ROUTER_PUBLIC_PROMPT_2048_BYTE_LIMIT')
  # Enforce existing owner-approved model routing SOP, never invent grants.
  approvals=json.loads(Path('/var/lib/generic-linux-automator-exec/matrix-controller/owner-intake-approvals-v1.json').read_text())['approvals']
@@ -38,7 +38,7 @@ def concept(w):
   'qa':{'reviewer_id':'independent-real-screenshot-review','test_refs':['V2 source accuracy','owner artistic >=95','mobile QA'],
    'acceptance':'Proposal only; no production code writes or deployment.'},
   'budget':{'paid_cap':0,'reserved_amount':0,'max_total_attempts':1,
-   'max_input_tokens':2000,'max_output_tokens':650},
+   'max_input_tokens':2000,'max_output_tokens':1024},
   'reporting':{'release_mode':'none','allow_publishing':False,'allow_production_deployment':False},
   'forbidden_effects':['deployment','external_messages','production_write','git_push','unbounded_shell','secret_exfiltration']}
  sop=w/'reports/concept-sop.json';write(sop,packet);sop.chmod(0o600)

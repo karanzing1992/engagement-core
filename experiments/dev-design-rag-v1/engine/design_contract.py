@@ -3,6 +3,7 @@
 A local brand policy is not a model score, artistic certificate or release grant.
 """
 from html.parser import HTMLParser
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -58,7 +59,7 @@ class Document(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.links=[];self.images=[];self.lang='';self.headings=[];self.main=False
-        self.text=[];self.scripts=False;self._h1=False
+        self.text=[];self.scripts=False;self.script_tags=[];self._h1=False
     def handle_starttag(self,tag,attrs):
         a=dict(attrs)
         if tag=='html':self.lang=a.get('lang','')
@@ -66,14 +67,14 @@ class Document(HTMLParser):
         if tag=='h1':self._h1=True
         if tag=='a':self.links.append(a.get('href',''))
         if tag=='img':self.images.append(a)
-        if tag=='script':self.scripts=True
+        if tag=='script':self.scripts=True;self.script_tags.append(a)
     def handle_endtag(self,tag):
         if tag=='h1':self._h1=False
     def handle_data(self,data):
         if self._h1:self.headings.append(data)
         if data.strip():self.text.append(data)
 
-def validate_html(html,project,site=None):
+def validate_html(html,project,site=None,page=None):
     if not isinstance(html,str) or len(html)<200 or '<html' not in html.lower():
         raise ValueError('RENDERABLE_HTML_REQUIRED')
     if len(html.encode())>30000:raise ValueError('WRITER_HTML_MAX_BYTES')
@@ -99,7 +100,7 @@ def validate_html(html,project,site=None):
         if u.scheme in ('http','https') and u.hostname not in ('wa.me','maps.app.goo.gl'):
             raise ValueError('UNAPPROVED_EXTERNAL_LINK')
     imgs=[x.get('src','') for x in d.images]
-    if p['logo'] not in imgs or p['reference_image'] not in imgs:
+    if p['logo'] not in imgs or ((page is None or page=='index.html') and p['reference_image'] not in imgs):
         raise ValueError('OFFICIAL_LOGO_AND_INTERIOR_REQUIRED')
     for f in imgs:
         if site:
@@ -117,6 +118,17 @@ def validate_html(html,project,site=None):
     for pattern in p['prohibited_claim_patterns']:
         if re.search(pattern,prose,re.I):
             raise ValueError('UNSUPPORTED_PROPERTY_CLAIM:'+pattern)
-    if d.scripts:raise ValueError('UNREVIEWED_SCRIPT')
+    if d.scripts:
+        require_hash='5838d85f62edc0077fb68969c91887e30cec278f1b72c1bb322e1cc93c883e11'
+        if not site:raise ValueError('UNREVIEWED_SCRIPT')
+        if len(d.script_tags)!=1:raise ValueError('SCRIPT_COUNT_NOT_APPROVED')
+        tag=d.script_tags[0]
+        if tag.get('src')!='assets/site.js' or set(tag)-{'src','defer'} or 'defer' not in tag:
+            raise ValueError('UNREVIEWED_SCRIPT')
+        src=Path(site)/'assets/site.js'
+        if not src.is_file() or src.is_symlink() or hashlib.sha256(src.read_bytes()).hexdigest()!=require_hash:
+            raise ValueError('UNTRUSTED_SITE_SCRIPT')
+        if re.search(r'<script[^>]*>\s*[^\s<]',html,re.I):
+            raise ValueError('INLINE_SCRIPT_FORBIDDEN')
     return {'status':'PASS','policy':p['schema'],
         'checks':['brand','contact','nav','asset-provenance','claim-guard','page-structure']}

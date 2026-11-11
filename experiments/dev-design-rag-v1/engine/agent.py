@@ -9,6 +9,8 @@ def run():
  p=argparse.ArgumentParser()
  for name in ('workspace','target','task','task-id'):p.add_argument('--'+name,required=True)
  p.add_argument('--reference-page',default=None)
+ p.add_argument('--site-brief',action='store_true')
+ p.add_argument('--style-reference',action='store_true')
  a=p.parse_args();w=workspace(Path(a.workspace));s=state(w)
  require(s['stage_status']['autonomous_concept_and_design']=='PASS','DESIGN_NOT_APPROVED_FOR_CODING')
  require(s['site_sha256']==treehash(w/'site'),'SOURCE_HASH_DRIFT')
@@ -20,6 +22,18 @@ def run():
  ctx=(w/'evidence/rag-packet.txt').read_text()
  require(hashlib.sha256(ctx.encode()).hexdigest()==s['rag_sha256'],'RAG_CONTEXT_DRIFT')
  (t/'knowledge.txt').write_text(writer_context(ctx,s['project']))
+ extra=''
+ if a.site_brief:
+  src=w/'evidence/full-site-brief.txt'
+  require(src.is_file() and not src.is_symlink() and 100<=src.stat().st_size<=12000,'SITE_BRIEF_MISSING_OR_UNSAFE')
+  (t/'site-brief.txt').write_bytes(src.read_bytes())
+  extra+=' Read site-brief.txt for full sitemap and approved details.'
+ if a.style_reference:
+  src=w/'site/assets/v9-main.css'
+  require(src.is_file() and not src.is_symlink() and src.stat().st_size<=30000,'STYLE_REFERENCE_MISSING')
+  (t/'design.css').write_bytes(src.read_bytes())
+  extra+=' Read design.css and link assets/v9-main.css; do not invent a different style system.'
+
  if a.reference_page:
   require(Path(a.reference_page).name==a.reference_page and a.reference_page.endswith('.html'),'INVALID_REPAIR_REFERENCE')
   old=w/'site'/a.reference_page
@@ -42,7 +56,7 @@ def run():
  prompt=('Read '+str(t/'knowledge.txt')+' briefly. WRITE exactly one file to ABSOLUTE PATH '+str(t/name)+
  ' using your actual WRITE tool. Read the FULL authorized facts first. '+
  ('Repair from reference.html and qa-feedback.txt; keep approved brand, eliminate ALL axe issues. ' if a.reference_page else '')+
- 'Task: '+a.task+
+ extra+' Task: '+a.task+
  '. Do not write other files, do not publish, and do not reply before writing the file.')
  require(len(prompt)<(1450 if a.reference_page else 1100),'PROMPT_BUDGET')
  R=Path.home()/'.local/share/matrix-dev-router';policy=json.loads((R/'policy.json').read_text())
@@ -95,7 +109,7 @@ def run():
   if a.target.endswith('.css') and data.count('{')!=data.count('}'):success=False
  validation=None;invalid_reason=None
  if success and a.target.endswith('.html'):
-  try:validation=validate_html(f.read_text(encoding='utf-8'),s['project'],w/'site')
+  try:validation=validate_html(f.read_text(encoding='utf-8'),s['project'],w/'site',page=a.target)
   except Exception as e:
    invalid_reason=type(e).__name__+':'+str(e)[:140]
    success=False
