@@ -5,6 +5,8 @@ from pathlib import Path
 from core import create,gate,sha,state,workspace,verify_review,write,require,treehash
 from cli import concept,qa,performance,ingest_agent
 from reviewer import review as visual_review
+from qa_repair import run as bounded_qa_repair
+from contrast_repair import candidate as targeted_contrast_candidate,run as targeted_contrast_repair
 
 TRANSIENT=('429','503','RATE_LIMIT','THROTTLE','TIMEOUT','MODEL_UNAVAILABLE')
 class Blocked(Exception):pass
@@ -67,6 +69,11 @@ def runner(args):
                      '--target',args.target,'--task',args.task,'--task-id',taskid]
                 result=subprocess.run(cmd,text=True,capture_output=True,timeout=170)
                 if result.returncode!=0:
+                    if receipt.is_file() and attempt==1:
+                        failure=json.loads(receipt.read_text())
+                        if failure.get('status')=='BLOCKED' and failure.get('validation_failure'):
+                            checkpoint('semantic_revision','RETRY',failure['validation_failure'])
+                            continue
                     raise ValueError('AUTONOMOUS_AGENT_FAILED:'+result.stdout[-180:]+result.stderr[-100:])
                 require(receipt.is_file(),'AGENT_RECEIPT_MISSING')
                 return ingest_agent(w,receipt)
@@ -76,7 +83,32 @@ def runner(args):
         pages=[p.strip() for p in pages if p.strip()]
         require(pages and all(Path(p).name==p and p.endswith('.html') for p in pages),
                 'ROUTE_LIST_INVALID')
-        execute('browser_qa',lambda:qa(w,','.join(pages)),lambda:state(w)['stage_status']['actual_render_and_screenshot']=='PASS')
+        try:
+            if (len(pages)==1 and (w/'reports/browser-qa.json').is_file() and
+                    state(w)['stage_status']['actual_render_and_screenshot']!='PASS'):
+                try:
+                    from qa_repair import validated_failure
+                    validated_failure(w,pages[0])
+                    checkpoint('browser_qa','REUSED_FAILED_QA','resuming existing real QA evidence')
+                    raise Blocked('browser_qa:ValueError:BROWSER_QA_BLOCKED:existing verified browser report')
+                except ValueError:
+                    pass
+            execute('browser_qa',lambda:qa(w,','.join(pages)),lambda:state(w)['stage_status']['actual_render_and_screenshot']=='PASS')
+        except Blocked as e:
+            if (not str(e).startswith('browser_qa:ValueError:BROWSER_QA_BLOCKED:') or
+                    len(pages)!=1 or args.repair_rounds<=0):
+                raise
+            try:
+                try:
+                    targeted_contrast_candidate(w,pages[0])
+                except ValueError:
+                    repaired=bounded_qa_repair(w,pages[0],args.task,args.repair_rounds,checkpoint)
+                else:
+                    repaired=targeted_contrast_repair(w,pages[0],checkpoint)
+            except Exception as problem:
+                checkpoint('qa_repair','BLOCKED',str(problem))
+                raise Blocked('QA_REPAIR_FAILED:'+str(problem)) from problem
+            pages=[repaired]
         summary=w/'reports/lighthouse-summary.json'
         for page in pages:
             def done_page():
@@ -118,6 +150,7 @@ if __name__=='__main__':
     p.add_argument('--pages',default='')
     p.add_argument('--vision-model',default='qwen3-vl:2b-instruct')
     p.add_argument('--vision-timeout',type=int,default=110)
+    p.add_argument('--repair-rounds',type=int,choices=[0,1,2],default=2)
     p.add_argument('--status',action='store_true')
     a=p.parse_args()
     try:

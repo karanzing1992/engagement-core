@@ -24,7 +24,9 @@ for(const page of pages)for(const width of widths){
    lang:document.documentElement.lang||'',main:!!document.querySelector('main'),placeholder:/is being redesigned|not ready for review yet/i.test(document.body.innerText)
   }));
   const axe=await new AxeBuilder({page:p}).withTags(['wcag2a','wcag2aa','wcag21aa','wcag22aa']).analyze();
-  viols=axe.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.length}));
+  viols=axe.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.length,
+   targets:v.nodes.slice(0,4).map(n=>({selector:(n.target||[]).join(' ').slice(0,140),
+      failure_summary:String(n.failureSummary||'').slice(0,260)}))}));
   if(width<=390){
     const togg=p.locator('[aria-controls][aria-expanded]').first();
     if(await togg.count()){

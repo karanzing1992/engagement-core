@@ -45,7 +45,7 @@ class DesignKnowledgeV2Tests(unittest.TestCase):
     def test_current_versions_always_first(self):
         result=build_packet(self.registry,"andaz-vibe-stay","V6 current owner palette")
         self.assertEqual(result["status"],"READY")
-        self.assertEqual(result["version"],"2.1.0")
+        self.assertEqual(result["version"],"2.1.1")
         self.assertEqual(result["authority_order"],["project","brand","generic","type"])
         self.assertLess(result["packet_text"].find("andaz-v6-arambol-edit"),
                         result["packet_text"].find("andaz-brand-current-v6"))
