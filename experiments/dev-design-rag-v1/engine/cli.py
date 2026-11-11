@@ -92,7 +92,18 @@ def performance(w,page):
   def log_message(self,*z):pass
  with socketserver.TCPServer(('127.0.0.1',0),Handler) as server:
   thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
-  results=audit('http://127.0.0.1:'+str(server.server_address[1]),w/'site',w/'reports',page)
+  try:
+   results=audit('http://127.0.0.1:'+str(server.server_address[1]),w/'site',w/'reports',page)
+  except ValueError as fail:
+   mode=('desktop' if '_desktop_performance_BELOW_90' in str(fail) else 'mobile')
+   raw=w/'reports'/('lighthouse-'+page.removesuffix('.html')+'-'+mode+'.json')
+   if ('performance_BELOW_90' in str(fail) and raw.is_file()
+       and not raw.is_symlink()):
+    write(w/'reports/lighthouse-failed-bound.json',
+     {'schema':'lighthouse-failed-bound-v1','source_sha256':d['site_sha256'],
+      'qa_receipt_sha256':d['qa_receipt_sha256'],'page':page,'mode':mode,
+      'report_sha256':sha(raw),'failure':str(fail)[:160]})
+   raise
   server.shutdown()
  summary_path=w/'reports/lighthouse-summary.json'
  old=json.loads(summary_path.read_text()) if summary_path.is_file() else {}

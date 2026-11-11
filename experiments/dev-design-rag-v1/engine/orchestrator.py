@@ -6,6 +6,7 @@ from core import create,gate,sha,state,workspace,verify_review,write,require,tre
 from cli import concept,qa,performance,ingest_agent
 from reviewer import review as visual_review
 from qa_repair import run as bounded_qa_repair
+from performance_repair import improve_image_dimensions
 from contrast_repair import candidate as targeted_contrast_candidate,run as targeted_contrast_repair
 
 TRANSIENT=('429','503','RATE_LIMIT','THROTTLE','TIMEOUT','MODEL_UNAVAILABLE')
@@ -117,7 +118,19 @@ def runner(args):
                 return (old.get('source_sha256')==state(w)['site_sha256'] and
                         old.get('browser_receipt_sha256')==state(w).get('qa_receipt_sha256') and
                         page in old.get('pages',{}))
-            execute('lighthouse:'+page,lambda page=page:performance(w,page),done_page)
+            try:
+                execute('lighthouse:'+page,lambda page=page:performance(w,page),done_page)
+            except Blocked as lighthouse_error:
+                if (len(pages)!=1 or args.performance_repair_rounds<1 or
+                        'PERFORMANCE_BELOW_90' not in str(lighthouse_error)):
+                    raise
+                checkpoint('performance_repair','RUNNING','Lighthouse CLS > 0.1 source-hash-bound')
+                improved=improve_image_dimensions(w,page)
+                checkpoint('performance_repair','PASS',improved)
+                execute('browser_qa:post-performance',lambda:qa(w,','.join(pages)),
+                        lambda:state(w)['stage_status']['actual_render_and_screenshot']=='PASS')
+                execute('lighthouse:'+page+':post-performance',
+                        lambda page=page:performance(w,page),done_page)
         # Reviewer cannot attest itself; a separate owner-provisioned service signs the receipt.
         if state(w)['stage_status']['independent_artistic_review']!='PASS':
             try:
@@ -151,6 +164,7 @@ if __name__=='__main__':
     p.add_argument('--vision-model',default='qwen3-vl:2b-instruct')
     p.add_argument('--vision-timeout',type=int,default=110)
     p.add_argument('--repair-rounds',type=int,choices=[0,1,2],default=2)
+    p.add_argument('--performance-repair-rounds',type=int,choices=[0,1],default=1)
     p.add_argument('--status',action='store_true')
     a=p.parse_args()
     try:

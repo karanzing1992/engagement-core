@@ -14,7 +14,21 @@ for(const page of pages)for(const width of widths){
  const p=await ctx.newPage();let errors=[];p.on('pageerror',e=>errors.push(e.message.slice(0,220)));
  let status=0,dom={},viols=[],nav={};try{
   const res=await p.goto(opt.url+'/'+page,{waitUntil:'load',timeout:25000});
-  status=res.status();await p.waitForTimeout(200);
+  status=res.status();
+  // Deterministically settle local and lazy images before flagging broken assets.
+  await p.evaluate(async()=> {
+   await Promise.all([...document.images].map(async img=>{
+    img.loading='eager';
+    if (!img.complete) await Promise.race([
+      new Promise(resolve=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});}),
+      new Promise(resolve=>setTimeout(resolve,5000))
+    ]);
+    if(img.complete && img.naturalWidth>0 && typeof img.decode==='function'){
+      try{await img.decode()}catch(_){}
+    }
+   }));
+  });
+  await p.waitForTimeout(150);
   dom=await p.evaluate(()=>({
    title:document.title,h1:document.querySelector('h1')?.innerText.trim()||'',
    overflow:Math.max(0,document.documentElement.scrollWidth-innerWidth),
