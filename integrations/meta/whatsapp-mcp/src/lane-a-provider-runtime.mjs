@@ -178,6 +178,13 @@ function safeRead(value,depth=0,allowAnalytics=false,seen=new WeakSet(),budget={
     if(key==='error'||key==='errors')throw new Error('provider_error');
     if(typeof key!=='string'||deniedKey.test(key)||
       !Object.hasOwn(descriptors[key],'value'))throw new Error('sensitive');
+    // Preserve failure semantics at every nested Graph/MCP record boundary,
+    // including list items and analytics data points. These flags would
+    // otherwise be removed by the scoped allowlist as unknown metadata.
+    if((key==='ok'&&descriptors[key].value!==true)||
+       (key==='isError'&&descriptors[key].value!==false)||
+       ((key==='accepted'||key==='success')&&descriptors[key].value!==true))
+      throw new Error('negative_record_status');
     // Special-purpose fields must stay confined to the matching tool and
     // the actual Graph business-profile object, never to unrelated payloads.
     const profileObject=allowProfile&&(path.length===0||

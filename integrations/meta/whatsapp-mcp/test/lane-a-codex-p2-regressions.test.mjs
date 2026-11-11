@@ -254,3 +254,46 @@ test('P2 nested provider status must not be dropped while unwrapping successful 
     assert.equal(invoked,0);
   }
 });
+
+test('P2 nested Graph records fail closed on explicit rejection markers',async()=>{
+  const failed=[
+    {ok:false},{ok:'false'},{ok:null},
+    {isError:true},{isError:'true'},
+    {success:false},{accepted:false},
+    {errors:[]},{error:{message:'synthetic denied'}}
+  ];
+  for(const marker of failed){
+    for(const name of ['whatsapp_list_phone_numbers','whatsapp_get_business_account']){
+      const envelope={ok:true,data:{data:[{id:'123456789012',...marker}]}};
+      const result=await setup(name,envelope).call({});
+      assert.equal(result.isError,true,JSON.stringify({name,marker}));
+      assert.equal(result.structuredContent.error.code,'upstream_unavailable');
+      assert.ok(!JSON.stringify(result).includes('synthetic denied'));
+    }
+  }
+});
+test('P2 nested failure checks apply to analytics data points and never invoke getters',async()=>{
+  for(const marker of [{ok:false},{isError:true},{success:false},{accepted:false}]){
+    const payload={analytics:{data_points:[{sent:2,...marker}]}};
+    const response=await setup('whatsapp_get_business_analytics',{ok:true,data:payload})
+      .call({startDate:'2026-11-01',endDate:'2026-11-09'});
+    assert.equal(response.isError,true,JSON.stringify(marker));
+    assert.equal(response.structuredContent.error.code,'upstream_unavailable');
+  }
+  const row={id:'123456789012'};
+  let called=0;
+  Object.defineProperty(row,'ok',{enumerable:true,get(){
+    called++;throw Error('Untrusted getter');
+  }});
+  const result=await setup('whatsapp_list_phone_numbers',
+    {ok:true,data:{data:[row]}}).call({});
+  assert.equal(result.isError,true);
+  assert.equal(called,0);
+});
+test('P2 nested explicitly affirmative flags remain acceptable on reads',async()=>{
+  const receipt={ok:true,data:{data:[{id:'123456789012',
+    ok:true,isError:false,success:true,accepted:true}]}};
+  const result=await setup('whatsapp_list_phone_numbers',receipt).call({});
+  assert.equal(result.isError,false,JSON.stringify(result.structuredContent));
+  assert.equal(result.structuredContent.data.data[0].id,'123456789012');
+});
