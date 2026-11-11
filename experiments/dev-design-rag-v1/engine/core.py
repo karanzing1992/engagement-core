@@ -28,7 +28,7 @@ def workspace(path):
  return w
 def state(w):
  d=json.loads((w/'engine-state.json').read_text())
- require(d.get('version') in ('2.0.0',ENGINE_VERSION) and d.get('execution_mode')=='autonomous_engine_required','INVALID_ENGINE_STATE')
+ require(d.get('version') in ('2.0.0','2.1.0',ENGINE_VERSION) and d.get('execution_mode')=='autonomous_engine_required','INVALID_ENGINE_STATE')
  require(set(d.get('stage_status',{}))==set(STAGES),'INVALID_STAGES')
  return d
 def create(path,baseline,project,prompt):
@@ -64,6 +64,22 @@ def gate(w,phase='preview'):
  try:
   if s['site_sha256']!=treehash(w/'site'):bad.append('SOURCE_HASH_DRIFT')
  except Exception:bad.append('UNSAFE_OR_UNREADABLE_SITE')
+ if s['version']==ENGINE_VERSION and s['stage_status'].get('autonomous_implementation')=='PASS':
+  try:
+   accepted=json.loads((w/'reports/accepted-agent.json').read_text())
+   cursor=accepted['output_site_sha256']
+   for i,link in enumerate(s.get('repair_chain',[]),1):
+    require(link.get('old_site_sha256')==cursor,'REPAIR_CHAIN_OLD_HASH')
+    require(link.get('kind') in ('contrast','image_dimensions'),'REPAIR_KIND_INVALID')
+    receipt=w/'reports/qa-repairs'/('attempt-'+str(i)+'.json')
+    if link['kind']=='image_dimensions':receipt=w/'reports/qa-repairs'/('performance-'+str(i)+'.json')
+    require(receipt.is_file() and sha(receipt)==link.get('receipt_sha256'),'REPAIR_RECEIPT_INVALID')
+    r=json.loads(receipt.read_text())
+    require(r.get('old_site_sha256')==cursor and
+       r.get('new_site_sha256')==link.get('new_site_sha256'),'REPAIR_PROVENANCE_MISMATCH')
+    cursor=link['new_site_sha256']
+   require(cursor==s['site_sha256'],'IMPLEMENTATION_REPAIR_CHAIN_DRIFT')
+  except Exception as exc:bad.append('IMPLEMENTATION_REPAIR_PROVENANCE_INVALID:'+str(exc)[:75])
  for stage in STAGES[:6]:
   if s['stage_status'].get(stage)!='PASS':bad.append('MISSING:'+stage)
  qp=w/'reports/browser-qa.json';pages=set()

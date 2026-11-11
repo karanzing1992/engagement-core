@@ -4,6 +4,7 @@ import argparse,hashlib,json,os,re,shutil,signal,subprocess,sys,time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from core import workspace,state,treehash,write,require,RUNTIME
+from brand_guard import prioritized_context,validate_html
 def run():
  p=argparse.ArgumentParser()
  for name in ('workspace','target','task','task-id'):p.add_argument('--'+name,required=True)
@@ -17,7 +18,7 @@ def run():
  t=w/'tasks'/a.task_id;require(not t.exists(),'TASK_ALREADY_EXECUTED');t.mkdir(parents=True)
  ctx=(w/'evidence/rag-packet.txt').read_text()
  require(hashlib.sha256(ctx.encode()).hexdigest()==s['rag_sha256'],'RAG_CONTEXT_DRIFT')
- (t/'knowledge.txt').write_text(ctx[:1800])
+ (t/'knowledge.txt').write_text(prioritized_context(w))
  name=Path(a.target).name
  prompt=('Read '+str(t/'knowledge.txt')+' briefly. WRITE exactly one file to ABSOLUTE PATH '+str(t/name)+
  ' using your actual WRITE tool. Task: '+a.task+
@@ -71,6 +72,11 @@ def run():
  if success:
   data=f.read_text(errors='replace')
   if a.target.endswith('.css') and data.count('{')!=data.count('}'):success=False
+  if success and a.target.endswith('.html'):
+   try:validate_html(w,a.target,data)
+   except ValueError as exc:
+    success=False
+    (t/'validation-error.txt').write_text(str(exc))
  if success:
   target=w/'site'/a.target;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(f,target)
  receipt={'status':'PASS' if success else 'BLOCKED','agent':'opencode','task_id':a.task_id,

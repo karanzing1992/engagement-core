@@ -5,6 +5,8 @@ from pathlib import Path
 from core import create,gate,sha,state,workspace,verify_review,write,require,treehash
 from cli import concept,qa,performance,ingest_agent
 from reviewer import review as visual_review
+from qa_repair import fix_contrast
+from performance_repair import improve_image_dimensions
 
 TRANSIENT=('429','503','RATE_LIMIT','THROTTLE','TIMEOUT','MODEL_UNAVAILABLE')
 class Blocked(Exception):pass
@@ -76,7 +78,24 @@ def runner(args):
         pages=[p.strip() for p in pages if p.strip()]
         require(pages and all(Path(p).name==p and p.endswith('.html') for p in pages),
                 'ROUTE_LIST_INVALID')
-        execute('browser_qa',lambda:qa(w,','.join(pages)),lambda:state(w)['stage_status']['actual_render_and_screenshot']=='PASS')
+        try:
+            execute('browser_qa',lambda:qa(w,','.join(pages)),lambda:state(w)['stage_status']['actual_render_and_screenshot']=='PASS')
+        except Blocked as initial_qa:
+            # Only the bounded contrast-only recovery path may continue.
+            if len(pages)!=1 or not args.auto_repair:
+                raise
+            for revision in (1,2):
+                checkpoint('qa_repair:'+str(revision),'RUNNING','axe-proven contrast feedback')
+                try:
+                    detail=fix_contrast(w,pages[0],revision)
+                    checkpoint('qa_repair:'+str(revision),'PASS',detail)
+                    execute('browser_qa:revision-'+str(revision),lambda:qa(w,','.join(pages)),
+                            lambda:state(w)['stage_status']['actual_render_and_screenshot']=='PASS')
+                    break
+                except Exception as exc:
+                    checkpoint('qa_repair:'+str(revision),'BLOCKED',str(exc))
+                    if revision==2 or 'BROWSER_QA_BLOCKED' not in str(exc):
+                        raise Blocked('BOUNDED_QA_REPAIR_FAILED:'+str(exc)) from exc
         summary=w/'reports/lighthouse-summary.json'
         for page in pages:
             def done_page():
@@ -85,7 +104,18 @@ def runner(args):
                 return (old.get('source_sha256')==state(w)['site_sha256'] and
                         old.get('browser_receipt_sha256')==state(w).get('qa_receipt_sha256') and
                         page in old.get('pages',{}))
-            execute('lighthouse:'+page,lambda page=page:performance(w,page),done_page)
+            try:
+                execute('lighthouse:'+page,lambda page=page:performance(w,page),done_page)
+            except Blocked as perf_error:
+                if not args.auto_repair or len(pages)!=1 or 'PERFORMANCE_BELOW_90' not in str(perf_error):
+                    raise
+                checkpoint('performance_repair','RUNNING','Lighthouse CLS diagnosis')
+                fix=improve_image_dimensions(w,page)
+                checkpoint('performance_repair','PASS',fix)
+                execute('browser_qa:post-performance',lambda:qa(w,','.join(pages)),
+                        lambda:state(w)['stage_status']['actual_render_and_screenshot']=='PASS')
+                execute('lighthouse:'+page+':post-performance',lambda page=page:performance(w,page),
+                        done_page)
         # Reviewer cannot attest itself; a separate owner-provisioned service signs the receipt.
         if state(w)['stage_status']['independent_artistic_review']!='PASS':
             try:
@@ -118,6 +148,7 @@ if __name__=='__main__':
     p.add_argument('--pages',default='')
     p.add_argument('--vision-model',default='qwen3-vl:2b-instruct')
     p.add_argument('--vision-timeout',type=int,default=110)
+    p.add_argument('--auto-repair',action='store_true')
     p.add_argument('--status',action='store_true')
     a=p.parse_args()
     try:

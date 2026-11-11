@@ -14,7 +14,25 @@ for(const page of pages)for(const width of widths){
  const p=await ctx.newPage();let errors=[];p.on('pageerror',e=>errors.push(e.message.slice(0,220)));
  let status=0,dom={},viols=[],nav={};try{
   const res=await p.goto(opt.url+'/'+page,{waitUntil:'load',timeout:25000});
-  status=res.status();await p.waitForTimeout(200);
+  status=res.status();
+  // Browser-safe deterministic image settlement before DOM assertions.
+  await p.evaluate(async()=> {
+   const images=[...document.images];
+   await Promise.all(images.map(async img => {
+    // QA must exercise lazy content; offscreen lazy images are not broken.
+    img.loading='eager';
+    if (!img.complete) {
+     await Promise.race([
+      new Promise(resolve=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});}),
+      new Promise(resolve=>setTimeout(resolve,5000))
+     ]);
+    }
+    if(img.complete && img.naturalWidth>0 && typeof img.decode==='function'){
+     try{await img.decode()}catch(_){}
+    }
+   }));
+  });
+  await p.waitForTimeout(150);
   dom=await p.evaluate(()=>({
    title:document.title,h1:document.querySelector('h1')?.innerText.trim()||'',
    overflow:Math.max(0,document.documentElement.scrollWidth-innerWidth),
@@ -24,7 +42,7 @@ for(const page of pages)for(const width of widths){
    lang:document.documentElement.lang||'',main:!!document.querySelector('main'),placeholder:/is being redesigned|not ready for review yet/i.test(document.body.innerText)
   }));
   const axe=await new AxeBuilder({page:p}).withTags(['wcag2a','wcag2aa','wcag21aa','wcag22aa']).analyze();
-  viols=axe.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.length}));
+  viols=axe.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.length,targets:v.nodes.slice(0,12).map(n=>({target:n.target,summary:(n.failureSummary||'').slice(0,300)}))}));
   if(width<=390){
     const togg=p.locator('[aria-controls][aria-expanded]').first();
     if(await togg.count()){
