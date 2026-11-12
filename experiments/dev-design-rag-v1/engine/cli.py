@@ -17,7 +17,7 @@ def concept(w):
       next(k for k in layers if k.startswith('type/')))
  limits=(590,510,250,160)
  chunks=[k+'\n'+layers[k]['context'][:n] for k,n in zip(cues,limits)]
- prompt=('For a fresh multi-page Goa hostel website return SIX lines only, 10 to 18 words each: '
+ prompt=('For a fresh project-scoped multi-page website return SIX lines only, 10 to 18 words each: '
   'art direction, accessible palette, typography, shared navigation, layout grid, mobile UX. '
   'Use current facts, no invented facilities. No long explanation or scored review.\n'+'\n'.join(chunks))
  require(len(prompt.encode('utf8'))<=2048,'ROUTER_PUBLIC_PROMPT_2048_BYTE_LIMIT')

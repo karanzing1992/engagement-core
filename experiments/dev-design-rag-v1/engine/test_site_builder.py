@@ -14,17 +14,32 @@ class SiteBuilderSafetyTests(unittest.TestCase):
   p.write_text(json.dumps(data));return folder,p
  def test_variable_length_routes(self):
   for n in (1,5,12,32,64):
-   t,p=self.make(['route'+str(i)+'.html' for i in range(n)])
+   t,p=self.make(['index.html']+['route'+str(i)+'.html' for i in range(n-1)])
    with t:self.assertEqual(len(plan(p)['pages']),n)
  def test_page_cap_fail_closed(self):
-  t,p=self.make(['route'+str(i)+'.html' for i in range(65)])
+  t,p=self.make(['index.html']+['route'+str(i)+'.html' for i in range(64)])
   with t,self.assertRaises(ValueError):plan(p)
  def test_traversal_rejected(self):
-  t,p=self.make(['../../index.html'])
+  t,p=self.make(['index.html','../../index.html'])
   with t,self.assertRaises(ValueError):plan(p)
  def test_duplicate_rejected(self):
-  t,p=self.make(['rooms.html','rooms.html'])
+  t,p=self.make(['index.html','rooms.html','rooms.html'])
   with t,self.assertRaises(ValueError):plan(p)
+ def test_missing_homepage_rejected(self):
+  t,p=self.make(['rooms.html','contact.html'])
+  with t,self.assertRaisesRegex(ValueError,'HOMEPAGE_REQUIRED'):plan(p)
+ def test_bounded_css_target(self):
+  t,p=self.make(['index.html','rooms.html'])
+  with t:
+   j=json.loads(p.read_text());j['css_file']='assets/site.css';p.write_text(json.dumps(j))
+   self.assertEqual(plan(p)['css_file'],'assets/site.css')
+   j['css_file']='../../unsafe.css';p.write_text(json.dumps(j))
+   with self.assertRaisesRegex(ValueError,'UNSAFE_CSS_TARGET'):plan(p)
+ def test_untrusted_project_rejected(self):
+  t,p=self.make(['index.html'])
+  with t:
+   j=json.loads(p.read_text());j['project']='unverified-tenant';p.write_text(json.dumps(j))
+   with self.assertRaisesRegex(ValueError,'OWNER_VERIFIED_PROJECT'):plan(p)
  def test_inner_page_original_photo_not_forced(self):
   base=Path.home()/'.local/share/dev-design-rag-v1/certification/andaz-v9-fresh-asset-baseline-20261112'
   self.assertTrue((base/'assets/site.js').is_file())

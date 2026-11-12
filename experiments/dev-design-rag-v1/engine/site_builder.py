@@ -7,13 +7,17 @@ from cli import concept,ingest_agent,qa,performance
 from qa_repair import run as llm_qa_repair
 from contrast_repair import candidate as contrast_candidate,run as contrast_repair
 from reviewer import review
-from design_contract import validate_html
+from design_contract import validate_html,policy_for
+from multipage_contract import layout_preflight
 ENGINE=Path(__file__).resolve().parent
 ROOT=Path.home()/'.local/share/dev-design-rag-v1/certification'
 def plan(path):
- require(path.is_file() and not path.is_symlink() and path.stat().st_size<25000,'SAFE_PLAN_REQUIRED')
+ require(path.is_file() and not path.is_symlink() and path.stat().st_size<128000,'SAFE_PLAN_REQUIRED')
  d=json.loads(path.read_text());pages=d['pages']
- require(d['project']=='andaz-vibe-stay' and 1<=len(pages)<=64,'BOUNDED_SITEMAP_REQUIRED')
+ require(1<=len(pages)<=64 and policy_for(d['project']) is not None,'OWNER_VERIFIED_PROJECT_AND_SITEMAP_REQUIRED')
+ d['css_file']=d.get('css_file','assets/v9-main.css' if d['project']=='andaz-vibe-stay' else 'assets/site.css')
+ require(bool(re.fullmatch(r'assets/[a-z][a-z0-9-]{2,60}\.css',d['css_file'])),'UNSAFE_CSS_TARGET')
+ require(any(p['file']=='index.html' for p in pages),'HOMEPAGE_REQUIRED')
  require(len(set(p['file'] for p in pages))==len(pages),'DUPLICATE_ROUTE')
  for p in pages:
   require(bool(re.fullmatch(r'[a-z0-9][a-z0-9-]{2,64}\.html',p['file'])),'UNSAFE_PAGE')
@@ -52,7 +56,7 @@ def run(a):
     require((w/'site'/target).is_file(),'LOST_COMMITTED_OUTPUT')
     event(target,'REUSED');return
    require(not (w/'site'/target).exists(),'EXISTING_OUTPUT_PROTECTED')
-   for attempt in (1,2,3,4):
+   for attempt in range(1,17):
     tid='multi-'+hashlib.sha256((state(w)['job_id']+target+task+str(attempt)).encode()).hexdigest()[:22]
     receipt=w/'tasks'/tid/'receipt.json'
     if (w/'tasks'/tid).exists():
@@ -62,7 +66,7 @@ def run(a):
     else:
      cmd=['python3',str(ENGINE/'agent.py'),'--workspace',str(w),'--target',target,
           '--task',task,'--task-id',tid,'--site-brief']
-     if style:cmd.append('--style-reference')
+     if style:cmd.extend(['--style-reference','--style-path',d['css_file']])
      event(target,'START',tid)
      p=subprocess.run(cmd,capture_output=True,text=True,timeout=170)
      if p.returncode!=0 or not receipt.exists():
@@ -76,9 +80,13 @@ def run(a):
     x['completed'].append(target);event(target,'PASS',result);return
    event(target,'BLOCKED','bounded agent retries exhausted')
    raise ValueError('AGENT_GENERATION_BLOCKED:'+target)
-  build('assets/v9-main.css',d['css_task'],False)
+  build(d['css_file'],d['css_task'],False)
   for item in d['pages']:build(item['file'],item['task'],True)
   names=[p['file'] for p in d['pages']]
+  design=layout_preflight(w/'site',names,d['css_file'])
+  write(w/'reports/multipage-design-preflight.json',design)
+  event('multipage-design-preflight',design['status'],','.join(design['issues'])[:220])
+  require(design['status']=='PASS','MULTIPAGE_DESIGN_PREFLIGHT_BLOCKED')
   event('full-browser-axe','START',names)
   try:event('full-browser-axe','PASS',qa(w,','.join(names)))
   except Exception as e:

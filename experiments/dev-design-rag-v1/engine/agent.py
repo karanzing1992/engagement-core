@@ -4,13 +4,22 @@ import argparse,hashlib,json,os,re,shutil,signal,subprocess,sys,time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from core import workspace,state,treehash,write,require,RUNTIME
-from design_contract import writer_context,validate_html
+from design_contract import writer_context,validate_html,policy_for
+def normalize_trusted_script_defer(text):
+ """Narrow deterministic repair, never permits a different JS asset or inline JS."""
+ if len(re.findall(r'<script\b',text,re.I)) != 1:
+  return text,False
+ pattern=r'<script\s+src=(["\'])assets/site\.js\1\s*></script\s*>'
+ revised,count=re.subn(pattern,'<script src="assets/site.js" defer></script>',text,count=1,flags=re.I)
+ return revised,bool(count)
+
 def run():
  p=argparse.ArgumentParser()
  for name in ('workspace','target','task','task-id'):p.add_argument('--'+name,required=True)
  p.add_argument('--reference-page',default=None)
  p.add_argument('--site-brief',action='store_true')
  p.add_argument('--style-reference',action='store_true')
+ p.add_argument('--style-path',default='assets/v9-main.css')
  a=p.parse_args();w=workspace(Path(a.workspace));s=state(w)
  require(s['stage_status']['autonomous_concept_and_design']=='PASS','DESIGN_NOT_APPROVED_FOR_CODING')
  require(s['site_sha256']==treehash(w/'site'),'SOURCE_HASH_DRIFT')
@@ -24,13 +33,13 @@ def run():
  facts=writer_context(ctx,s['project'])
  # Keep owner's verified project facts before secondary general knowledge.
  # Free Groq 120b TPM=8000; bound each model input without diluting policy checks.
- (t/'knowledge.txt').write_text(facts[:2250])
+ (t/'knowledge.txt').write_text(facts[:1050])
  extra=''
  if a.site_brief:
   src=w/'evidence/full-site-brief.txt'
   require(src.is_file() and not src.is_symlink() and 100<=src.stat().st_size<=12000,'SITE_BRIEF_MISSING_OR_UNSAFE')
   full=src.read_text()
-  intro=full[:1150]
+  intro=full[:650]
   anchor='Explore requires' if a.target.startswith('explore') else (
          'Contact form must' if a.target.startswith('contact') else (
          'Rooms:' if a.target.startswith('rooms') else (
@@ -38,14 +47,20 @@ def run():
   additional=''
   if anchor and anchor in full:
    offset=full.index(anchor)
-   additional=full[offset:offset+620]
-  (t/'site-brief.txt').write_text((intro+'\n'+additional)[:1800])
-  extra+=' Read site-brief.txt for approved page facts.'
+   additional=full[offset:offset+550]
+  (t/'site-brief.txt').write_text((intro+'\n'+additional)[:1250])
+  earlier=(t/'knowledge.txt').read_text()
+  (t/'knowledge.txt').write_text(earlier+'\nAPPROVED SITE BRIEF: '+intro+'\nPAGE FACTS: '+additional)
+  extra+=' Verified page facts are included in knowledge.txt.'
  if a.style_reference:
-  src=w/'site/assets/v9-main.css'
+  require(bool(re.fullmatch(r'assets/[a-z][a-z0-9-]{2,60}\.css',a.style_path)),'UNSAFE_STYLE_PATH')
+  src=w/'site'/a.style_path
   require(src.is_file() and not src.is_symlink() and src.stat().st_size<=30000,'STYLE_REFERENCE_MISSING')
-  (t/'design.css').write_text(src.read_text()[:1150])
-  extra+=' Read design.css and link assets/v9-main.css; do not invent a different style system.'
+  (t/'design.css').write_text(src.read_text()[:650])
+  css_classes=list(dict.fromkeys(re.findall(r'\.([a-zA-Z][a-zA-Z0-9_-]+)',src.read_text())))
+  earlier=(t/'knowledge.txt').read_text()
+  (t/'knowledge.txt').write_text(earlier+'\nSHARED CSS CLASS HINTS: '+', '.join(css_classes[:30])+'; link '+a.style_path+' and preserve the shared design.')
+  extra+=' CSS and style hints are in knowledge.txt; link '+a.style_path+'.'
 
  if a.reference_page:
   require(Path(a.reference_page).name==a.reference_page and a.reference_page.endswith('.html'),'INVALID_REPAIR_REFERENCE')
@@ -66,15 +81,19 @@ def run():
      ' '+','.join(str(err)[:80] for err in row.get('errors',[])) for row in rows))
 
  name=Path(a.target).name
+ policy=policy_for(s['project'])
+ must=(' REQUIRED HTML: include EXACT visible link <a href=\"'+policy['official_whatsapp']+'\">WhatsApp enquiry</a> before main content; official logo; required navigation; viewport meta; approved trusted <script src="assets/site.js" defer></script>; one main and h1. ' if a.target.endswith('.html') and policy else '')
  prompt=('Read '+str(t/'knowledge.txt')+' briefly. WRITE exactly one file to ABSOLUTE PATH '+str(t/name)+
- ' using your actual WRITE tool. Read the FULL authorized facts first. '+
+ ' using your actual WRITE tool. Read knowledge.txt ONCE for all owner facts. Do not open other references. '+
  ('Repair from reference.html and qa-feedback.txt; keep approved brand, eliminate ALL axe issues. ' if a.reference_page else '')+
- extra+' Task: '+a.task+
- '. Do not write other files, do not publish, and do not reply before writing the file.')
- require(len(prompt)<(1450 if a.reference_page else 1100),'PROMPT_BUDGET')
+ extra+must+' Task: '+a.task+
+ '. Shared editorial components must have CSS selectors. Hero images need bounded aspect ratio, object-fit cover and responsive height. Do not write other files or publish.')
+ require(len(prompt)<(2100 if a.reference_page else 1900),'PROMPT_BUDGET')
  R=Path.home()/'.local/share/matrix-dev-router';policy=json.loads((R/'policy.json').read_text())
  require(policy.get('paid_inference_allowed') is False and policy.get('groq_free_plan_owner_confirmed'),'FREE_ROUTE_REQUIRED')
- slot=next((x for x in policy['connections'] if x['id']=='groq-oss120' and x['enabled']),None)
+ route=os.environ.get('UIUX_GROQ_FREE_ROUTE','groq-oss120')
+ require(route in ('groq-oss120','groq-oss20'),'UNAPPROVED_FREE_MODEL_ROUTE')
+ slot=next((x for x in policy['connections'] if x['id']==route and x['enabled'] and x.get('provider')=='groq'),None)
  require(slot is not None,'FREE_MODEL_UNAVAILABLE')
  key=R/'secrets'/(slot['credential_ref']+'.key')
  require(key.is_file() and key.stat().st_mode&0o077==0,'SECRET_PERMISSIONS')
@@ -97,7 +116,7 @@ def run():
  cmd+=['--ro-bind','/opt/business-house-matrix/toolchain/node_modules/opencode-ai/bin/opencode.exe','/opencode',
  '--bind',str(H),str(H),'--bind',str(t),str(t),'--proc','/proc','--dev-bind','/dev','/dev',
  '--tmpfs','/tmp','--chdir',str(t),'/opencode','run','--pure','--auto','--format','json',
- '--model','groq/openai/gpt-oss-120b',prompt]
+ '--model','groq/'+slot['model'],prompt]
  started=time.monotonic();settled=None
  with (t/'events.ndjson').open('w') as out,(t/'stderr.log').open('w') as err:
   proc=subprocess.Popen(cmd,env=env,stdout=out,stderr=err,start_new_session=True)
@@ -117,8 +136,17 @@ def run():
    if x.get('type')=='tool_use':tools.append((x.get('part') or {}).get('tool'))
   except Exception:pass
  success=f.is_file() and 200<=f.stat().st_size<=30000 and any(x in ('write','edit','apply_patch') for x in tools)
+ deterministic_repairs=[]
  if success:
   data=f.read_text(errors='replace')
+  if a.target.endswith('.html'):
+   fixed,changed=normalize_trusted_script_defer(data)
+   if changed:
+    (t/'model-original.html').write_text(data)
+    f.write_text(fixed)
+    deterministic_repairs.append({'kind':'TRUSTED_SCRIPT_DEFER_INSERTED',
+      'original_sha256':hashlib.sha256(data.encode()).hexdigest(),
+      'normalized_sha256':hashlib.sha256(fixed.encode()).hexdigest()})
   if a.target.endswith('.css') and data.count('{')!=data.count('}'):success=False
  validation=None;invalid_reason=None
  if success and a.target.endswith('.html'):
@@ -133,6 +161,7 @@ def run():
  'baseline_sha256':s['baseline_sha256'],'output_site_sha256':treehash(w/'site'),
  'task_source':'bounded_v2_rag','prompt_token_budget':1700,'code_files_written':1 if success else 0,
  'semantic_validation':validation,'validation_failure':invalid_reason,
+ 'deterministic_repairs':deterministic_repairs,
  'exit_code':exitcode,'elapsed_sec':round(time.monotonic()-started,2),'production_writes':False}
  write(t/'receipt.json',receipt);return receipt
 if __name__=='__main__':

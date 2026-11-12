@@ -28,7 +28,7 @@ def workspace(path):
  return w
 def state(w):
  d=json.loads((w/'engine-state.json').read_text())
- require(d.get('version') in ('2.0.0','2.1.0','2.1.1','2.1.2',ENGINE_VERSION) and d.get('execution_mode')=='autonomous_engine_required','INVALID_ENGINE_STATE')
+ require(d.get('version') in ('2.0.0','2.1.0','2.1.1','2.1.2','2.1.3',ENGINE_VERSION) and d.get('execution_mode')=='autonomous_engine_required','INVALID_ENGINE_STATE')
  require(set(d.get('stage_status',{}))==set(STAGES),'INVALID_STAGES')
  return d
 def create(path,baseline,project,prompt):
