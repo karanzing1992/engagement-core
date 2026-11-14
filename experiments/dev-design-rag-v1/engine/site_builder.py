@@ -30,6 +30,12 @@ def plan(path):
  require(100<len(d['full_brief'])<12000 and len(d['brand_prompt'])<800,'BRAND_BRIEF_INVALID')
  require(100<len(d['css_task'])<=650,'CSS_TASK_INVALID')
  return d
+def approved_free_model_for_task(target,recovery_epoch):
+  '''Deterministic bounded model selection after verified model-path failures.'''
+  if target=='experiences.html' and recovery_epoch>=2:return 'groq-oss120'
+  if target=='contact.html' or (recovery_epoch and target.endswith('.html')):return 'groq-oss20'
+  return None
+
 def lighthouse_with_recovery(w,names,project,event):
  """Two bounded Lighthouse passes, one raw-evidence-bound repair, no gate bypass."""
  for recovery_round in range(2):
@@ -99,10 +105,11 @@ def run(a):
      if style:cmd.extend(['--style-reference','--style-path',d['css_file']])
      event(target,'START',tid)
      env=None
-     if target=='contact.html' or (a.recovery_epoch and target.endswith('.html')):
-      # Bounded fallback to the independently approved free 20B route after repeated factual/editorial rejection.
+     selected_free_model=approved_free_model_for_task(target,a.recovery_epoch)
+     if selected_free_model:
+      # Explicit owner-verified free model only; no paid inference and never bypass QA.
       import os
-      env={**os.environ,'UIUX_GROQ_FREE_ROUTE':'groq-oss20'}
+      env={**os.environ,'UIUX_GROQ_FREE_ROUTE':selected_free_model}
      p=subprocess.run(cmd,capture_output=True,text=True,timeout=170,env=env)
      if p.returncode!=0 or not receipt.exists():
       event(target,'ATTEMPT_FAILED',p.stdout[-180:]+p.stderr[-70:]);continue
