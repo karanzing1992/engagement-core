@@ -42,6 +42,9 @@ class EditorialTests(unittest.TestCase):
  def test_food_must_preserve_owner_pricing(self):
   r=check_editorial(fixture(3), 'food.html','andaz-vibe-stay')
   self.assertIn('OWNER_PRICE_FACTS_MISSING',r['issues'])
+ def test_search_placeholder_attribute_not_unfinished_copy(self):
+  r=check_editorial(fixture(3,extra='<input placeholder="Search places" />'),'explore.html','andaz-vibe-stay')
+  self.assertNotIn('UNFINISHED_PLACEHOLDER',r['issues'])
  def test_other_tenant_not_styled_as_andaz(self):
   self.assertEqual(check_editorial('','index.html','other-approved-brand')['status'],'PASS')
 if __name__=='__main__':unittest.main()
