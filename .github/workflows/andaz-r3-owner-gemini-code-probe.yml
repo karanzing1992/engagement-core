@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo 'c5a899144b08f7db99c694c6beed5bf4a1c0fc827c2980b4cd9e25c0f6eb5712  experiments/andaz-r3-gemini-code-probe/owner_probe.py' | sha256sum --check -
+          echo '3625d3e20593f1407730fb9c41fe2681e6cadd59ec534da8d49e0d9ff589c2c5  experiments/andaz-r3-gemini-code-probe/owner_probe.py' | sha256sum --check -
           python3 -m py_compile experiments/andaz-r3-gemini-code-probe/owner_probe.py
           python3 experiments/andaz-r3-gemini-code-probe/owner_probe.py --self-test
       - name: One Gemini attempt; one retry ONLY for verified HTTP 503
