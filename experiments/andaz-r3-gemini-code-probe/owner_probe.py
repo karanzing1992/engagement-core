@@ -177,7 +177,18 @@ if __name__ == "__main__":
         except Exception as e:
             OUT.mkdir(parents=True, exist_ok=True)
             reason = str(e)
-            if not (reason.startswith(("GEMINI_HTTP_", "GEMINI_NETWORK_", "OWNER_", "EXISTING_OWNER_"))):
+            safe_failures = {
+                "CANDIDATE_LENGTH", "DOCTYPE_REQUIRED", "MAIN_H1_REQUIRED",
+                "EDITORIAL_COPY_TOO_THIN", "UNVERIFIED_PROPERTY_CLAIM",
+                "OFFICIAL_BRAND_ASSET_POLICY", "UNAPPROVED_IMAGE", "UNAPPROVED_LINK",
+                "NAV_OR_WHATSAPP_MISSING", "FOOD_TEASER_WRONG_DESTINATION",
+                "TRUSTED_SCRIPT_REQUIRED", "SHARED_CSS_REQUIRED", "UNSAFE_ACTIVE_CONTENT"
+            }
+            if isinstance(e, json.JSONDecodeError):
+                reason = "GEMINI_MODEL_JSON_INVALID"
+            elif isinstance(e, ValueError) and reason in safe_failures:
+                reason = "VALIDATION_" + reason
+            elif not reason.startswith(("GEMINI_HTTP_", "GEMINI_NETWORK_", "OWNER_", "EXISTING_OWNER_")):
                 reason = type(e).__name__ + ":VALIDATION_OR_PROVIDER_REJECTED"
             (OUT / "failed.json").write_text(json.dumps({
                 "status": "BLOCKED", "reason": reason[:110], "artistic_score": None,
