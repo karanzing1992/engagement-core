@@ -1,9 +1,33 @@
 {
   "schema": "trusted-dell-vision-request-v2.1",
-  "mode": "recipient_only",
+  "mode": "review_blob",
   "project": "andaz-vibe-stay",
   "site_sha256": "fd55deec7cfe8f7786e97c42fd9aaffe0de66634bbbf98e9aab4118b7755f4f9",
   "qa_receipt_sha256": "5959ba83e2c4a5703694577f9bb4b2a3f80c5ef619914ac405e6fb3f6b5f8080",
   "expected_images": 12,
-  "release_authorized": false
+  "release_authorized": false,
+  "blob_shas": [
+    "4c45853b5dea836f4401a9a4a4e590cbadbb210c",
+    "dd0c13025144cfeb365d533a724d6f8e45f8a10f",
+    "86eec5d446abaaeaedbb2ce33aece87f7e7f2e21",
+    "38348427864a82ce2c1112d4d99a84579a3567b9",
+    "7bc4f0ffac36ce95531969139517499f265f9560",
+    "90cc33dfbb1bc6718c89e52f2f15019f4246b763",
+    "fdf2211f5290afa115c01a00f10d6edd85679b94",
+    "83947f5a94b8bc1594364b3079bbda505b6a2d4e",
+    "1c10a2aa82f5c8953aa80a3671889b59a0991af7",
+    "7d53c27f1a1bd705cce709384b5379bee760a7f3",
+    "1407dafd00476d89597c6d61782fc1541801a0fc",
+    "a22ceff581d4fa2cc99c002758dbdafea37c75e7",
+    "a0e1450bce5fbcad124061c93e84174b83fd78d6",
+    "f032d8c3d780b9449a00e56f89c67e63d5cfb9c1",
+    "a317076d7fd35b7faf7beb3f4712bf967542b7e8",
+    "7284fbbaf6ed6225fd2f0ba78d8846f2d8632f64",
+    "c3e0ce6befd23332446b1aa073580cb743b34e15",
+    "364ff925c71aeea660d6af89afd81ef49a6c0c37",
+    "d1d125d9687205c141400cc059cc94b54cdef60b",
+    "1945977696163b10ae6475ac0ada34e71aa47f75",
+    "4778b3a6ccec91fe674dd95c995f086bb96a6105"
+  ],
+  "capsule_sha256": "84344f382acc4a3f50dcb809de941737f6b6e7db615737050d7ef855dbe081e0"
 }
