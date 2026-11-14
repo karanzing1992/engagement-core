@@ -49,6 +49,17 @@ def run():
    'select options: Non-AC six-bed dorm, AC six-bed dorm, Two-bed non-AC dorm, Private AC room. '
    'Consent checkbox required. WhatsApp redirect done by trusted JS. '
    'Never invent other locations, phone numbers, room names, prices, photos or domains.\n')
+ if s['project']=='andaz-vibe-stay':
+  verified=('\nOWNER-VERIFIED FACTS ONLY: Andaz Vibe Stay in Arambol, Goa. '
+   'Rooms are six-bed non-AC dorm, six-bed AC dorm, two-bed NON-AC SHARED DORM (not private), and private AC rooms; '
+   'do not guess private room bed layouts. Only one verified bedroom photo, for room or stay contexts. '
+   'The Andaz Table serves fresh Indian HOMESTYLE meals: Rs 180 dine-in, Rs 220 delivered inside Arambol with no delivery charge; '
+   'outside Arambol minimal additional delivery fee by enquiry. Moksha Wellness is an optional independent partner. '
+   'Official WhatsApp https://wa.me/918999541081 and official map https://maps.app.goo.gl/CrzfATU3QnmNoMZcA. '
+   'NOT VERIFIED: Wi-Fi, TV, workstation, shared kitchens, common lounges, balconies, pool, breakfast, '
+   'chefs, locally sourced ingredients, sustainability credentials, organized tours, special staff services. '
+   'NEVER claim unverified facts or use the bedroom photo as a food, pool or destination image.\n')
+  (t/'knowledge.txt').write_text((t/'knowledge.txt').read_text()+verified)
  extra=''
  if a.site_brief:
   src=w/'evidence/full-site-brief.txt'
