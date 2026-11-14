@@ -2,17 +2,9 @@
   "schema": "trusted-dell-vision-request-v2.1",
   "mode": "recipient_only",
   "project": "andaz-vibe-stay",
-  "site_sha256": "0f3d5997889a3a6fff0d93cc8ed19adc8633a53bd89b608a285a213ed4e013b1",
-  "qa_receipt_sha256": "fa5ec131ede2773b5736f36973ef9ef745f165944693582597d246a4188d4109",
-  "capsule_sha256": "2e8b5e47663f912715ae1d0e3319b270af78158d48dc5395d2452b56c173b14a",
+  "site_sha256": "e9eb3ee0579102812fb485c4d57809442b43e5658ccadcbc2be002f910e1d2f7",
+  "qa_receipt_sha256": "40738fb7d5bcf388e489e3fc488c1b75a7bb5b36b628fa7174315b5d986e5900",
   "expected_images": 12,
   "release_authorized": false,
-  "rate_limit_hold": {
-    "status": "PAUSED_HTTP_429",
-    "run_id": 42912454059,
-    "complete_private_12_review": false,
-    "artistic_score": null,
-    "resume": "explicit owner authorization once Gemini free quota recovers"
-  },
-  "blob_sha": null
+  "note": "Owner-authorized GitHub-secret recipient preparation for current six-page Andaz V9; no Gemini request or score in recipient_only mode."
 }
