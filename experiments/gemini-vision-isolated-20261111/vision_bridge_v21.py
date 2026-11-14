@@ -25,7 +25,7 @@ def gather(w):
     from core import state,sha,treehash
     w=Path(w).resolve(strict=True)
     s=state(w)
-    check(s.get("version") in ("2.0.0","2.1.0"),"ENGINE_VERSION_DENIED")
+    check(s.get("version") in ("2.0.0","2.1.0","2.1.4"),"ENGINE_VERSION_DENIED")
     check(bool(PROJECT.fullmatch(s.get("project",""))),"PROJECT_INVALID")
     check(s["site_sha256"]==treehash(w/"site"),"SOURCE_DRIFT")
     qa=w/"reports/browser-qa.json"
