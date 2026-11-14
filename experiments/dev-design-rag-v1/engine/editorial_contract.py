@@ -41,7 +41,7 @@ def check_editorial(html,page,project,room_photo='media/andaz_room_01_wide.webp'
  if page=='index.html' and room_photo not in p.images:issues.append('VERIFIED_ROOM_IMAGE_MISSING_ON_HOME')
  if page=='index.html' and p.images.count(room_photo)>2:issues.append('REPEATED_ROOM_IMAGE_OVERUSE')
  if page=='contact.html' and p.forms<1:issues.append('CONTACT_FORM_REQUIRED')
- if re.search(r'additional editorial content could go here|lorem ipsum|placeholder|coming soon',html,re.I):
+ if re.search(r'additional editorial content could go here|lorem ipsum|placeholder|coming soon',' '.join(p.words),re.I):
   issues.append('UNFINISHED_PLACEHOLDER')
  prose=' '.join(p.words)
  # Claims neither present in the owner-approved inventory nor independently verified.
