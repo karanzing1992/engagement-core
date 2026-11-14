@@ -10,6 +10,7 @@ from reviewer import review
 from performance_repair import improve_image_dimensions
 from design_contract import validate_html,policy_for
 from multipage_contract import layout_preflight
+from editorial_contract import check_editorial
 from layout_repair import repair as safe_layout_repair
 from shared_contrast_repair import repair as safe_shared_contrast_repair
 from vision_bridge import prepare as prepare_private_vision_review
@@ -125,6 +126,11 @@ def run(a):
   build(d['css_file'],d['css_task'],False)
   for item in d['pages']:build(item['file'],item['task'],True)
   names=[p['file'] for p in d['pages']]
+  factual={page:check_editorial((w/'site'/page).read_text(),page,d['project']) for page in names}
+  write(w/'reports/full-site-factual-preflight.json',{'pages':factual,'artistic_score':None,'signed_release':False})
+  problems={page:result['issues'] for page,result in factual.items() if result['status']!='PASS'}
+  event('full-site-factual-preflight','BLOCKED' if problems else 'PASS',json.dumps(problems)[:220])
+  require(not problems,'FACTUAL_GROUNDING_GATE_BLOCKED:'+json.dumps(problems)[:150])
   design=layout_preflight(w/'site',names,d['css_file'])
   write(w/'reports/multipage-design-preflight.json',design)
   event('multipage-design-preflight',design['status'],','.join(design['issues'])[:220])
