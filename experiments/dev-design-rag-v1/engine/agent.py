@@ -100,6 +100,8 @@ def run():
  name=Path(a.target).name
  policy=policy_for(s['project'])
  must=(' REQUIRED HTML: include EXACT visible link <a href=\"'+policy['official_whatsapp']+'\">WhatsApp enquiry</a> before main content; official logo; required navigation; viewport meta; approved trusted <script src="assets/site.js" defer></script>; one main and h1. Grounded facts ONLY: NO suites, balconies, luxury, guided walks, sunrise yoga, pool, sea views or global fusion. Room photo alt EXACT Andaz room interior; bedroom imagery ONLY Home/Rooms. ' if a.target.endswith('.html') and policy else '')
+ if a.target in ('experiences.html','food.html','explore.html','contact.html') and policy:
+  must+=' Use ONLY official logo img; NO other images, URLs or external assets. Design with CSS typography and genuine words. '
  prompt=('Read '+str(t/'knowledge.txt')+' briefly. WRITE exactly one file to ABSOLUTE PATH '+str(t/name)+
  ' using your actual WRITE tool. Read knowledge.txt ONCE for all owner facts. Do not open other references. '+
  ('Repair from reference.html and qa-feedback.txt; keep approved brand, eliminate ALL axe issues. ' if a.reference_page else '')+
