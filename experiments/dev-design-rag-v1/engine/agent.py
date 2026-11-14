@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from core import workspace,state,treehash,write,require,RUNTIME
 from design_contract import writer_context,validate_html,policy_for
+from editorial_contract import check_editorial
 def normalize_trusted_script_defer(text):
  """Narrow deterministic repair, never permits a different JS asset or inline JS."""
  if len(re.findall(r'<script\b',text,re.I)) != 1:
@@ -34,12 +35,28 @@ def run():
  # Keep owner's verified project facts before secondary general knowledge.
  # Free Groq 120b TPM=8000; bound each model input without diluting policy checks.
  (t/'knowledge.txt').write_text(facts[:1050])
+ if a.target=='contact.html' and s['project']=='andaz-vibe-stay':
+  # Historical V6 RAG snippets previously contaminated Contact output with unrelated countries.
+  # RAG integrity verified above; page-scoped context contains only approved owner facts.
+  (t/'knowledge.txt').write_text(
+   'OWNER-VERIFIED ANDAZ VIBE STAY ARAMBOL CONTACT FACTS ONLY.\n'
+   'Address: Temple Road, Arambol, Goa 403524, India. Phone: +91 89995 41081. '
+   'WhatsApp: https://wa.me/918999541081. Map: https://maps.app.goo.gl/CrzfATU3QnmNoMZcA. '
+   'Check-in 1 PM; checkout 11 AM. Genuine logo assets/andaz-official-cropped.webp. '
+   'Shared stylesheet assets/v9-fresh.css. Only JS assets/site.js with defer. '
+   'Pages index.html rooms.html experiences.html food.html explore.html contact.html. '
+   'Contact form exact IDs: booking-form,guest-name,room-type,guests,checkin,checkout,form-error; '
+   'select options: Non-AC six-bed dorm, AC six-bed dorm, Two-bed non-AC dorm, Private AC room. '
+   'Consent checkbox required. WhatsApp redirect done by trusted JS. '
+   'Never invent other locations, phone numbers, room names, prices, photos or domains.\n')
  extra=''
  if a.site_brief:
   src=w/'evidence/full-site-brief.txt'
   require(src.is_file() and not src.is_symlink() and 100<=src.stat().st_size<=12000,'SITE_BRIEF_MISSING_OR_UNSAFE')
   full=src.read_text()
   intro=full[:650]
+  if a.target=='contact.html':
+   intro='Andaz Vibe Stay Arambol, Goa; official WhatsApp https://wa.me/918999541081; six-page responsive editorial hostel. Only original logo, verified contact facts and approved shared CSS. No other property/brand.'
   anchor='Explore requires' if a.target.startswith('explore') else (
          'Contact form must' if a.target.startswith('contact') else (
          'Rooms:' if a.target.startswith('rooms') else (
@@ -47,7 +64,7 @@ def run():
   additional=''
   if anchor and anchor in full:
    offset=full.index(anchor)
-   additional=full[offset:offset+550]
+   additional=full[offset:offset+(360 if a.target=='contact.html' else 550)]
   (t/'site-brief.txt').write_text((intro+'\n'+additional)[:1250])
   earlier=(t/'knowledge.txt').read_text()
   (t/'knowledge.txt').write_text(earlier+'\nAPPROVED SITE BRIEF: '+intro+'\nPAGE FACTS: '+additional)
@@ -82,7 +99,7 @@ def run():
 
  name=Path(a.target).name
  policy=policy_for(s['project'])
- must=(' REQUIRED HTML: include EXACT visible link <a href=\"'+policy['official_whatsapp']+'\">WhatsApp enquiry</a> before main content; official logo; required navigation; viewport meta; approved trusted <script src="assets/site.js" defer></script>; one main and h1. ' if a.target.endswith('.html') and policy else '')
+ must=(' REQUIRED HTML: include EXACT visible link <a href=\"'+policy['official_whatsapp']+'\">WhatsApp enquiry</a> before main content; official logo; required navigation; viewport meta; approved trusted <script src="assets/site.js" defer></script>; one main and h1. Grounded facts ONLY: NO suites, balconies, luxury, guided walks, sunrise yoga, pool, sea views or global fusion. Room photo alt EXACT Andaz room interior; bedroom imagery ONLY Home/Rooms. ' if a.target.endswith('.html') and policy else '')
  prompt=('Read '+str(t/'knowledge.txt')+' briefly. WRITE exactly one file to ABSOLUTE PATH '+str(t/name)+
  ' using your actual WRITE tool. Read knowledge.txt ONCE for all owner facts. Do not open other references. '+
  ('Repair from reference.html and qa-feedback.txt; keep approved brand, eliminate ALL axe issues. ' if a.reference_page else '')+
@@ -150,7 +167,10 @@ def run():
   if a.target.endswith('.css') and data.count('{')!=data.count('}'):success=False
  validation=None;invalid_reason=None
  if success and a.target.endswith('.html'):
-  try:validation=validate_html(f.read_text(encoding='utf-8'),s['project'],w/'site',page=a.target)
+  try:
+   validation=validate_html(f.read_text(encoding='utf-8'),s['project'],w/'site',page=a.target)
+   editorial=check_editorial(f.read_text(encoding='utf-8'),a.target,s['project'])
+   if editorial['status']!='PASS':raise ValueError('EDITORIAL_GATE:'+','.join(editorial['issues']))
   except Exception as e:
    invalid_reason=type(e).__name__+':'+str(e)[:140]
    success=False
