@@ -1,0 +1,69 @@
+name: Andaz R3 Owner-only Gemini Coding Candidate (NO RELEASE)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/andaz-r3-owner-gemini-code-probe.yml'
+      - 'experiments/andaz-r3-gemini-code-probe/**'
+permissions:
+  contents: read
+jobs:
+  owner-only-candidate:
+    if: >-
+      github.repository == 'karanzing1992/engagement-core' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/andaz-r3-gemini-code-probe-20261115' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: andaz-r3-owner-code-probe
+      cancel-in-progress: true
+    steps:
+      - name: Owner-controlled source checkout (no credential persistence)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Python 3.12 for bounded stdlib-only candidate
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pin coder source and reject unsafe HTML locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '71ba743139c9802edb3cbfbec67793250365d84db8a1f600df0920e33e417afe  experiments/andaz-r3-gemini-code-probe/owner_probe.py' | sha256sum --check -
+          python3 -m py_compile experiments/andaz-r3-gemini-code-probe/owner_probe.py
+          python3 experiments/andaz-r3-gemini-code-probe/owner_probe.py --self-test
+      - name: One Gemini attempt; one retry ONLY for verified HTTP 503
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTOR" = "karanzing1992"
+          test "$GITHUB_REPOSITORY" = "karanzing1992/engagement-core"
+          for attempt in 1 2; do
+            if python3 experiments/andaz-r3-gemini-code-probe/owner_probe.py; then
+              echo "GEMINI_CODE_PROBE_CANDIDATE_GENERATED attempt=$attempt"
+              exit 0
+            fi
+            reason="$(python3 -c 'import json; print(json.load(open("out/andaz-r3-owner-code-probe/failed.json"))["reason"])')"
+            if [ "$attempt" = 1 ] && [ "$reason" = GEMINI_HTTP_503 ]; then
+              echo "GEMINI_TRANSIENT_503_BOUNDED_RETRY"
+              rm -f out/andaz-r3-owner-code-probe/failed.json
+              sleep 3
+            else
+              echo "GEMINI_CODE_PROBE_FAIL_CLOSED_REASON=$reason"
+              exit 4
+            fi
+          done
+          exit 4
+      - name: Upload generated fixture only (never a key, image or released website)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: andaz-r3-gemini-code-probe-${{ github.run_id }}
+          path: out/andaz-r3-owner-code-probe/
+          if-no-files-found: warn
+          retention-days: 1
