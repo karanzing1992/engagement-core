@@ -35,7 +35,7 @@ jobs:
           echo 'b153ede050294d2f6732572ed81302002d98d9278e231b0c55c99d2e23476536  experiments/andaz-r3-gemini-code-probe/owner_probe.py' | sha256sum --check -
           python3 -m py_compile experiments/andaz-r3-gemini-code-probe/owner_probe.py
           python3 experiments/andaz-r3-gemini-code-probe/owner_probe.py --self-test
-      - name: Exactly one secret-scoped Gemini code generation attempt
+      - name: One Gemini attempt; one retry ONLY for verified HTTP 503
         shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -43,7 +43,22 @@ jobs:
           set -euo pipefail
           test "$GITHUB_ACTOR" = "karanzing1992"
           test "$GITHUB_REPOSITORY" = "karanzing1992/engagement-core"
-          python3 experiments/andaz-r3-gemini-code-probe/owner_probe.py
+          for attempt in 1 2; do
+            if python3 experiments/andaz-r3-gemini-code-probe/owner_probe.py; then
+              echo "GEMINI_CODE_PROBE_CANDIDATE_GENERATED attempt=$attempt"
+              exit 0
+            fi
+            reason="$(python3 -c 'import json; print(json.load(open("out/andaz-r3-owner-code-probe/failed.json"))["reason"])')"
+            if [ "$attempt" = 1 ] && [ "$reason" = GEMINI_HTTP_503 ]; then
+              echo "GEMINI_TRANSIENT_503_BOUNDED_RETRY"
+              rm -f out/andaz-r3-owner-code-probe/failed.json
+              sleep 3
+            else
+              echo "GEMINI_CODE_PROBE_FAIL_CLOSED_REASON=$reason"
+              exit 4
+            fi
+          done
+          exit 4
       - name: Upload generated fixture only (never a key, image or released website)
         if: always()
         uses: actions/upload-artifact@v4
