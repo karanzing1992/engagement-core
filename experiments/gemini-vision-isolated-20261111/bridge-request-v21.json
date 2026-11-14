@@ -1,10 +1,31 @@
 {
   "schema": "trusted-dell-vision-request-v2.1",
-  "mode": "recipient_only",
+  "mode": "review_blob",
   "project": "andaz-vibe-stay",
   "site_sha256": "e9eb3ee0579102812fb485c4d57809442b43e5658ccadcbc2be002f910e1d2f7",
   "qa_receipt_sha256": "40738fb7d5bcf388e489e3fc488c1b75a7bb5b36b628fa7174315b5d986e5900",
   "expected_images": 12,
   "release_authorized": false,
-  "note": "Owner-authorized GitHub-secret recipient preparation for current six-page Andaz V9; no Gemini request or score in recipient_only mode."
+  "blob_shas": [
+    "85c5854ed543c16dd9dc684ca4a0159a6daf9e00",
+    "6bfd325efd1559a34c1ff86d2ed18465a2ae20c3",
+    "e7ce752504145ce1659b4a942e89ef8818bd8088",
+    "f7863d28182e1399a039e0a7e3dc8797ec67fdde",
+    "d8c9becc9c476573a0aeef897b25c597fba190c9",
+    "09b493247e33ca8dd488fb4c452580dedafd442e",
+    "5e9a470a7c3f7763fd8e07de04924fff34435760",
+    "5777041b2ecad48a40280f3bdca0e9de9f1dea18",
+    "9388b51763424344d575f1e8dfcafaf0f5d7bd08",
+    "0eed6d3eb7c4dc3d2d7c65d358af2f06627124da",
+    "9fd24c73c45298b072e26c0b1f61cadb39fed5d3",
+    "6b4ab129242f7a65ec39fb6a6423d4702247ee59",
+    "1676cc2bd999d5c8507c3882ba2d65c3ba4e6306",
+    "07b1c2eae2af86ec57b038c27ed2396c18237e49",
+    "ec12e4a588f9c23ea6869610d6c4dc54ffdc4a22",
+    "a43b6df0f4aee7fce47426137ddcca1024a47b7c",
+    "8707884aa93ca41f8d3d881c929fc4fd52234a2c",
+    "e72ae6e5e187fdc811571af9eccaa4c535330746",
+    "f69b9890f25631c1159e29b077122f12e95bb416"
+  ],
+  "capsule_sha256": "7a3bf76f4be037cb730f46f2fe1065fc640905bf321afe29affd71ffa6dfefc8"
 }
