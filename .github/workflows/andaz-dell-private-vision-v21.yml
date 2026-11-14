@@ -1,0 +1,55 @@
+name: Trusted Dell Gemini Private Screenshots V2.1 (NO RELEASE)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/andaz-dell-private-vision-v21.yml'
+      - 'experiments/gemini-vision-isolated-20261111/review_private_fixture_v21.py'
+      - 'experiments/gemini-vision-isolated-20261111/vision_bridge_v21.py'
+      - 'experiments/gemini-vision-isolated-20261111/bridge-request-v21.json'
+permissions:
+  contents: read
+jobs:
+  owner-trusted-review:
+    if: >-
+      github.repository == 'karanzing1992/engagement-core' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/gemini-vision-art-cert-isolated-20261111' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    concurrency:
+      group: andaz-private-gemini-bridge-v21
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned open source crypto and images
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check cryptography==46.0.3 Pillow==11.3.0
+      - name: Verify reviewer Python and request syntax
+        run: |
+          python3 -m py_compile experiments/gemini-vision-isolated-20261111/review_private_fixture_v21.py
+          python3 -m py_compile experiments/gemini-vision-isolated-20261111/vision_bridge_v21.py
+          python3 -m json.tool experiments/gemini-vision-isolated-20261111/bridge-request-v21.json >/dev/null
+      - name: Derive public recipient or review sealed Dell screenshot bundle
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GH_READ_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTOR" = "karanzing1992"
+          python3 experiments/gemini-vision-isolated-20261111/review_private_fixture_v21.py
+      - name: Keep only public recipient and image-free review JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: andaz-private-gemini-v21-${{ github.run_id }}
+          path: out/private-gemini-v21/*.json
+          retention-days: 1
+          if-no-files-found: warn
