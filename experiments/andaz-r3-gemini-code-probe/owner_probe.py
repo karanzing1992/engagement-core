@@ -117,6 +117,9 @@ PROMPT = (
     "Separate Explore section must link explore.html. Do not invent amenities, photographs, chefs, "
     "tours, sea views, balconies, pool, breakfast, parking, Wi-Fi, desk, location details or room prices. "
     "Mobile nav must be visibly discoverable and spacious. Semantic headings, good body contrast. "
+    "NEVER mention even as a disclaimer or negative claim: suites, suite, balcony, balconies, "
+    "swimming pool, free wifi, breakfast included, sea view, sea views, ocean views, "
+    "guided tours, luxury resort, private two-bed dorm. Use only the supplied facts. "
     "No extra external URLs, no remote fonts, scripts, embeds, buttons without destinations, "
     "JavaScript handlers or additional image assets."
 )
