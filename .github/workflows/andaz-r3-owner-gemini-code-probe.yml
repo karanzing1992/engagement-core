@@ -1,0 +1,54 @@
+name: Andaz R3 Owner-only Gemini Coding Candidate (NO RELEASE)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/andaz-r3-owner-gemini-code-probe.yml'
+      - 'experiments/andaz-r3-gemini-code-probe/**'
+permissions:
+  contents: read
+jobs:
+  owner-only-candidate:
+    if: >-
+      github.repository == 'karanzing1992/engagement-core' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/andaz-r3-gemini-code-probe-20261115' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: andaz-r3-owner-code-probe
+      cancel-in-progress: true
+    steps:
+      - name: Owner-controlled source checkout (no credential persistence)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Python 3.12 for bounded stdlib-only candidate
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pin coder source and reject unsafe HTML locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'b153ede050294d2f6732572ed81302002d98d9278e231b0c55c99d2e23476536  experiments/andaz-r3-gemini-code-probe/owner_probe.py' | sha256sum --check -
+          python3 -m py_compile experiments/andaz-r3-gemini-code-probe/owner_probe.py
+          python3 experiments/andaz-r3-gemini-code-probe/owner_probe.py --self-test
+      - name: Exactly one secret-scoped Gemini code generation attempt
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTOR" = "karanzing1992"
+          test "$GITHUB_REPOSITORY" = "karanzing1992/engagement-core"
+          python3 experiments/andaz-r3-gemini-code-probe/owner_probe.py
+      - name: Upload generated fixture only (never a key, image or released website)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: andaz-r3-gemini-code-probe-${{ github.run_id }}
+          path: out/andaz-r3-owner-code-probe/
+          if-no-files-found: warn
+          retention-days: 1
