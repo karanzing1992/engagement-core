@@ -6,6 +6,12 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 from core import workspace,state,treehash,write,require,RUNTIME
 from design_contract import writer_context,validate_html,policy_for
 from editorial_contract import check_editorial
+def page_scoped_verified_context(text,page,project):
+  '''Prevent a verified bedroom image from becoming a false Experiences/Food image.'''
+  if project!='andaz-vibe-stay' or page not in ('experiences.html','food.html','explore.html','contact.html'):
+   return text
+  return text.replace('media/andaz_room_01_wide.webp','[UNAVAILABLE_ON_THIS_PAGE]')
+
 def normalize_trusted_script_defer(text):
  """Narrow deterministic repair, never permits a different JS asset or inline JS."""
  if len(re.findall(r'<script\b',text,re.I)) != 1:
@@ -108,6 +114,7 @@ def run():
      ' targets='+','.join(z.get('selector','')+':'+z.get('failure_summary','')[:110] for item in row.get('axe',[]) for z in item.get('targets',[])[:2])+
      ' '+','.join(str(err)[:80] for err in row.get('errors',[])) for row in rows))
 
+ (t/'knowledge.txt').write_text(page_scoped_verified_context((t/'knowledge.txt').read_text(),a.target,s['project']))
  name=Path(a.target).name
  policy=policy_for(s['project'])
  must=(' REQUIRED HTML: include EXACT visible link <a href=\"'+policy['official_whatsapp']+'\">WhatsApp enquiry</a> before main content; official logo; required navigation; viewport meta; approved trusted <script src="assets/site.js" defer></script>; one main and h1. Grounded facts ONLY: NO suites, balconies, luxury, guided walks, sunrise yoga, pool, sea views or global fusion. Room photo alt EXACT Andaz room interior; bedroom imagery ONLY Home/Rooms. ' if a.target.endswith('.html') and policy else '')
