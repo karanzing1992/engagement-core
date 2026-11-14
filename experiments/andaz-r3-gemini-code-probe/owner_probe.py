@@ -20,7 +20,8 @@ LOGO = "assets/andaz-official-cropped.webp"
 PHOTO = "media/andaz_room_01_wide.webp"
 CSS = "assets/v9-fresh.css"
 JS = "assets/site.js"
-FORBIDDEN = re.compile(r"\b(suites?|balcon(y|ies)|swimming pool|free wifi|breakfast included|sea views?|ocean views?|guided tours?|luxury resort|private two.bed dorm)\b", re.I)
+FORBIDDEN = re.compile(r"\b(suites?|balcon(y|ies)|swimming pool|free wifi|breakfast included|sea views?|ocean views?|guided tours?|luxury resort|private two.bed dorm|well[- ]maintained dormitories|common social areas?|communal seating zones?|spontaneous gatherings?|music and shared experiences|shared lounge areas?|common lounge areas?)\b", re.I)
+STYLE_CLASSES = {"site-header", "site-footer", "container", "logo", "nav-list", "hero", "grid", "card", "btn", "cta"}
 
 def digest(value):
     return hashlib.sha256(value if isinstance(value, bytes) else value.encode()).hexdigest()
@@ -36,9 +37,11 @@ class PageInspector(HTMLParser):
         self.section_depth = 0
         self.words = []
         self.scripts = []
+        self.classes = set()
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         self.tags.append(tag)
+        self.classes.update(a.get("class", "").split())
         if tag == "section":
             self.sections.append({"text": [], "links": [], "images": []})
             self.active_section = self.sections[-1]
@@ -93,6 +96,8 @@ def validate(html):
         raise ValueError("TRUSTED_SCRIPT_REQUIRED")
     if CSS not in re.findall(r'href=["\']([^"\']+)["\']', html):
         raise ValueError("SHARED_CSS_REQUIRED")
+    if not {"site-header", "container", "nav-list", "hero"}.issubset(p.classes) or len(STYLE_CLASSES & p.classes) < 6:
+        raise ValueError("STYLE_CLASS_CONTRACT")
     if "<iframe" in html.lower() or "javascript:" in html.lower() or "onerror=" in html.lower():
         raise ValueError("UNSAFE_ACTIVE_CONTENT")
     return {"sections": len(p.sections), "visible_words": len(" ".join(p.words).split()),
@@ -116,6 +121,15 @@ PROMPT = (
     "Keep Moksha Wellness optional independent wellness partner. "
     "Separate Explore section must link explore.html. Do not invent amenities, photographs, chefs, "
     "tours, sea views, balconies, pool, breakfast, parking, Wi-Fi, desk, location details or room prices. "
+    "Match the actual verified stylesheet vocabulary: site-header with inner container, "
+    "logo image class logo, nav ul class nav-list, hero section class hero, "
+    "grid and card for content listings, btn for clickable WhatsApp enquiry, "
+    "cta for focused booking prompt and site-footer for footer. "
+    "Use at least six distinct classes from site-header, site-footer, container, logo, "
+    "nav-list, hero, grid, card, btn, cta; never invent unsupported CSS class names. "
+    "A social-hostel identity DOES NOT prove shared seating zones, a lounge, music, "
+    "hosted gatherings, maintained quality ratings or organized entertainment. "
+    "Mention none of those claims, including as negative/disclaimer statements. "
     "Mobile nav must be visibly discoverable and spacious. Semantic headings, good body contrast. "
     "NEVER mention even as a disclaimer or negative claim: suites, suite, balcony, balconies, "
     "swimming pool, free wifi, breakfast included, sea view, sea views, ocean views, "
@@ -185,7 +199,7 @@ if __name__ == "__main__":
                 "EDITORIAL_COPY_TOO_THIN", "UNVERIFIED_PROPERTY_CLAIM",
                 "OFFICIAL_BRAND_ASSET_POLICY", "UNAPPROVED_IMAGE", "UNAPPROVED_LINK",
                 "NAV_OR_WHATSAPP_MISSING", "FOOD_TEASER_WRONG_DESTINATION",
-                "TRUSTED_SCRIPT_REQUIRED", "SHARED_CSS_REQUIRED", "UNSAFE_ACTIVE_CONTENT"
+                "TRUSTED_SCRIPT_REQUIRED", "SHARED_CSS_REQUIRED", "UNSAFE_ACTIVE_CONTENT", "STYLE_CLASS_CONTRACT"
             }
             if isinstance(e, json.JSONDecodeError):
                 reason = "GEMINI_MODEL_JSON_INVALID"
