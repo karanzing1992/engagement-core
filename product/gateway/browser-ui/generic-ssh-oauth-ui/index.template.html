@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Generic SSH Linux — Secure Sign In</title>
+<style>:root{font-family:system-ui,-apple-system,sans-serif;color:#192b43;background:#eff2f5}*{box-sizing:border-box}main{max-width:460px;margin:7vh auto;background:#fff;border:1px solid #d6dfe9;border-radius:19px;padding:32px;box-shadow:0 16px 48px #101c2b12}
+h1{font-size:25px;margin:14px 0 8px}.tag{display:inline-block;background:#1b375b;color:#fff;border-radius:11px;padding:14px;font-weight:bold}p{line-height:1.5;color:#5b6778}
+label{display:block;margin:15px 0 5px;font-size:13px;font-weight:650}input{width:100%;border:1px solid #bac6d5;border-radius:9px;padding:12px;font:inherit}
+button{width:100%;background:#1b375b;color:#fff;border:0;border-radius:10px;padding:13px;margin-top:12px;font:600 15px system-ui;cursor:pointer}.secondary{background:#e8edf3;color:#192b43}
+#status{color:#6e4050;min-height:26px;font-size:13px;padding-top:15px}.detail{background:#f2f5fa;border-radius:10px;padding:15px;font-size:14px;line-height:1.8}footer{font-size:12px;color:#737e8a;margin-top:22px;line-height:1.5}
+[hidden]{display:none!important}@media(max-width:500px){main{margin:14px;padding:23px}}</style></head>
+<body><main><div class="tag" id="tag">LINUX</div><h1 id="title">Generic SSH Linux</h1>
+<p>Securely connect your ChatGPT app. Your WordPress and device connections remain separately authorized.</p>
+<section id="login"><form id="form"><label for="email">Account email</label><input id="email" type="email" autocomplete="email" required><label for="password">Password (if configured)</label><input id="password" type="password" autocomplete="current-password"><button>Sign in</button></form>
+<button type="button" id="send" class="secondary">Send one-time email code</button><section id="otpbox"><label for="otp">Already have a one-time email code?</label><input id="otp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" maxlength="8" placeholder="Enter the email code"><button id="verify" type="button">Verify email code</button></section></section>
+<section id="approval" hidden><div class="detail">Application: <b id="requester"></b><p>Requested scope: <span id="scopes"></span></p></div>
+<button id="approve" type="button">Authorize connection</button><button class="secondary" id="deny" type="button">Deny</button></section>
+<div id="status" role="status" aria-live="polite"></div><footer>Only authorize requests you initiated. Each application enforces its own site or device permissions.</footer>
+</main><script type="module" src="/app.js"></script></body></html>
