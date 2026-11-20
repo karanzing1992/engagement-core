@@ -1,0 +1,60 @@
+{
+  "version": "2.1.1",
+  "as_of": "2026-11-10",
+  "retrieval_strategy": "version-pinned source-grounded BM25 with per-layer budgets",
+  "priority": [
+    "project",
+    "brand",
+    "generic",
+    "type"
+  ],
+  "max_packet_chars": 9000,
+  "scopes": {
+    "generic/shared": {
+      "active": [
+        "uiux-v2-foundations-20261110",
+        "uiux-v2-patterns-20261110",
+        "uiux-v2-awards-trends-2026",
+        "uiux-v2-governance-qa-20261110",
+        "default-autonomous-ui-workflow-20261110"
+      ],
+      "historical": [
+        "uiux_art_basics"
+      ]
+    },
+    "type/hospitality": {
+      "active": [
+        "hospitality_design"
+      ],
+      "historical": []
+    },
+    "brand/andaz": {
+      "active": [
+        "andaz-brand-current-v6-20261110"
+      ],
+      "historical": [
+        "andaz_owner_brief_20261107",
+        "andaz-hd-authentic-logo-v5-20261109"
+      ]
+    },
+    "project/andaz-vibe-stay": {
+      "active": [
+        "andaz-v6-arambol-edit-20261110",
+        "andaz_existing_review_standard"
+      ],
+      "historical": [
+        "andaz_home95_creative_iteration",
+        "andaz_historical_defects",
+        "owner-brand-sources-20261108"
+      ]
+    }
+  },
+  "guarantees": [
+    "owner current project and brand records prioritized",
+    "historic documents never in active generative packet",
+    "generic never receives brand/private material",
+    "sources and stable document IDs returned",
+    "bounded packet with no raw JSON truncation",
+    "design and production QA gates remain separate"
+  ]
+}
