@@ -1,8 +1,0 @@
-{
-  "repository": "KaranZi/shaadi-aunty-dodge",
-  "owner_id": 11679700,
-  "prefix": "[CLAUDE-DEV]",
-  "enabled": false,
-  "model": "opus",
-  "allowed_paths": ["godot/", "docs/REUSE_LOG.md"]
-}
