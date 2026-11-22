@@ -1,0 +1,56 @@
+name: Generic Design RAG 2.1 — Reproducible OSS Source Verification (NO DEPLOY)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/generic-design-rag-v21-source-ci.yml'
+      - 'experiments/dev-design-rag-v1/**'
+permissions:
+  contents: read
+jobs:
+  isolated-source-certification:
+    if: >-
+      github.repository == 'karanzing1992/engagement-core' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/gemini-vision-art-cert-isolated-20261111'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reconstruct SHA256-bound source from versioned seven-part archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SRC='experiments/dev-design-rag-v1/source-archive'
+          cat "$SRC"/full-source-v21.tar.gz.b64.part* | base64 --decode > /tmp/design-rag-2.1.tar.gz
+          echo '27a414ad169132cb48418ddf220c2be55dbb9a7d7090f53ee034f079e1753efb  /tmp/design-rag-2.1.tar.gz' | sha256sum --check -
+          python3 - <<'PY'
+          import tarfile
+          with tarfile.open('/tmp/design-rag-2.1.tar.gz') as f:
+              names=f.getnames()
+              assert len(names)==47,(len(names),'source archive file count')
+              assert all(n.startswith('experiments/dev-design-rag-v1/') and '..' not in n.split('/') for n in names)
+              assert all(p.isfile() for p in f.getmembers())
+          PY
+          mkdir -p /tmp/generic-design-v21
+          tar -xzf /tmp/design-rag-2.1.tar.gz -C /tmp/generic-design-v21 --no-same-owner
+      - name: Install pinned open-source source-test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -r /tmp/generic-design-v21/experiments/dev-design-rag-v1/requirements.txt
+          python3 -m pip install --disable-pip-version-check cryptography==46.0.3 Pillow==11.3.0
+      - name: Certify isolated synthetic RAG and independent receipt negative tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/generic-design-v21/experiments/dev-design-rag-v1
+          python3 -m unittest discover -s tests -p 'test_*.py' -q
+          # Dell private-fixture-only certification requires separate local 9/9 test receipt.
+          python3 engine/security_tests.py
+          echo 'SOURCE_ARCHIVE_GITHUB_47_SYNTHETIC_TESTS_COMPLETE; Dell-only fixture certification not run; no art score or deployment'
