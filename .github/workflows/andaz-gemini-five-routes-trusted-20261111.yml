@@ -1,0 +1,56 @@
+name: Trusted Gemini Vision — Andaz Five Public Routes (NO RELEASE)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/andaz-gemini-five-routes-trusted-20261111.yml'
+      - 'experiments/gemini-vision-isolated-20261111/review_public_routes.py'
+permissions:
+  contents: read
+jobs:
+  owner-public-route-advisory:
+    if: >-
+      github.repository == 'karanzing1992/engagement-core' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/gemini-vision-art-cert-isolated-20261111' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    concurrency:
+      group: andaz-trusted-public-vision-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout owner-controlled PR source without stored credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install pinned Python runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install existing open-source browser dependencies
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check playwright==1.56.0 Pillow==11.3.0
+          python3 -m playwright install --with-deps chromium
+      - name: Verify reviewer source syntax
+        run: |
+          set -euo pipefail
+          python3 -m py_compile experiments/gemini-vision-isolated-20261111/review_public_routes.py
+          python3 -m py_compile experiments/gemini-vision-isolated-20261111/review_public_site.py
+      - name: Run ten sequential real-image Gemini critiques — advisory ONLY
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "karanzing1992/engagement-core"
+          test "$GITHUB_ACTOR" = "karanzing1992"
+          python3 experiments/gemini-vision-isolated-20261111/review_public_routes.py
+      - name: Preserve only public-page review JSON, never screenshots or secrets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: andaz-trusted-public-route-vision-${{ github.run_id }}
+          path: out/andaz-public-route-gemini-review/*.json
+          retention-days: 1
+          if-no-files-found: warn

@@ -1,0 +1,36 @@
+{
+  "schema": "uiux-v2.1.4-gemini-guided-autonomous-redesign-v2",
+  "project": "andaz-vibe-stay",
+  "brand_prompt": "Andaz Vibe Stay in Arambol Goa: six-page, real-photo, sunwashed editorial hostel website. Gemini review identified thin Home, bland mobile nav, low-contrast links, cramped cards, fake room-as-food imagery. Correct those problems. Use authentic approved Andaz gold logo, real room photo only for stays. No invented food/pool images. SOURCE_ONLY.",
+  "full_brief": "VERIFIED REVIEW FEEDBACK — GitHub Actions #43570601078: 12/12 real Gemini screenshot critiques; 31 issues, chiefly contrast (10), imagery (7), hierarchy (6), spacing (6). This is evidence-based advice, NOT a scored release certificate. The previous homepage had only one content section, an unfinished placeholder, plain vertical mobile navigation and too much empty cream space at desktop. The old Experiences and Food pages misused a bedroom picture as a pool/meal image. Reject and redesign from verified owner facts, never copy old generated HTML/CSS. Need true editorial art direction with healthy visual hierarchy and brand-specific, independent components. Never present Andaz as a luxury resort; it is an authentic Arambol hostel/stay. Use owner exact official logo; do not synthesize any image, do not invent photo subjects. No page may use room photo for food or experience imagery. Responsive 320/390/768/1440. 4.5:1 WCAG contrast; warm ink on sand, gold emblem is decorative only, CTAs dark and highly visible. Compact horizontal scrollable MOBILE navigation with enough touch target height (at least 44px), no expanded vertical text list. Desktop nav horizontal, refined. Do not hide important links or add unapproved scripts. Keep WhatsApp clear, visible high contrast and branded, actual fully qualified URL. Appropriate cream background with substantial but not excessive whitespace. One actual verified room photo in Home and truthful bed-type comparisons in Rooms. Food must be an expressive typography-first food editorial page WITHOUT photo of the room, product claims limited to ₹180 dine-in, ₹220 delivered inside Arambol, extra fee outside upon enquiry. Experiences social travel and Moksha partner only; no fake pool imagery. Explore: 12 meaningful known Arambol local destinations with engaging typography-only category badges, never invented photos or distances, preserve functional filters/search. Contact: breathing room, generous form label-field spacing, proper visual H1, exact trusted form IDs and no unsupported inputs or new JS. All six routes connected; one shared stylesheet with actual classes for all. Home >=3 meaningful editorial sections, >=145 words, no placeholder. Rooms >=2 sections, Experiences >=3, Food >=2, Explore >=1, Contact >=2. Review source factual honesty independently. SOURCE_ONLY; no production, no artistic score or signed certification until owner trust.",
+  "css_task": "Create a distinctive, COMPLETE responsive CSS design system for six-page authentic Arambol hostel editorial website. Ink-on-cream WCAG AA >=4.5:1, warm sand and strong charcoal, gold emblem as accent only. IMPORTANT .nav-list desktop horizontal and mobile horizontally scrollable compact pills, 44px touch targets; no vertical text-list. Actual styles for .site-header .container .logo .nav-list .hero .grid .card .btn .booking-form .form-group .site-footer .cta; responsive 320/390/768/1440. Bound real room hero, no giant empty margins. Style focus states.",
+  "pages": [
+    {
+      "file": "index.html",
+      "task": "Build substantial Andaz Vibe Stay editorial HOME, 3+ meaningful <section> blocks and 145+ words, no placeholder. Clear brand hero with headline/subhead, truthful real room interior media/andaz_room_01_wide.webp bounded 16:9, only exact official logo, Rooms preview, The Andaz Table teaser, Explore/Experiences teaser and WhatsApp CTA. No fake property claims. Use CSS classes in assets/v9-fresh.css and trusted site.js defer. Desktop balanced wide grid; mobile compact branded horizontal nav, NEVER vertical plain links. WCAG >=4.5 contrast."
+    },
+    {
+      "file": "rooms.html",
+      "task": "Write 2+ detailed <section> blocks and 110+ words describing only approved Andaz bed types: 6-bed non-AC dorm, 6-bed AC dorm, 2-bed non-AC dorm, private AC rooms. Clean truthful cards, airy comparison, booking WhatsApp. Do not invent pricing, room-view amenities, booking inventory. Heading NOT overlaid onto the room photo; no unrelated stock imagery. Use real exact logo, accessible responsive compact nav, shared assets/v9-fresh.css, approved site.js defer and all route links."
+    },
+    {
+      "file": "experiences.html",
+      "task": "Build 3+ authentic editorial <section>s, 125+ words about a relaxed hostel social vibe, local exploring, and optional Moksha Wellness as partner, not main brand. Mention only verified experiences and no unsupported pool claim. Strict: NO interior bedroom photo on experiences page; original official logo only. Elegant split typography and meaningful text cards instead of fabricated imagery. Compact horizontal mobile nav, room/food/explore/contact links, real WhatsApp CTA, shared CSS and approved JS."
+    },
+    {
+      "file": "food.html",
+      "task": "Build expressive 2+ <section> editorial FOOD page, 95+ words, The Andaz Table fresh Indian homestyle cooked meals, dine-in ₹180, delivery inside Arambol ₹220 with free delivery, outside Arambol extra fee enquiry only. NEVER use bedroom photo as a meal photo. No other unverified food photos, dish names, cuisine inventory or service hours. Lead with strong type hierarchy and graphic CSS-only pricing/dining cards, clear order WhatsApp CTA. Exact logo, links all site pages, mobile compact nav, shared CSS, site.js defer."
+    },
+    {
+      "file": "explore.html",
+      "task": "Build detailed EXPLORE Arambol page with 12 truthful local places/cards and meaningful descriptions, 1+ <section>, 65+ words, searchable/filterable categories compatible with existing trusted site.js, use existing exact filter IDs and role semantics from brief. NO invented photos, distances, directions or ratings; typography-driven destination cards with modest CSS category badges. Filters scroll horizontally and have comfortable space. Compact nav, official logo, real WhatsApp CTA, shared CSS and approved site.js defer."
+    },
+    {
+      "file": "contact.html",
+      "task": "Create 2+ generous <section>s, 110+ words, prominent Contact/Enquire H1, high contrast official WhatsApp and Maps links with authentic contact facts. Keep exact trusted booking-form field IDs guest-name,room-type,guests,checkin,checkout,form-error and consent required; select approved dorm/private types. Comfortable 44px fields and clear label spacing, responsive 2-col desktop/1-col mobile. No extra script or phone, no fake inventory. Exact official logo, six-route navigation, shared assets/v9-fresh.css, approved site.js defer."
+    }
+  ],
+  "owner_production_approved": false,
+  "css_file": "assets/v9-fresh.css",
+  "engine_version": "2.1.4"
+}

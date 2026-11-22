@@ -1,0 +1,15 @@
+{
+  "schema": "owner-verified-design-constraints-v1",
+  "project": "andaz-vibe-stay",
+  "brand": "Andaz Vibe Stay",
+  "location": "Temple Road, Arambol, Goa 403524",
+  "official_whatsapp": "https://wa.me/918999541081",
+  "official_map": "https://maps.app.goo.gl/CrzfATU3QnmNoMZcA",
+  "logo": "assets/andaz-official-cropped.webp",
+  "reference_image": "media/andaz_room_01_wide.webp",
+  "reference_image_scope": "One Andaz interior only; not other room types or facilities",
+  "required_links": ["rooms.html", "experiences.html", "explore.html", "contact.html"],
+  "prohibited_claim_patterns": ["en[- ]?suite", "king[- ]?size", "sea view", "ocean view", "view of Goa", "private balcony", "free breakfast", "instant booking", "guaranteed availability"],
+  "source": "knowledge/andaz-brand-current-v6-20261110.md",
+  "artistic_certification": "never_from_this_policy"
+}
