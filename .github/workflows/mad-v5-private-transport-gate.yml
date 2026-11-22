@@ -1,0 +1,37 @@
+name: MAD V5 | Isolated Private Media Transport Acceptance
+on:
+  push:
+    branches: [feat/mad-v5-private-transport-gate-20261105]
+    paths:
+      - 'services/reel-engine/ai-reel-api-v1/**'
+      - '.github/workflows/mad-v5-private-transport-gate.yml'
+  pull_request:
+    paths:
+      - 'services/reel-engine/ai-reel-api-v1/**'
+      - '.github/workflows/mad-v5-private-transport-gate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-private-transport:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm isolated test scope
+        run: |
+          set -euo pipefail
+          test -f services/reel-engine/ai-reel-api-v1/worker.mjs
+          test -f services/reel-engine/ai-reel-api-v1/private-transport-test/run.mjs
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg
+          fi
+      - name: Install isolated Cloudflare Worker emulator (no production secrets)
+        run: npm install --prefix services/reel-engine/ai-reel-api-v1/private-transport-test --no-save --no-audit --no-fund 'miniflare@3'
+      - name: Execute synthetic upload, KV readback, preview, auth and expiry checks
+        run: node services/reel-engine/ai-reel-api-v1/private-transport-test/run.mjs
+      # No artifact upload, no real-media source, no Groq invocation, no publishing.
